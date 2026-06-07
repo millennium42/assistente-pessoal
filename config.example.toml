@@ -1,0 +1,30 @@
+# Copie este arquivo para config.toml ou rode:
+#   assistente-pessoal init
+
+vault_path = "vault/AssistentePessoal"
+
+[localizacao]
+cidade = "Santa Maria, RS"
+latitude = -29.6868
+longitude = -53.8149
+timezone = "America/Sao_Paulo"
+
+[voz]
+modelo_whisper = "tiny"
+idioma = "pt"
+duracao_segundos = 6
+taxa_amostragem = 16000
+
+[llm]
+base_url = ""
+modelo = ""
+api_key_env = "OPENAI_API_KEY"
+
+[fontes]
+rss = [
+  "https://g1.globo.com/rss/g1/",
+  "https://www.ufsm.br/feed",
+]
+artistas = []
+musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
+
