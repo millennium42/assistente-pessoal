@@ -22,6 +22,21 @@ function Resolve-CommandPath {
     throw "Nao encontrei $Nome. Instale a ferramenta ou reinicie o terminal para atualizar o PATH."
 }
 
+function Test-NativeCommand {
+    param(
+        [scriptblock]$Comando
+    )
+
+    $PreferenciaAnterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Comando 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $PreferenciaAnterior
+    }
+}
+
 $Raiz = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Raiz
 
@@ -36,14 +51,14 @@ if ($LASTEXITCODE -ne 0) {
 $NomeCompleto = "$Owner/$Repo"
 $Url = "https://github.com/$NomeCompleto.git"
 
-& $Gh repo view $NomeCompleto | Out-Null
-if ($LASTEXITCODE -ne 0) {
+$RepoExiste = Test-NativeCommand { & $Gh repo view $NomeCompleto }
+if (-not $RepoExiste) {
     Write-Host "Criando repositorio publico $NomeCompleto..." -ForegroundColor Cyan
     & $Gh repo create $NomeCompleto --public --description "Assistente pessoal modular em Python com voz e memoria em Obsidian."
 }
 
-$RemoteAtual = & $Git remote get-url origin 2>$null
-if ($LASTEXITCODE -eq 0) {
+$Remotes = & $Git remote
+if ($Remotes -contains "origin") {
     & $Git remote set-url origin $Url
 } else {
     & $Git remote add origin $Url
@@ -52,4 +67,3 @@ if ($LASTEXITCODE -eq 0) {
 & $Git push -u origin $Branch
 
 Write-Host "Publicado em https://github.com/$NomeCompleto" -ForegroundColor Green
-
