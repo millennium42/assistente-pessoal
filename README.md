@@ -91,6 +91,12 @@ api_key_env = "OPENAI_API_KEY"
 - `voz`: gravacao push-to-talk e transcricao local.
 - `roteador`: decide qual modulo chamar a partir de texto livre.
 
+Leia tambem:
+
+- [Arquitetura da V1](docs/arquitetura.md)
+- [Guia de uso](docs/uso.md)
+- [Guia de contribuicao](CONTRIBUTING.md)
+
 ## Qualidade
 
 ```powershell
@@ -100,4 +106,3 @@ uv run ruff format --check .
 ```
 
 Todas as funcoes, classes e metodos publicos devem ter docstrings em pt-BR. Comentarios devem explicar decisoes relevantes, nao repetir mecanicamente o que cada linha faz.
-
