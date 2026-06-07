@@ -94,7 +94,9 @@ api_key_env = "OPENAI_API_KEY"
 Leia tambem:
 
 - [Arquitetura da V1](docs/arquitetura.md)
+- [Decisoes tecnicas e criticas](docs/decisoes-tecnicas.md)
 - [Guia de uso](docs/uso.md)
+- [Publicacao no GitHub](docs/publicacao-github.md)
 - [Guia de contribuicao](CONTRIBUTING.md)
 
 ## Qualidade
@@ -103,6 +105,12 @@ Leia tambem:
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+```
+
+Ou use o script:
+
+```powershell
+.\scripts\verificar.ps1
 ```
 
 Todas as funcoes, classes e metodos publicos devem ter docstrings em pt-BR. Comentarios devem explicar decisoes relevantes, nao repetir mecanicamente o que cada linha faz.
