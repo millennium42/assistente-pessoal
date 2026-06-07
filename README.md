@@ -23,6 +23,20 @@ Depois de instalar as ferramentas, reinicie o terminal se os comandos nao forem 
 
 ## Instalacao
 
+Para preparar uma maquina Windows com as ferramentas base:
+
+```powershell
+.\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
+```
+
+Para apenas conferir o que ja existe:
+
+```powershell
+.\scripts\bootstrap_windows.ps1 -SomenteVerificar
+```
+
+Instalacao manual equivalente:
+
 ```powershell
 uv venv
 uv pip install -e ".[dev]"

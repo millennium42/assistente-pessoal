@@ -2,6 +2,18 @@
 
 ## Inicializar
 
+Se a maquina ainda nao tiver Python, uv, Git, FFmpeg e GitHub CLI:
+
+```powershell
+.\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
+```
+
+Se voce so quiser conferir o ambiente:
+
+```powershell
+.\scripts\bootstrap_windows.ps1 -SomenteVerificar
+```
+
 ```powershell
 assistente-pessoal init
 ```
@@ -118,4 +130,3 @@ Exemplos de frases:
 - "memorizar revisar algebra linear"
 - "noticias"
 - "lancamentos de musica"
-

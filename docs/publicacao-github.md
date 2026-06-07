@@ -4,6 +4,12 @@ O repositório local ja está pronto na branch `codex/v1-assistente-pessoal`. A 
 
 ## 1. Fazer login
 
+Se o GitHub CLI ainda nao estiver instalado:
+
+```powershell
+.\scripts\bootstrap_windows.ps1
+```
+
 ```powershell
 gh auth login
 ```
@@ -43,4 +49,3 @@ O workflow deve executar:
 ## Observacao importante
 
 Nesta sessao, o GitHub CLI foi instalado, mas `gh auth status` retornou que nao ha login local. Por isso a publicacao remota nao pode ser feita automaticamente ainda.
-
