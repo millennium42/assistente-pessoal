@@ -44,6 +44,8 @@ uv pip install -e ".[dev]"
 
 ## Primeiro uso
 
+Para um passo a passo completo, veja [Guia de primeiro uso](docs/primeiro-uso.md).
+
 ```powershell
 assistente-pessoal init
 assistente-pessoal memoria salvar "Primeira memoria" "Quero estudar com revisoes curtas e frequentes."
@@ -107,6 +109,7 @@ api_key_env = "OPENAI_API_KEY"
 
 Leia tambem:
 
+- [Guia de primeiro uso](docs/primeiro-uso.md)
 - [Arquitetura da V1](docs/arquitetura.md)
 - [Decisoes tecnicas e criticas](docs/decisoes-tecnicas.md)
 - [Guia de uso](docs/uso.md)

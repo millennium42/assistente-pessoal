@@ -1,5 +1,7 @@
 # Guia de uso da V1
 
+Se esta for sua primeira vez com o projeto, comece pelo [Guia de primeiro uso](primeiro-uso.md). Este arquivo aqui e uma referencia mais curta dos comandos.
+
 ## Inicializar
 
 Se a maquina ainda nao tiver Python, uv, Git, FFmpeg e GitHub CLI:

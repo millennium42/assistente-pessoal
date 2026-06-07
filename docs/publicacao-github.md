@@ -1,6 +1,12 @@
 # Publicacao no GitHub
 
-O repositório local ja está pronto na branch `codex/v1-assistente-pessoal`. A publicacao remota depende de login no GitHub CLI.
+O repositorio publico da V1 esta em:
+
+```text
+https://github.com/millennium42/assistente-pessoal
+```
+
+Use este guia quando quiser autenticar o GitHub CLI, configurar o remote ou reenviar a branch atual.
 
 ## 1. Fazer login
 
@@ -10,13 +16,15 @@ Se o GitHub CLI ainda nao estiver instalado:
 .\scripts\bootstrap_windows.ps1
 ```
 
+Depois autentique:
+
 ```powershell
 gh auth login
 ```
 
 Escolha GitHub.com e autentique com sua conta `millennium42`.
 
-## 2. Criar repositório público e enviar a V1
+## 2. Criar repositorio publico e enviar a V1
 
 Depois do login:
 
@@ -26,8 +34,8 @@ Depois do login:
 
 O script:
 
-- verifica se `gh` está autenticado;
-- cria o repositório público se ele ainda não existir;
+- verifica se `gh` esta autenticado;
+- cria o repositorio publico se ele ainda nao existir;
 - adiciona ou atualiza o remote `origin`;
 - envia a branch atual para o GitHub.
 
@@ -46,6 +54,9 @@ O workflow deve executar:
 - `ruff check .`
 - `ruff format --check .`
 
-## Observacao importante
+## Estado atual da V1
 
-Nesta sessao, o GitHub CLI foi instalado, mas `gh auth status` retornou que nao ha login local. Por isso a publicacao remota nao pode ser feita automaticamente ainda.
+- Repositorio publico: `millennium42/assistente-pessoal`.
+- Branch padrao: `main`.
+- CI configurado em `.github/workflows/ci.yml`.
+
