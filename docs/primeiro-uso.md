@@ -81,12 +81,37 @@ Resultado esperado:
 
 Se falhar, leia a primeira mensagem de erro. Os problemas mais comuns sao `.venv` ausente, dependencias nao instaladas, terminal nao reiniciado depois do bootstrap ou comando rodado fora da pasta do projeto.
 
+## 4.1. Como chamar o assistente
+
+Depois da instalacao, o comando `assistente-pessoal` fica em `.venv\Scripts`. Se voce tentar rodar `assistente-pessoal init` sem ativar a venv, o PowerShell pode mostrar:
+
+```text
+assistente-pessoal : O termo 'assistente-pessoal' nao e reconhecido
+```
+
+Isso nao significa que a instalacao falhou. Use uma destas opcoes.
+
+Opcao mais direta:
+
+```powershell
+.\.venv\Scripts\assistente-pessoal.exe --help
+```
+
+Ou ative a venv uma vez por terminal:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+assistente-pessoal --help
+```
+
+Se a ativacao for bloqueada por politica do PowerShell, continue usando `.\.venv\Scripts\assistente-pessoal.exe`.
+
 ## 5. Criar a configuracao inicial
 
 Rode:
 
 ```powershell
-assistente-pessoal init
+.\.venv\Scripts\assistente-pessoal.exe init
 ```
 
 Isso cria `config.toml`, um vault dedicado em `vault/AssistentePessoal` e as pastas internas do vault:
@@ -106,7 +131,7 @@ vault/AssistentePessoal/
 Se voce quiser outro local para o vault:
 
 ```powershell
-assistente-pessoal init --vault "D:\Notas\AssistentePessoal"
+.\.venv\Scripts\assistente-pessoal.exe init --vault "D:\Notas\AssistentePessoal"
 ```
 
 ## 6. Abrir o vault no Obsidian
@@ -121,7 +146,7 @@ No Obsidian:
 O assistente grava Markdown comum. Voce pode editar as notas pelo Obsidian, mas evite apagar a pasta `.assistente` enquanto estiver usando a busca. Se apagar, rode:
 
 ```powershell
-assistente-pessoal memoria reindexar
+.\.venv\Scripts\assistente-pessoal.exe memoria reindexar
 ```
 
 ## 7. Primeiro teste de memoria
@@ -129,13 +154,13 @@ assistente-pessoal memoria reindexar
 Salve uma memoria:
 
 ```powershell
-assistente-pessoal memoria salvar "Plano de estudo" "Quero revisar calculo toda segunda e fazer questoes curtas."
+.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Plano de estudo" "Quero revisar calculo toda segunda e fazer questoes curtas."
 ```
 
 Busque a memoria:
 
 ```powershell
-assistente-pessoal memoria buscar calculo
+.\.venv\Scripts\assistente-pessoal.exe memoria buscar calculo
 ```
 
 Abra o Obsidian e confira se uma nota apareceu em `10_memoria`.
@@ -143,8 +168,8 @@ Abra o Obsidian e confira se uma nota apareceu em `10_memoria`.
 Se a busca nao encontrar nada, rode:
 
 ```powershell
-assistente-pessoal memoria reindexar
-assistente-pessoal memoria buscar calculo
+.\.venv\Scripts\assistente-pessoal.exe memoria reindexar
+.\.venv\Scripts\assistente-pessoal.exe memoria buscar calculo
 ```
 
 ## 8. Primeiro teste de estudo
@@ -152,7 +177,7 @@ assistente-pessoal memoria buscar calculo
 Crie uma nota de estudo com conteudo direto:
 
 ```powershell
-assistente-pessoal estudar "Algebra linear" --conteudo "Vetores, bases, matrizes, determinantes e transformacoes lineares."
+.\.venv\Scripts\assistente-pessoal.exe estudar "Algebra linear" --conteudo "Vetores, bases, matrizes, determinantes e transformacoes lineares."
 ```
 
 Depois abra o Obsidian e veja a nota em `20_estudos`.
@@ -164,7 +189,7 @@ Sem LLM configurado, o assistente usa um resumo local simples. Isso e proposital
 Rode:
 
 ```powershell
-assistente-pessoal clima
+.\.venv\Scripts\assistente-pessoal.exe clima
 ```
 
 O clima usa os dados em `config.toml`:
@@ -184,7 +209,7 @@ Para outra cidade, edite `cidade`, `latitude`, `longitude` e `timezone`.
 Rode:
 
 ```powershell
-assistente-pessoal noticias --limite 5
+.\.venv\Scripts\assistente-pessoal.exe noticias --limite 5
 ```
 
 As fontes ficam em `config.toml`:
@@ -215,7 +240,7 @@ musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: seu-email-ou-github
 Depois rode:
 
 ```powershell
-assistente-pessoal musica
+.\.venv\Scripts\assistente-pessoal.exe musica
 ```
 
 Critica honesta: MusicBrainz e aberto e coerente com o projeto, mas nem sempre e tao polido quanto Spotify. Para a V1, isso e aceitavel porque evita OAuth e dependencia de plataforma fechada.
@@ -225,7 +250,7 @@ Critica honesta: MusicBrainz e aberto e coerente com o projeto, mas nem sempre e
 Rode:
 
 ```powershell
-assistente-pessoal chat "o que voce consegue fazer?"
+.\.venv\Scripts\assistente-pessoal.exe chat "o que voce consegue fazer?"
 ```
 
 Sem LLM configurado, a resposta esperada e um fallback explicando os comandos locais. Isso nao e erro: o assistente deve continuar util mesmo sem IA externa.
@@ -254,7 +279,7 @@ Configure a variavel de ambiente:
 
 ```powershell
 $env:OPENAI_API_KEY="sua-chave"
-assistente-pessoal chat "resuma minhas memorias sobre calculo"
+.\.venv\Scripts\assistente-pessoal.exe chat "resuma minhas memorias sobre calculo"
 ```
 
 Para salvar a chave de forma persistente, use um mecanismo seguro do seu sistema ou um arquivo `.env` local. Nunca commite `.env`.
@@ -264,7 +289,7 @@ Para salvar a chave de forma persistente, use um mecanismo seguro do seu sistema
 Rode:
 
 ```powershell
-assistente-pessoal ouvir
+.\.venv\Scripts\assistente-pessoal.exe ouvir
 ```
 
 Fale algo curto:
@@ -314,11 +339,11 @@ Critica honesta: modelos maiores podem ficar lentos nesta maquina. Teste com cal
 Um uso simples para faculdade:
 
 ```powershell
-assistente-pessoal memoria salvar "Aula de hoje" "Professor falou de derivadas parciais e gradiente."
-assistente-pessoal estudar "Derivadas parciais" --conteudo "Derivadas parciais medem variacao em uma direcao mantendo outras variaveis constantes."
-assistente-pessoal memoria buscar gradiente
-assistente-pessoal clima
-assistente-pessoal noticias --limite 3
+.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Aula de hoje" "Professor falou de derivadas parciais e gradiente."
+.\.venv\Scripts\assistente-pessoal.exe estudar "Derivadas parciais" --conteudo "Derivadas parciais medem variacao em uma direcao mantendo outras variaveis constantes."
+.\.venv\Scripts\assistente-pessoal.exe memoria buscar gradiente
+.\.venv\Scripts\assistente-pessoal.exe clima
+.\.venv\Scripts\assistente-pessoal.exe noticias --limite 3
 ```
 
 Depois, revise as notas no Obsidian.
@@ -404,7 +429,7 @@ Teste nomes oficiais dos artistas no MusicBrainz. Alguns nomes precisam estar ex
 Reconstrua o indice:
 
 ```powershell
-assistente-pessoal memoria reindexar
+.\.venv\Scripts\assistente-pessoal.exe memoria reindexar
 ```
 
 ## 20. O que nao fazer na V1
@@ -416,4 +441,3 @@ assistente-pessoal memoria reindexar
 - Nao transforme a V1 em app desktop antes de validar o fluxo pelo terminal.
 
 Essas restricoes nao sao falta de ambicao. Sao o que mantem a primeira versao simples o bastante para evoluir.
-

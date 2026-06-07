@@ -42,24 +42,41 @@ uv venv
 uv pip install -e ".[dev]"
 ```
 
+## Como executar
+
+Depois da instalacao, o comando fica dentro da `.venv`. Escolha uma das formas:
+
+```powershell
+.\.venv\Scripts\assistente-pessoal.exe --help
+```
+
+Ou ative o ambiente virtual uma vez por terminal:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+assistente-pessoal --help
+```
+
+Se o PowerShell bloquear a ativacao, use o executavel direto em `.venv\Scripts`.
+
 ## Primeiro uso
 
 Para um passo a passo completo, veja [Guia de primeiro uso](docs/primeiro-uso.md).
 
 ```powershell
-assistente-pessoal init
-assistente-pessoal memoria salvar "Primeira memoria" "Quero estudar com revisoes curtas e frequentes."
-assistente-pessoal memoria buscar "revisoes"
-assistente-pessoal clima
-assistente-pessoal noticias
-assistente-pessoal musica
-assistente-pessoal chat "o que voce consegue fazer?"
+.\.venv\Scripts\assistente-pessoal.exe init
+.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Quero estudar com revisoes curtas e frequentes."
+.\.venv\Scripts\assistente-pessoal.exe memoria buscar "revisoes"
+.\.venv\Scripts\assistente-pessoal.exe clima
+.\.venv\Scripts\assistente-pessoal.exe noticias
+.\.venv\Scripts\assistente-pessoal.exe musica
+.\.venv\Scripts\assistente-pessoal.exe chat "o que voce consegue fazer?"
 ```
 
 Para voz:
 
 ```powershell
-assistente-pessoal ouvir
+.\.venv\Scripts\assistente-pessoal.exe ouvir
 ```
 
 O comando `ouvir` grava por alguns segundos, transcreve com `faster-whisper` e manda o texto para o roteador de comandos.
