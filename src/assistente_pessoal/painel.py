@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 
 from assistente_pessoal.clima import ClienteClima, PrevisaoClima
 from assistente_pessoal.config import AppConfig
@@ -11,14 +13,27 @@ from assistente_pessoal.noticias import ClienteNoticias, Noticia
 
 
 @dataclass(frozen=True)
+class IndicadoresDashboard:
+    """Numeros de topo usados como KPIs do painel."""
+
+    total_noticias: int
+    noticias_the_news: int
+    noticias_santa_maria: int
+    notas_recentes: int
+
+
+@dataclass(frozen=True)
 class DashboardSnapshot:
-    """Estado minimo renderizado pela GUI."""
+    """Estado consolidado renderizado pela GUI."""
 
     previsao: PrevisaoClima
     noticias: list[Noticia]
     notas_recentes: list[str]
     plano_estudos: str
     agenda_local: str
+    indicadores: IndicadoresDashboard
+    noticias_por_grupo: dict[str, int]
+    atualizado_em: str
 
 
 class DashboardService:
@@ -40,12 +55,21 @@ class DashboardService:
         ]
         plano_estudos = self.memoria.ler_documento_fixo("60_planejamento", "plano-estudos.md")
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
+        contagem_grupos = Counter(noticia.grupo for noticia in noticias)
         return DashboardSnapshot(
             previsao=previsao,
             noticias=noticias,
             notas_recentes=notas,
             plano_estudos=plano_estudos,
             agenda_local=agenda_local,
+            indicadores=IndicadoresDashboard(
+                total_noticias=len(noticias),
+                noticias_the_news=contagem_grupos.get("the_news", 0),
+                noticias_santa_maria=contagem_grupos.get("santa_maria", 0),
+                notas_recentes=len(notas),
+            ),
+            noticias_por_grupo=dict(contagem_grupos),
+            atualizado_em=datetime.now().strftime("%H:%M:%S"),
         )
 
     def salvar_nota_rapida(self, titulo: str, conteudo: str) -> str:
