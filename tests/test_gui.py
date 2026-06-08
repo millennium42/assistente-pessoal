@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from pathlib import Path
 
-from assistente_pessoal.agenda_google import ResultadoGoogleAgenda
+from assistente_pessoal.agenda_google import EventoGoogleAgenda, ResultadoGoogleAgenda
 from assistente_pessoal.cambio import CotacaoMoeda
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
@@ -85,7 +85,27 @@ class GoogleAgendaFake:
     def obter_eventos_mes(self, referencia=None, *_args, **_kwargs) -> ResultadoGoogleAgenda:
         """Devolve calendario vazio e sem erro."""
         self.referencia = referencia
-        return ResultadoGoogleAgenda(eventos=[], mes_referencia=referencia)
+        return ResultadoGoogleAgenda(
+            eventos=[
+                EventoGoogleAgenda(
+                    titulo="Passado",
+                    inicio="2026-06-08T08:00:00-03:00",
+                    fim="2026-06-08T09:00:00-03:00",
+                    link="",
+                    local="",
+                    origem="",
+                ),
+                EventoGoogleAgenda(
+                    titulo="Futuro",
+                    inicio="2099-06-08T11:00:00-03:00",
+                    fim="2099-06-08T12:00:00-03:00",
+                    link="",
+                    local="",
+                    origem="",
+                ),
+            ],
+            mes_referencia=referencia,
+        )
 
 
 class LabelFake:
@@ -115,7 +135,7 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
     assert caminho_plano == "60_planejamento/plano-estudos.md"
     assert caminho_agenda == "61_agenda_local/agenda-local.md"
     snapshot = servico.carregar()
-    assert snapshot.indicadores.eventos_google == 0
+    assert snapshot.indicadores.eventos_google == 1
     assert len(snapshot.resumo_semana) == 7
     assert snapshot.cotacao_dolar.valor == 5.25
 
