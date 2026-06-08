@@ -20,12 +20,46 @@ base_url = ""
 modelo = ""
 api_key_env = "OPENAI_API_KEY"
 
-[fontes]
-incluir_the_news_tecnologia = true
+[fontes.noticias]
+timezone = "America/Sao_Paulo"
+apenas_dia_atual = true
+prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
+
+[fontes.noticias.the_news]
+habilitado = true
+categoria = "tecnologia"
+
+[fontes.noticias.santa_maria]
+habilitado = true
+modo = "midia_local"
+titulo_fonte = "santa maria - midia local"
+urls = [
+  "https://diariosm.com.br/",
+  "https://bei.net.br/plantao/",
+]
+
+[fontes.noticias.tech]
+habilitado = true
+titulo_fonte = "tech"
 rss = [
   "https://tecnoblog.net/feed/",
   "https://www.canaltech.com.br/rss/",
   "https://olhardigital.com.br/feed/",
 ]
+
+[fontes.noticias.economia_global]
+habilitado = true
+modo = "misto"
+titulo_fonte = "economia global"
+rss = [
+  "https://www.federalreserve.gov/feeds/press_monetary.xml",
+  "https://www.federalreserve.gov/feeds/press_all.xml",
+]
+urls = [
+  "https://www.imf.org/en/News",
+  "https://www.worldbank.org/en/news",
+]
+
+[fontes]
 artistas = []
 musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"

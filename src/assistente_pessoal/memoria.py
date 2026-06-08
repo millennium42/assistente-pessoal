@@ -10,6 +10,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from assistente_pessoal.config import criar_pastas_vault
+from assistente_pessoal.core_datas import normalizar_texto_ascii
+from assistente_pessoal.core_paths import caminho_exibicao
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,15 @@ class ResultadoMemoria:
     titulo: str
     caminho: Path
     trecho: str
+
+
+@dataclass(frozen=True)
+class EstatisticasMemoria:
+    """Resumo rapido do estado atual do vault e do indice."""
+
+    vault_path: Path
+    quantidade_notas: int
+    indice_path: Path
 
 
 class MemoriaObsidian:
@@ -54,6 +65,36 @@ class MemoriaObsidian:
         caminho.write_text(texto, encoding="utf-8")
         self.indexar_nota(caminho)
         return caminho
+
+    def salvar_documento_fixo(
+        self,
+        nome_arquivo: str,
+        conteudo: str,
+        pasta: str,
+        titulo: str,
+        tags: list[str] | None = None,
+    ) -> Path:
+        """Mantem um documento canonico do vault para GUI, agenda e planejamento."""
+        self.preparar()
+        caminho = self.vault_path / pasta / nome_arquivo
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        texto = renderizar_markdown(
+            titulo=titulo,
+            conteudo=conteudo,
+            tags=tags or [],
+            timezone=self.timezone,
+        )
+        caminho.write_text(texto, encoding="utf-8")
+        self.indexar_nota(caminho)
+        return caminho
+
+    def ler_documento_fixo(self, pasta: str, nome_arquivo: str) -> str:
+        """Le o corpo Markdown de um documento fixo quando ele existir."""
+        caminho = self.vault_path / pasta / nome_arquivo
+        if not caminho.exists():
+            return ""
+        texto = caminho.read_text(encoding="utf-8")
+        return remover_front_matter(texto)
 
     def buscar(self, consulta: str, limite: int = 5) -> list[ResultadoMemoria]:
         """Busca notas pelo indice FTS5, com fallback tolerante para consultas simples."""
@@ -102,6 +143,16 @@ class MemoriaObsidian:
             self.indexar_nota(caminho)
         return len(arquivos)
 
+    def listar_recentes(self, limite: int = 5) -> list[Path]:
+        """Lista as notas mais recentes pelo nome de arquivo cronologico."""
+        self.preparar()
+        arquivos = [
+            caminho
+            for caminho in self.vault_path.rglob("*.md")
+            if ".assistente" not in caminho.parts
+        ]
+        return sorted(arquivos, reverse=True)[:limite]
+
     def indexar_nota(self, caminho: Path) -> None:
         """Insere ou atualiza uma nota no indice SQLite FTS5."""
         titulo, conteudo = extrair_titulo_e_conteudo(caminho)
@@ -114,6 +165,26 @@ class MemoriaObsidian:
                 """,
                 (titulo, str(caminho), conteudo),
             )
+
+    def estatisticas(self) -> EstatisticasMemoria:
+        """Calcula um pequeno resumo util para diagnostico e GUI."""
+        self.preparar()
+        quantidade = len(
+            [
+                caminho
+                for caminho in self.vault_path.rglob("*.md")
+                if ".assistente" not in caminho.parts
+            ]
+        )
+        return EstatisticasMemoria(
+            vault_path=self.vault_path,
+            quantidade_notas=quantidade,
+            indice_path=self.indice_path,
+        )
+
+    def caminho_relativo(self, caminho: Path) -> str:
+        """Exibe um caminho relativo ao vault para facilitar a abertura no Obsidian."""
+        return caminho_exibicao(caminho, self.vault_path)
 
     def _criar_schema(self) -> None:
         """Cria a tabela FTS5 usada como indice de busca local."""
@@ -149,6 +220,16 @@ tags:
 """
 
 
+def remover_front_matter(texto: str) -> str:
+    """Remove o front matter YAML mantendo apenas o corpo util do documento."""
+    if not texto.startswith("---\n"):
+        return texto
+    partes = texto.split("---\n", maxsplit=2)
+    if len(partes) < 3:
+        return texto
+    return partes[2].lstrip()
+
+
 def extrair_titulo_e_conteudo(caminho: Path) -> tuple[str, str]:
     """Extrai titulo e conteudo textual de uma nota Markdown."""
     texto = caminho.read_text(encoding="utf-8")
@@ -160,29 +241,16 @@ def extrair_titulo_e_conteudo(caminho: Path) -> tuple[str, str]:
 
 def slugificar(texto: str) -> str:
     """Transforma texto livre em um nome de arquivo estavel e legivel."""
-    texto_minusculo = texto.lower().strip()
-    texto_sem_acento = (
-        texto_minusculo.replace("á", "a")
-        .replace("à", "a")
-        .replace("ã", "a")
-        .replace("â", "a")
-        .replace("é", "e")
-        .replace("ê", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ô", "o")
-        .replace("õ", "o")
-        .replace("ú", "u")
-        .replace("ç", "c")
-    )
-    slug = re.sub(r"[^a-z0-9]+", "-", texto_sem_acento).strip("-")
+    texto_minusculo = normalizar_texto_ascii(texto).lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", texto_minusculo).strip("-")
     return slug or "nota"
 
 
 def normalizar_consulta_fts(consulta: str) -> str:
     """Remove caracteres que quebram a sintaxe FTS5 e preserva termos uteis."""
-    termos = re.findall(r"[\wÀ-ÿ]+", consulta, flags=re.UNICODE)
-    return " ".join(termos) or consulta
+    consulta_ascii = normalizar_texto_ascii(consulta)
+    termos = re.findall(r"[\w]+", consulta_ascii, flags=re.UNICODE)
+    return " ".join(termos) or consulta_ascii
 
 
 def _timestamp_slug(timezone: str) -> str:

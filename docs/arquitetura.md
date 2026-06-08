@@ -1,40 +1,56 @@
-# Arquitetura da V1
+# Arquitetura
 
-Este documento explica como a V1 foi desenhada e por que algumas escolhas foram feitas.
+Esta versao separa o projeto em camadas pequenas para reduzir acoplamento entre interface, servicos e fontes externas.
 
 ## Principios
 
-- **Modularidade antes de brilho:** cada capacidade fica em um modulo proprio para poder ser trocada depois.
-- **Memoria legivel por humanos:** o Obsidian guarda Markdown comum, entao a memoria nao fica presa ao assistente.
-- **Falha graciosa:** rede, LLM e microfone podem falhar; os outros comandos devem continuar funcionando.
-- **pt-BR como padrao:** mensagens, README, docstrings e comentarios importantes devem estar em portugues brasileiro.
+- Markdown primeiro: a memoria precisa continuar util fora do assistente
+- configuracao previsivel: caminho relativo deve ser resolvido a partir do `config.toml`
+- falha local e isolada: uma fonte de noticia ruim nao deve derrubar o restante
+- privacidade por padrao: sem segredos em arquivo e sem logar conteudo pessoal por acidente
 
-## Modulos
+## Blocos principais
 
-- `cli`: comandos Typer e apresentacao no terminal.
-- `config`: leitura de `config.toml`, `.env` e criacao inicial do vault.
-- `memoria`: escrita de Markdown e indice SQLite FTS5.
-- `estudos`: resumo local ou via LLM e perguntas de revisao.
-- `noticias`: agregacao do The News tecnologia e RSS/Atom tech com `feedparser`.
-- `clima`: consulta Open-Meteo.
-- `musica`: consulta MusicBrainz respeitando identificacao por User-Agent.
-- `llm`: adaptador pequeno para endpoints compativeis com OpenAI.
-- `voz`: gravacao push-to-talk e transcricao com `faster-whisper`.
-- `roteador`: interpretacao simples de texto livre para comandos da V1.
+- `config`: leitura do `config.toml`, defaults e criacao do vault
+- `core_paths`: resolucao de caminhos relativos e exibicao segura
+- `core_datas`: datas, timezone e resolucao de `hoje|amanha|dia da semana`
+- `memoria`: Markdown, SQLite FTS5, documentos fixos do dashboard
+- `clima`: Open-Meteo com previsao por dia selecionado
+- `fontes_noticias`: adaptadores de The News, RSS e HTML com JSON-LD
+- `noticias`: orquestracao por prioridade
+- `painel`: casos de uso consumidos pela GUI
+- `gui`: dashboard local com NiceGUI
+- `cli`: comandos Typer
+- `roteador`: texto livre para clima, noticias, memoria e estudo
 
-## Fluxo de voz
+## Fluxo do Obsidian
 
-1. `assistente-pessoal ouvir` grava audio curto.
-2. `voz` salva WAV temporario e transcreve em CPU.
-3. `roteador` recebe a transcricao como texto.
-4. O modulo correspondente executa a acao.
-5. O resultado volta em texto no terminal.
+1. `config.toml` define `vault_path`
+2. se `vault_path` for relativo, ele e resolvido pela pasta do `config.toml`
+3. `memoria` cria e indexa `.md` dentro do vault efetivo
+4. `memoria info` mostra exatamente qual pasta deve ser aberta no Obsidian
 
-A V1 evita wake word porque o hardware atual e simples para escuta continua. Push-to-talk e menos magico, mas e mais honesto e testavel.
+Isso corrige o caso em que a pessoa executa o projeto em uma pasta, mas abre outro vault no Obsidian.
 
-## Memoria
+## Fluxo de noticias
 
-O vault dedicado evita misturar notas pessoais com arquivos gerados. A estrutura inicial e:
+1. `noticias` recebe `NoticiasConfig`
+2. `ClienteNoticias` percorre `prioridades`
+3. cada grupo usa o adaptador apropriado:
+   - `TheNewsSource`
+   - `RssNewsSource`
+   - `HtmlJsonLdNewsSource`
+4. os itens sao filtrados para o dia atual local
+5. a interface recebe uma lista normalizada de `Noticia`
+
+## Fluxo da GUI
+
+1. `assistente-pessoal gui` carrega a configuracao
+2. `DashboardService` monta um snapshot com clima, noticias e textos do vault
+3. `gui` renderiza blocos editaveis
+4. salvar agenda/plano escreve em arquivos fixos do vault
+
+## Estrutura do vault
 
 - `00_inbox`
 - `10_memoria`
@@ -42,25 +58,7 @@ O vault dedicado evita misturar notas pessoais com arquivos gerados. A estrutura
 - `30_resumos`
 - `40_noticias`
 - `50_musica`
+- `60_planejamento`
+- `61_agenda_local`
 - `90_logs`
-
-O indice tecnico fica em `.assistente/index.sqlite3`. Ele pode ser apagado e recriado com `assistente-pessoal memoria reindexar`.
-
-## IA
-
-O LLM e opcional. Quando `base_url` e `modelo` estao vazios, o assistente responde com fallback e segue executando comandos locais.
-
-O adaptador usa o formato `/chat/completions`, o que permite:
-
-- provedores cloud compativeis com OpenAI;
-- Ollama em `http://localhost:11434/v1`;
-- outros servidores locais no futuro.
-
-## Pontos que ficam para V2
-
-- Interface web ou desktop.
-- Wake word.
-- TTS neural com Piper.
-- Busca vetorial/RAG.
-- Agenda e automacoes recorrentes.
-- Preferencias musicais vindas de Spotify/ListenBrainz.
+- `.assistente/index.sqlite3`

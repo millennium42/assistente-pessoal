@@ -29,11 +29,7 @@ class RoteadorComandos:
         if "clima" in comando_minusculo or "tempo" in comando_minusculo:
             return formatar_previsao(ClienteClima().obter_previsao(self.config.localizacao))
         if "noticia" in comando_minusculo or "noticias" in comando_minusculo:
-            noticias = ClienteNoticias().listar(
-                self.config.fontes.rss,
-                incluir_the_news_tecnologia=self.config.fontes.incluir_the_news_tecnologia,
-                timezone_local=self.config.localizacao.timezone,
-            )
+            noticias = ClienteNoticias().listar(self.config.fontes.noticias)
             return formatar_noticias(noticias)
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:
             cliente = ClienteMusica(self.config.fontes.musicbrainz_user_agent)
@@ -41,7 +37,7 @@ class RoteadorComandos:
         if comando_minusculo.startswith(("memorize ", "memorizar ", "salve ", "salvar ")):
             conteudo = _remover_prefixo_memoria(comando)
             caminho = self.memoria.salvar_nota("Memoria rapida", conteudo, tags=["memoria-rapida"])
-            return f"Memoria salva em {caminho}."
+            return f"Memoria salva em {self.memoria.caminho_relativo(caminho)}."
         if comando_minusculo.startswith(("buscar ", "procure ", "pesquisar ")):
             consulta = _remover_prefixo_busca(comando)
             resultados = self.memoria.buscar(consulta)
@@ -51,7 +47,7 @@ class RoteadorComandos:
         if comando_minusculo.startswith("estudar "):
             tema = comando.removeprefix("estudar").strip() or "Tema sem nome"
             caminho = criar_nota_estudo(self.memoria, tema, tema, self.llm)
-            return f"Nota de estudo criada em {caminho}."
+            return f"Nota de estudo criada em {self.memoria.caminho_relativo(caminho)}."
         resposta = self.llm.gerar(comando, contexto=_contexto_memoria(self.memoria, comando))
         if resposta:
             return resposta.texto

@@ -59,4 +59,4 @@ O workflow deve executar:
 - Repositorio publico: `millennium42/assistente-pessoal`.
 - Branch padrao: `main`.
 - CI configurado em `.github/workflows/ci.yml`.
-
+- Documentacao local revisada para evitar caminhos pessoais nos exemplos.
