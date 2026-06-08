@@ -84,8 +84,8 @@ def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
     assert "2026-06-09" in result.output
 
 
-def test_cli_noticias_usa_limite_padrao_50(monkeypatch, tmp_path: Path) -> None:
-    """Comando de noticias usa 50 itens quando --limite nao e informado."""
+def test_cli_noticias_usa_limite_padrao_100(monkeypatch, tmp_path: Path) -> None:
+    """Comando de noticias usa 100 itens quando --limite nao e informado."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
     vault = tmp_path / "vault"

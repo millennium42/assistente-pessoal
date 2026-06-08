@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import hashlib
 import socket
 from datetime import datetime, timedelta
 from html import escape
@@ -34,13 +35,15 @@ GRUPOS_LABEL = {
     "santa_maria": "Santa Maria",
     "tech": "Tech",
     "economia_global": "Economia Global",
+    "interesses": "Interesses",
 }
 
 GRUPOS_COR = {
-    "the_news": "#1d4ed8",
-    "santa_maria": "#0f766e",
-    "tech": "#7c3aed",
-    "economia_global": "#b45309",
+    "the_news": "#22d3ee",
+    "santa_maria": "#34d399",
+    "tech": "#f472b6",
+    "economia_global": "#fbbf24",
+    "interesses": "#a3e635",
 }
 
 LOGO_APPA_FILE = Path(__file__).resolve().parents[2] / "assets" / "appa-logo-minimal.png"
@@ -123,17 +126,49 @@ def _dashboard_css() -> str:
     """Mantem o tema visual centralizado para facilitar futuras iteracoes de produto."""
     return """
     :root {
-      --appa-bg: #f3f5f7;
+      --appa-bg: #060914;
+      --appa-panel: #101727;
+      --appa-panel-soft: #151f31;
+      --appa-panel-strong: #0b1020;
+      --appa-ink: #edf7ff;
+      --appa-muted: #9fb2c7;
+      --appa-line: rgba(143, 164, 196, 0.24);
+      --appa-accent: #22d3ee;
+      --appa-blue: #60a5fa;
+      --appa-green: #34d399;
+      --appa-amber: #fbbf24;
+      --appa-rose: #fb7185;
+      --appa-magenta: #f472b6;
+      --appa-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+      --appa-cell: rgba(11, 16, 32, 0.88);
+      --appa-command: rgba(9, 14, 28, 0.88);
+      --appa-card-bg: rgba(12, 18, 34, 0.92);
+      --appa-card-subtle: rgba(21, 31, 49, 0.76);
+      --appa-empty: rgba(11, 16, 32, 0.54);
+      --appa-input-bg: rgba(8, 13, 26, 0.64);
+    }
+
+    html[data-theme="light"] {
+      --appa-bg: #f4f7fb;
       --appa-panel: #ffffff;
-      --appa-panel-soft: #f8fafc;
-      --appa-ink: #17202a;
-      --appa-muted: #65758b;
-      --appa-line: #d9e2ec;
-      --appa-accent: #0f766e;
+      --appa-panel-soft: #eef5fb;
+      --appa-panel-strong: #e6edf5;
+      --appa-ink: #0f172a;
+      --appa-muted: #536276;
+      --appa-line: rgba(64, 85, 112, 0.18);
+      --appa-accent: #0891b2;
       --appa-blue: #2563eb;
-      --appa-amber: #b45309;
+      --appa-green: #059669;
+      --appa-amber: #b7791f;
       --appa-rose: #be123c;
-      --appa-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+      --appa-magenta: #be185d;
+      --appa-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+      --appa-cell: rgba(255, 255, 255, 0.88);
+      --appa-command: rgba(255, 255, 255, 0.86);
+      --appa-card-bg: rgba(255, 255, 255, 0.92);
+      --appa-card-subtle: rgba(238, 245, 251, 0.84);
+      --appa-empty: rgba(238, 245, 251, 0.68);
+      --appa-input-bg: rgba(255, 255, 255, 0.72);
     }
 
     html[data-density="compact"] {
@@ -148,11 +183,34 @@ def _dashboard_css() -> str:
 
     body.appa-dashboard {
       background:
-        linear-gradient(180deg, rgba(15, 118, 110, 0.05), rgba(243, 245, 247, 0) 260px),
+        linear-gradient(
+          180deg,
+          rgba(34, 211, 238, 0.10),
+          rgba(244, 114, 182, 0.04) 270px,
+          transparent 560px
+        ),
+        linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(52, 211, 153, 0.035) 1px, transparent 1px),
         var(--appa-bg);
+      background-size: auto, 44px 44px, 44px 44px, auto;
       color: var(--appa-ink);
       font-family:
         Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .appa-dashboard .q-page,
+    .appa-dashboard .nicegui-content {
+      background: transparent;
+    }
+
+    .appa-dashboard .text-slate-400,
+    .appa-dashboard .text-slate-500 {
+      color: var(--appa-muted) !important;
+    }
+
+    .appa-dashboard .text-slate-700,
+    .appa-dashboard .text-slate-800 {
+      color: var(--appa-ink) !important;
     }
 
     .dashboard-shell {
@@ -166,7 +224,9 @@ def _dashboard_css() -> str:
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
       align-items: stretch;
-      background: var(--appa-panel);
+      background:
+        linear-gradient(135deg, rgba(34, 211, 238, 0.12), transparent 36%),
+        linear-gradient(90deg, var(--appa-panel), var(--appa-panel-strong));
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       box-shadow: var(--appa-shadow);
@@ -186,8 +246,9 @@ def _dashboard_css() -> str:
       height: 58px;
       border-radius: 8px;
       object-fit: cover;
-      border: 1px solid #c8d4e0;
-      background: #eef6f5;
+      border: 1px solid rgba(34, 211, 238, 0.42);
+      background: var(--appa-panel-soft);
+      box-shadow: 0 0 24px rgba(34, 211, 238, 0.16);
     }
 
     .appa-kicker {
@@ -222,7 +283,7 @@ def _dashboard_css() -> str:
     }
 
     .summary-cell {
-      background: #fbfdff;
+      background: var(--appa-cell);
       padding: 15px 18px;
     }
 
@@ -245,12 +306,12 @@ def _dashboard_css() -> str:
       position: sticky;
       top: 0;
       z-index: 8;
-      background: rgba(255, 255, 255, 0.92);
+      background: var(--appa-command);
       backdrop-filter: blur(10px);
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: 12px 14px;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
     }
 
     .commandbar-note,
@@ -267,19 +328,21 @@ def _dashboard_css() -> str:
       height: 8px;
       border-radius: 999px;
       background: #22c55e;
-      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16), 0 0 18px rgba(34, 197, 94, 0.24);
     }
 
-    .density-toggle {
+    .density-toggle,
+    .theme-toggle {
       display: inline-flex;
       gap: 4px;
       padding: 3px;
       border: 1px solid var(--appa-line);
       border-radius: 8px;
-      background: var(--appa-panel-soft);
+      background: var(--appa-card-subtle);
     }
 
-    .density-toggle button {
+    .density-toggle button,
+    .theme-toggle button {
       border: 0;
       border-radius: 6px;
       padding: 7px 10px;
@@ -290,10 +353,11 @@ def _dashboard_css() -> str:
       cursor: pointer;
     }
 
-    .density-toggle button.is-active {
+    .density-toggle button.is-active,
+    .theme-toggle button.is-active {
       color: var(--appa-ink);
-      background: var(--appa-panel);
-      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+      background: rgba(34, 211, 238, 0.15);
+      box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28);
     }
 
     .kpi-grid {
@@ -302,12 +366,14 @@ def _dashboard_css() -> str:
 
     .kpi {
       position: relative;
-      background: var(--appa-panel);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+        var(--appa-panel);
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: var(--appa-card-pad, 16px);
       min-height: 104px;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
       overflow: hidden;
     }
 
@@ -322,10 +388,10 @@ def _dashboard_css() -> str:
     }
 
     .kpi:nth-child(2)::before { background: var(--appa-accent); }
-    .kpi:nth-child(3)::before { background: var(--appa-amber); }
-    .kpi:nth-child(4)::before { background: var(--appa-rose); }
-    .kpi:nth-child(5)::before { background: #475569; }
-    .kpi:nth-child(6)::before { background: #047857; }
+    .kpi:nth-child(3)::before { background: var(--appa-green); }
+    .kpi:nth-child(4)::before { background: var(--appa-amber); }
+    .kpi:nth-child(5)::before { background: var(--appa-magenta); }
+    .kpi:nth-child(6)::before { background: var(--appa-rose); }
 
     .kpi-label {
       color: var(--appa-muted);
@@ -347,14 +413,20 @@ def _dashboard_css() -> str:
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.20);
     }
 
     .expansion-shell .q-expansion-item__container > .q-item {
       min-height: 58px;
       padding: 13px 16px;
-      background: #fbfdff;
+      background: var(--appa-cell);
       border-bottom: 1px solid var(--appa-line);
+    }
+
+    .expansion-shell .q-item__section--avatar,
+    .expansion-shell .q-icon,
+    .expansion-shell .q-expansion-item__toggle-icon {
+      color: var(--appa-accent);
     }
 
     .expansion-shell .q-item__label {
@@ -369,7 +441,9 @@ def _dashboard_css() -> str:
 
     .expansion-shell .q-expansion-item__content > div {
       padding: 16px;
-      background: var(--appa-panel);
+      background:
+        linear-gradient(180deg, rgba(34, 211, 238, 0.035), transparent 180px),
+        var(--appa-panel);
     }
 
     .section-title {
@@ -390,10 +464,10 @@ def _dashboard_css() -> str:
     }
 
     .stat-box {
-      border: 1px solid #e1e8f0;
+      border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: 10px 12px;
-      background: var(--appa-panel-soft);
+      background: var(--appa-card-subtle);
     }
 
     .weather-panel {
@@ -404,10 +478,12 @@ def _dashboard_css() -> str:
     }
 
     .weather-now {
-      border: 1px solid #d5e4e2;
+      border: 1px solid rgba(52, 211, 153, 0.28);
       border-radius: 8px;
       padding: 16px;
-      background: linear-gradient(180deg, #f5fbfa, #ffffff);
+      background:
+        linear-gradient(145deg, rgba(52, 211, 153, 0.13), rgba(34, 211, 238, 0.05)),
+        var(--appa-card-subtle);
     }
 
     .weather-temp {
@@ -426,10 +502,10 @@ def _dashboard_css() -> str:
 
     .weather-day {
       min-height: 150px;
-      border: 1px solid #e1e8f0;
+      border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: 10px;
-      background: #ffffff;
+      background: var(--appa-card-bg);
     }
 
     .weather-day.is-empty {
@@ -465,22 +541,22 @@ def _dashboard_css() -> str:
     .range-line {
       height: 7px;
       border-radius: 999px;
-      background: linear-gradient(90deg, #60a5fa, #f59e0b);
+      background: linear-gradient(90deg, var(--appa-blue), var(--appa-amber));
     }
 
     .headline-card {
-      border: 1px solid #e1e8f0;
+      border: 1px solid var(--appa-line);
       border-left: 4px solid var(--appa-accent);
       border-radius: 8px;
       padding: 12px 14px;
-      background: #ffffff;
+      background: var(--appa-card-bg);
       transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
     }
 
     .headline-card:hover {
       transform: translateY(-1px);
-      border-color: #b7c6d5;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+      border-color: rgba(34, 211, 238, 0.52);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
     }
 
     .headline-link {
@@ -500,11 +576,17 @@ def _dashboard_css() -> str:
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       box-shadow: none;
+      background: var(--appa-panel);
+      color: var(--appa-ink);
+    }
+
+    .q-table {
+      background: var(--appa-panel);
     }
 
     .q-table thead th {
       color: var(--appa-muted);
-      background: #f8fafc;
+      background: var(--appa-panel-soft);
       font-size: 0.76rem;
       font-weight: 800;
       text-transform: uppercase;
@@ -512,11 +594,11 @@ def _dashboard_css() -> str:
 
     .q-table tbody td {
       color: var(--appa-ink);
-      border-color: #edf2f7;
+      border-color: var(--appa-line);
     }
 
     .q-table tbody tr:hover {
-      background: #f8fbff;
+      background: rgba(34, 211, 238, 0.08);
     }
 
     .calendar-grid {
@@ -535,15 +617,15 @@ def _dashboard_css() -> str:
 
     .calendar-cell {
       min-height: 116px;
-      border: 1px solid #dfe7ef;
+      border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: 8px;
-      background: #fff;
+      background: var(--appa-card-bg);
     }
 
     .calendar-muted {
-      background: #f8fafc;
-      color: #94a3b8;
+      background: var(--appa-card-subtle);
+      color: #64748b;
     }
 
     .calendar-day {
@@ -558,8 +640,9 @@ def _dashboard_css() -> str:
       margin-bottom: 6px;
       border-radius: 6px;
       padding: 5px 6px;
-      color: #123047;
-      background: #e0f2fe;
+      color: var(--appa-ink);
+      background: rgba(34, 211, 238, 0.14);
+      border: 1px solid rgba(34, 211, 238, 0.22);
       text-decoration: none;
       font-size: 0.74rem;
       line-height: 1.25;
@@ -569,13 +652,32 @@ def _dashboard_css() -> str:
       border: 1px solid #fecaca;
       border-radius: 8px;
       padding: 10px 12px;
-      color: #9f1239;
-      background: #fff1f2;
+      color: #fecdd3;
+      background: rgba(127, 29, 29, 0.32);
       font-size: 0.85rem;
     }
 
     .q-field--outlined .q-field__control {
       border-radius: 8px;
+      background: var(--appa-input-bg);
+      color: var(--appa-ink);
+    }
+
+    .q-field--outlined .q-field__control::before {
+      border-color: var(--appa-line);
+    }
+
+    .q-field--focused .q-field__control::after {
+      border-color: var(--appa-accent);
+    }
+
+    .q-field__native,
+    .q-field__prefix,
+    .q-field__suffix,
+    .q-field__input,
+    .q-field__label,
+    .q-toggle__label {
+      color: var(--appa-ink);
     }
 
     .q-btn {
@@ -585,10 +687,11 @@ def _dashboard_css() -> str:
     }
 
     .refresh-button {
-      background: var(--appa-ink) !important;
-      color: #ffffff !important;
+      background: linear-gradient(135deg, var(--appa-accent), var(--appa-magenta)) !important;
+      color: #06101f !important;
       padding-left: 14px;
       padding-right: 14px;
+      box-shadow: 0 0 22px rgba(34, 211, 238, 0.18);
     }
 
     .interest-list {
@@ -598,13 +701,169 @@ def _dashboard_css() -> str:
     }
 
     .interest-chip {
-      border: 1px solid #cbd5e1;
+      border: 1px solid rgba(34, 211, 238, 0.22);
       border-radius: 999px;
       padding: 5px 9px;
-      background: #f8fafc;
+      background: rgba(34, 211, 238, 0.10);
       color: var(--appa-ink);
       font-size: 0.78rem;
       font-weight: 700;
+    }
+
+    .news-live-count {
+      color: var(--appa-ink);
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .ghost-button {
+      color: var(--appa-ink) !important;
+      border: 1px solid var(--appa-line);
+      background: var(--appa-card-subtle) !important;
+    }
+
+    .news-stream-shell {
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    .news-stream {
+      display: flex;
+      gap: 12px;
+      min-height: 252px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 4px 4px 14px;
+      scroll-behavior: smooth;
+      scroll-snap-type: x mandatory;
+      scrollbar-color: rgba(34, 211, 238, 0.52) rgba(15, 23, 42, 0.72);
+      scrollbar-width: thin;
+    }
+
+    .news-card {
+      position: relative;
+      flex: 0 0 min(360px, 84vw);
+      min-height: 232px;
+      display: grid;
+      grid-template-rows: auto 1fr auto auto auto;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--appa-line);
+      border-top: 3px solid var(--news-color, var(--appa-accent));
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+        var(--appa-card-bg);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+      scroll-snap-align: start;
+      transition:
+        border-color 180ms ease,
+        box-shadow 180ms ease,
+        opacity 180ms ease,
+        transform 180ms ease;
+    }
+
+    .news-card.is-active {
+      border-color: var(--news-color, var(--appa-accent));
+      box-shadow:
+        0 18px 34px rgba(0, 0, 0, 0.28),
+        0 0 22px rgba(34, 211, 238, 0.14);
+      transform: translateY(-2px);
+    }
+
+    .news-card.is-read {
+      display: none;
+    }
+
+    .news-card-top {
+      min-height: 28px;
+    }
+
+    .news-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 74%;
+      border: 1px solid color-mix(in srgb, var(--news-color, var(--appa-accent)) 42%, transparent);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: color-mix(in srgb, var(--news-color, var(--appa-accent)) 13%, transparent);
+      color: var(--appa-ink);
+      font-size: 0.72rem;
+      font-weight: 850;
+      line-height: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .news-index {
+      color: color-mix(in srgb, var(--news-color, var(--appa-accent)) 72%, white);
+      font-size: 0.75rem;
+      font-weight: 850;
+    }
+
+    .news-title {
+      display: block;
+      color: var(--appa-ink);
+      font-size: 1.02rem;
+      font-weight: 820;
+      line-height: 1.32;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .news-title:hover,
+    .news-open:hover,
+    .headline-link:hover,
+    .calendar-event:hover {
+      color: var(--appa-accent);
+    }
+
+    .news-source {
+      color: var(--appa-muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .news-time {
+      color: color-mix(in srgb, var(--news-color, var(--appa-accent)) 70%, white);
+      font-size: 0.76rem;
+      font-weight: 750;
+    }
+
+    .news-card-actions {
+      min-height: 34px;
+    }
+
+    .news-open {
+      color: var(--appa-ink);
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .news-card .q-btn {
+      color: var(--news-color, var(--appa-accent)) !important;
+    }
+
+    .news-empty {
+      flex: 1 0 100%;
+      min-height: 150px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 6px;
+      border: 1px dashed var(--appa-line);
+      border-radius: 8px;
+      color: var(--appa-muted);
+      background: var(--appa-empty);
+      text-align: center;
+    }
+
+    .news-empty strong {
+      color: var(--appa-ink);
+      font-size: 0.98rem;
     }
 
     .news-action-button {
@@ -675,6 +934,17 @@ def _dashboard_css() -> str:
       min-height: 96px;
     }
 
+    html[data-density="compact"] .news-stream {
+      min-height: 212px;
+    }
+
+    html[data-density="compact"] .news-card {
+      flex-basis: min(320px, 82vw);
+      min-height: 196px;
+      gap: 8px;
+      padding: 11px;
+    }
+
     html[data-density="compact"] .q-table th,
     html[data-density="compact"] .q-table td {
       padding: 6px 8px;
@@ -706,9 +976,17 @@ def _dashboard_css() -> str:
       }
 
       .appa-summary,
-      .weather-week,
       .stat-grid {
         grid-template-columns: 1fr;
+      }
+
+      .weather-week {
+        grid-template-columns: repeat(7, minmax(118px, 1fr));
+        overflow-x: auto;
+      }
+
+      .news-card {
+        flex-basis: min(328px, 88vw);
       }
 
       .calendar-grid {
@@ -725,10 +1003,19 @@ def _dashboard_js() -> str:
     (function () {
       const appa = window.APPA_DASHBOARD = window.APPA_DASHBOARD || {};
       appa.currentDensity = appa.currentDensity || 'comfortable';
+      appa.currentTheme = appa.currentTheme || 'dark';
 
       appa.applyDensityControls = function () {
         document.querySelectorAll('[data-density-choice]').forEach(function (button) {
           const active = button.dataset.densityChoice === appa.currentDensity;
+          button.classList.toggle('is-active', active);
+          button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+      };
+
+      appa.applyThemeControls = function () {
+        document.querySelectorAll('[data-theme-choice]').forEach(function (button) {
+          const active = button.dataset.themeChoice === appa.currentTheme;
           button.classList.toggle('is-active', active);
           button.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
@@ -742,6 +1029,14 @@ def _dashboard_js() -> str:
         appa.applyDensityControls();
       };
 
+      appa.setTheme = function (mode) {
+        const chosen = mode === 'light' ? 'light' : 'dark';
+        appa.currentTheme = chosen;
+        document.documentElement.dataset.theme = chosen;
+        try { localStorage.setItem('appa-dashboard-theme', chosen); } catch (error) {}
+        appa.applyThemeControls();
+      };
+
       if (!appa.densityClickHandler) {
         appa.densityClickHandler = function (event) {
           const button = event.target.closest('[data-density-choice]');
@@ -749,6 +1044,15 @@ def _dashboard_js() -> str:
           appa.setDensity(button.dataset.densityChoice);
         };
         document.addEventListener('click', appa.densityClickHandler);
+      }
+
+      if (!appa.themeClickHandler) {
+        appa.themeClickHandler = function (event) {
+          const button = event.target.closest('[data-theme-choice]');
+          if (!button) return;
+          appa.setTheme(button.dataset.themeChoice);
+        };
+        document.addEventListener('click', appa.themeClickHandler);
       }
 
       appa.tick = function () {
@@ -770,13 +1074,119 @@ def _dashboard_js() -> str:
         });
       };
 
+      appa.newsReadKey = 'appa-news-read-v2';
+
+      appa.readNewsIds = function () {
+        try {
+          return new Set(JSON.parse(localStorage.getItem(appa.newsReadKey) || '[]'));
+        } catch (error) {
+          return new Set();
+        }
+      };
+
+      appa.writeNewsIds = function (ids) {
+        try {
+          localStorage.setItem(appa.newsReadKey, JSON.stringify(Array.from(ids)));
+        } catch (error) {}
+      };
+
+      appa.scrollNewsCard = function (stream, card) {
+        const streamBox = stream.getBoundingClientRect();
+        const cardBox = card.getBoundingClientRect();
+        const margin = 14;
+        if (cardBox.left >= streamBox.left + margin && cardBox.right <= streamBox.right - margin) {
+          return;
+        }
+        const delta = cardBox.left - streamBox.left - margin;
+        stream.scrollTo({
+          left: stream.scrollLeft + delta,
+          behavior: 'smooth'
+        });
+      };
+
+      appa.refreshNewsStream = function (stream) {
+        const readIds = appa.readNewsIds();
+        const cards = Array.from(stream.querySelectorAll('[data-news-card]'));
+        const empty = stream.querySelector('[data-news-empty]');
+        cards.forEach(function (card) {
+          card.classList.toggle('is-read', readIds.has(card.dataset.newsId));
+        });
+        const unread = cards.filter(function (card) {
+          return !card.classList.contains('is-read');
+        });
+        if (empty) empty.hidden = unread.length > 0;
+        if (!unread.length) return;
+        if (!unread.some(function (card) { return card.classList.contains('is-active'); })) {
+          unread[0].classList.add('is-active');
+          appa.scrollNewsCard(stream, unread[0]);
+        }
+      };
+
+      appa.advanceNewsStream = function (stream) {
+        if (!document.body.contains(stream)) return false;
+        const cards = Array.from(stream.querySelectorAll('[data-news-card]:not(.is-read)'));
+        if (!cards.length) {
+          appa.refreshNewsStream(stream);
+          return true;
+        }
+        const current = cards.findIndex(function (card) {
+          return card.classList.contains('is-active');
+        });
+        const nextIndex = current < 0 ? 0 : (current + 1) % cards.length;
+        stream.querySelectorAll('[data-news-card]').forEach(function (card) {
+          card.classList.remove('is-active');
+        });
+        cards[nextIndex].classList.add('is-active');
+        appa.scrollNewsCard(stream, cards[nextIndex]);
+        return true;
+      };
+
+      appa.mountNewsStreams = function () {
+        document.querySelectorAll('[data-news-stream]').forEach(function (stream) {
+          if (!stream.dataset.newsMounted) {
+            stream.dataset.newsMounted = 'true';
+            stream.addEventListener('click', function (event) {
+              const link = event.target.closest('[data-news-link]');
+              if (!link) return;
+              const card = link.closest('[data-news-card]');
+              if (!card) return;
+              const readIds = appa.readNewsIds();
+              readIds.add(card.dataset.newsId);
+              appa.writeNewsIds(readIds);
+              card.classList.add('is-read');
+              window.setTimeout(function () {
+                appa.refreshNewsStream(stream);
+                appa.advanceNewsStream(stream);
+              }, 180);
+            });
+            const timer = window.setInterval(function () {
+              if (!appa.advanceNewsStream(stream)) window.clearInterval(timer);
+            }, 6500);
+          }
+          appa.refreshNewsStream(stream);
+        });
+      };
+
+      appa.clearReadNews = function () {
+        try { localStorage.removeItem(appa.newsReadKey); } catch (error) {}
+        document.querySelectorAll('[data-news-card]').forEach(function (card) {
+          card.classList.remove('is-read');
+        });
+        document.querySelectorAll('[data-news-stream]').forEach(appa.refreshNewsStream);
+      };
+
       appa.boot = function () {
         document.body.classList.add('appa-dashboard');
         let stored = document.documentElement.dataset.density || 'comfortable';
         try { stored = localStorage.getItem('appa-dashboard-density') || stored; }
         catch (error) {}
         appa.setDensity(stored);
+        let storedTheme = document.documentElement.dataset.theme || 'dark';
+        try { storedTheme = localStorage.getItem('appa-dashboard-theme') || storedTheme; }
+        catch (error) {}
+        appa.setTheme(storedTheme);
         appa.tick();
+        appa.mountNewsStreams();
         if (!appa.clockTimer) {
           appa.clockTimer = window.setInterval(appa.tick, 30000);
         }
@@ -784,7 +1194,9 @@ def _dashboard_js() -> str:
           appa.observer = new MutationObserver(function () {
             window.requestAnimationFrame(function () {
               appa.applyDensityControls();
+              appa.applyThemeControls();
               appa.tick();
+              appa.mountNewsStreams();
             });
           });
           appa.observer.observe(document.body, { childList: true, subtree: true });
@@ -831,6 +1243,24 @@ def construir_dashboard(
                     data-density-choice="compact"
                   >
                     Compacto
+                  </button>
+                </div>
+                """
+            )
+            ui.html(
+                """
+                <div class="theme-toggle" aria-label="Tema do painel">
+                  <button
+                    type="button"
+                    data-theme-choice="dark"
+                  >
+                    Dark
+                  </button>
+                  <button
+                    type="button"
+                    data-theme-choice="light"
+                  >
+                    Light
                   </button>
                 </div>
                 """
@@ -887,102 +1317,32 @@ def construir_dashboard(
                 with ui.expansion(
                     "Feed Priorizado",
                     caption=(
-                        "The News geral, tecnologia e economia global "
+                        "The News, interesses, tecnologia e economia global "
                         "do mais recente ao mais antigo."
                     ),
                     value=True,
                     icon="newspaper",
                 ).classes("expansion-shell w-full"):
                     with ui.row().classes("w-full items-center justify-between"):
-                        noticias_total = ui.label("").classes("text-sm text-slate-500")
+                        noticias_total = ui.label("").classes("news-live-count")
+                        ui.button(
+                            "Reexibir lidas",
+                            icon="restart_alt",
+                            on_click=lambda: ui.run_javascript(
+                                "window.APPA_DASHBOARD && "
+                                "window.APPA_DASHBOARD.clearReadNews()"
+                            ),
+                        ).classes("ghost-button")
 
-                    linhas_iniciais = _linhas_noticias(
-                        _noticias_sem_santa_maria(snapshot_inicial.noticias)
-                        if snapshot_inicial
-                        else [],
-                        servico.config.localizacao.timezone,
-                    )
-                    tabela_noticias = ui.table(
-                        columns=[
-                            {
-                                "name": "prioridade",
-                                "label": "Prioridade",
-                                "field": "prioridade",
-                            },
-                            {"name": "grupo", "label": "Grupo", "field": "grupo"},
-                            {"name": "fonte", "label": "Fonte", "field": "fonte"},
-                            {"name": "titulo", "label": "Titulo", "field": "titulo"},
-                            {"name": "publicado", "label": "Quando", "field": "publicado"},
-                            {
-                                "name": "acoes",
-                                "label": "",
-                                "field": "acoes",
-                                "align": "right",
-                            },
-                        ],
-                        rows=linhas_iniciais,
-                        row_key="id",
-                        pagination=8,
-                    ).classes("w-full")
-                    tabela_noticias.add_slot(
-                        "body-cell-titulo",
-                        """
-                        <q-td :props="props">
-                          <a
-                            :href="props.row.link"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            @click="$parent.$emit('registrar-noticia', props.row)"
-                            style="color:#0f172a;text-decoration:none;font-weight:600;"
-                          >
-                            {{ props.row.titulo }}
-                          </a>
-                        </q-td>
-                        """,
-                    )
-                    tabela_noticias.add_slot(
-                        "body-cell-acoes",
-                        """
-                        <q-td :props="props">
-                          <q-btn
-                            dense
-                            flat
-                            round
-                            icon="bookmark_add"
-                            class="news-action-button"
-                            title="Salvar no Obsidian"
-                            @click.stop="$parent.$emit('registrar-noticia', props.row)"
-                          />
-                        </q-td>
-                        """,
-                    )
-                    tabela_noticias.on(
-                        "registrar-noticia",
-                        lambda evento: _salvar_noticia_observada(
-                            servico,
-                            evento.args,
-                            status,
+                    feed_noticias = ui.element("div").classes("news-stream-shell")
+                    _popular_feed_dinamico(
+                        feed_noticias,
+                        _noticias_sem_santa_maria(
+                            snapshot_inicial.noticias if snapshot_inicial else []
                         ),
-                    )
-                    tabela_noticias.add_slot(
-                        "body-cell-grupo",
-                        """
-                        <q-td :props="props">
-                          <span
-                            :style="`
-                              background:${props.row.cor};
-                              color:white;
-                              padding:4px 10px;
-                              border-radius:999px;
-                              font-size:12px;
-                              font-weight:600;
-                              display:inline-flex;
-                            `"
-                          >
-                            {{ props.row.grupo }}
-                          </span>
-                        </q-td>
-                        """,
+                        servico.config.localizacao.timezone,
+                        servico,
+                        status,
                     )
 
             with ui.column().classes("gap-4"):
@@ -1009,7 +1369,8 @@ def construir_dashboard(
                             interesses_container,
                             interesses_status,
                             status,
-                        ),
+                        )
+                        and atualizar(),
                     ).classes("w-full")
 
                 with ui.expansion(
@@ -1087,14 +1448,16 @@ def construir_dashboard(
                 servico,
                 status,
             )
-            tabela_noticias.rows = _linhas_noticias(
+            _popular_feed_dinamico(
+                feed_noticias,
                 _noticias_sem_santa_maria(snapshot.noticias),
                 servico.config.localizacao.timezone,
+                servico,
+                status,
             )
-            tabela_noticias.update()
-            noticias_feed = len(_noticias_sem_santa_maria(snapshot.noticias))
             noticias_total.text = (
-                f"{noticias_feed} no feed | {len(snapshot.noticias)} no total | atualizado "
+                f"{_resumo_feed_noticias(_noticias_sem_santa_maria(snapshot.noticias))} "
+                f"| atualizado "
                 f"{snapshot.atualizado_em}"
             )
             _popular_agenda_google(
@@ -1111,11 +1474,9 @@ def construir_dashboard(
             )
             status.text = f"Painel atualizado as {snapshot.atualizado_em}."
 
-        total_feed_inicial = (
-            len(_noticias_sem_santa_maria(snapshot_inicial.noticias)) if snapshot_inicial else 0
+        noticias_total.text = _resumo_feed_noticias(
+            _noticias_sem_santa_maria(snapshot_inicial.noticias if snapshot_inicial else [])
         )
-        total_inicial = len(snapshot_inicial.noticias) if snapshot_inicial else 0
-        noticias_total.text = f"{total_feed_inicial} no feed | {total_inicial} no total"
         cliente_dashboard = ui.context.client
 
         def atualizar_automaticamente() -> None:
@@ -1386,6 +1747,108 @@ def _texto_contexto_clima(previsao: PrevisaoClima) -> str:
     return f"Vento previsto {previsao.vento} km/h | Chance de chuva {previsao.chuva}%"
 
 
+def _resumo_feed_noticias(noticias: list[Noticia]) -> str:
+    """Resume o volume do feed dinamico por grupo principal."""
+    total = len(noticias)
+    the_news = len(_noticias_por_grupo(noticias, "the_news"))
+    interesses = len(_noticias_por_grupo(noticias, "interesses"))
+    return f"{total} no feed | {the_news} The News | {interesses} interesses"
+
+
+def _popular_feed_dinamico(
+    container: ui.element,
+    noticias: list[Noticia],
+    timezone: str,
+    servico: DashboardService,
+    status_label,
+) -> None:
+    """Renderiza um fluxo horizontal que alterna noticias ainda nao clicadas."""
+    container.clear()
+    with container:
+        with ui.element("div").classes("news-stream").props("data-news-stream"):
+            if not noticias:
+                ui.html(
+                    """
+                    <div class="news-empty" data-news-empty>
+                      <strong>Sem sinal agora</strong>
+                      <span>--</span>
+                    </div>
+                    """
+                )
+                return
+            for indice, noticia in enumerate(noticias, start=1):
+                _renderizar_card_noticia(
+                    noticia,
+                    indice,
+                    timezone,
+                    servico,
+                    status_label,
+                )
+            ui.html(
+                """
+                <div class="news-empty" data-news-empty hidden>
+                  <strong>Tudo lido por enquanto</strong>
+                  <span>aguardando a proxima rodada</span>
+                </div>
+                """
+            )
+    ui.run_javascript(
+        "window.APPA_DASHBOARD && window.APPA_DASHBOARD.mountNewsStreams();"
+    )
+
+
+def _renderizar_card_noticia(
+    noticia: Noticia,
+    indice: int,
+    timezone: str,
+    servico: DashboardService,
+    status_label,
+) -> None:
+    """Cria um card de noticia clicavel e rastreavel pelo front-end."""
+    card_id = _noticia_dom_id(noticia)
+    grupo = GRUPOS_LABEL.get(noticia.grupo, noticia.grupo.replace("_", " ").title())
+    cor = GRUPOS_COR.get(noticia.grupo, "#5bd8ff")
+    link = _link_seguro(noticia.link)
+    with ui.element("article").classes("news-card").props(
+        f'data-news-card data-news-id="{card_id}"'
+    ).style(f"--news-color: {cor};"):
+        with ui.row().classes("news-card-top items-center justify-between"):
+            ui.label(grupo).classes("news-chip")
+            ui.label(f"#{indice:02d}").classes("news-index")
+        ui.link(
+            texto_terminal_seguro(noticia.titulo),
+            link,
+            new_tab=True,
+        ).classes("news-title").props("data-news-link").on(
+            "click",
+            lambda _evento, noticia=noticia: _salvar_noticia_observada(
+                servico,
+                noticia,
+                status_label,
+            ),
+        )
+        ui.label(texto_terminal_seguro(noticia.fonte)).classes("news-source")
+        ui.label(
+            texto_terminal_seguro(rotulo_tempo_publicacao(noticia, timezone=timezone))
+        ).classes("news-time")
+        with ui.row().classes("news-card-actions items-center justify-between"):
+            ui.link("Abrir", link, new_tab=True).classes("news-open").props("data-news-link")
+            ui.button(
+                icon="bookmark_add",
+                on_click=lambda noticia=noticia: _salvar_noticia_observada(
+                    servico,
+                    noticia,
+                    status_label,
+                ),
+            ).props("flat round dense title=Salvar")
+
+
+def _noticia_dom_id(noticia: Noticia) -> str:
+    """Gera um identificador estavel para marcar noticias ja clicadas."""
+    base = noticia.link or f"{noticia.fonte}:{noticia.titulo}"
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
+
+
 def _linhas_noticias(noticias: list[Noticia], timezone: str) -> list[dict]:
     """Converte as noticias para um formato mais adequado a tabela analitica."""
     linhas: list[dict] = []
@@ -1508,22 +1971,23 @@ def _adicionar_interesses_gui(
     interesses_container: ui.element,
     status_label,
     painel_status,
-) -> None:
+) -> bool:
     """Valida e salva interesses informados no painel."""
     texto = str(campo_interesses.value or "")
     if not texto.strip():
         status_label.text = "Digite ao menos um interesse."
-        return
+        return False
     try:
         interesses = servico.adicionar_interesses(texto)
     except Exception as exc:  # pragma: no cover
         status_label.text = f"Falha ao salvar interesses: {exc}"
         painel_status.text = status_label.text
-        return
+        return False
     campo_interesses.value = ""
     _popular_interesses(interesses_container, interesses)
-    status_label.text = "Interesses salvos no config e no Obsidian."
-    painel_status.text = "Interesses de pesquisa atualizados."
+    status_label.text = "Interesses salvos. Buscando noticias relacionadas..."
+    painel_status.text = "Interesses atualizados; atualizando o feed."
+    return True
 
 
 def _salvar_noticia_observada(

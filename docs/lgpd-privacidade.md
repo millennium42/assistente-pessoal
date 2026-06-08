@@ -12,7 +12,7 @@ Este projeto e local por padrao, mas nao e "offline por definicao". Algumas func
 ## O que pode sair da maquina
 
 - clima: coordenadas e timezone para a Open-Meteo
-- noticias: requisicoes HTTP para The News, feeds RSS e paginas locais configuradas
+- noticias: requisicoes HTTP para The News, feeds RSS, paginas locais configuradas e buscas RSS por interesses
 - musica: nomes de artistas para o MusicBrainz
 - chat: mensagem e contexto local para o endpoint LLM configurado
 - Google Agenda: leitura e criacao de eventos no calendario configurado via OAuth

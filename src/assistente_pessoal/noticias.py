@@ -11,12 +11,13 @@ from assistente_pessoal.config import NoticiasConfig
 from assistente_pessoal.core_datas import hoje_local, normalizar_texto_ascii
 from assistente_pessoal.fontes_noticias import (
     HtmlJsonLdNewsSource,
+    InterestNewsSource,
     ItemFonteNoticia,
     RssNewsSource,
     TheNewsSource,
 )
 
-LIMITE_PADRAO_NOTICIAS = 50
+LIMITE_PADRAO_NOTICIAS = 100
 
 
 @dataclass(frozen=True)
@@ -39,11 +40,13 @@ class ClienteNoticias:
         the_news_source: TheNewsSource | None = None,
         rss_source: RssNewsSource | None = None,
         html_source: HtmlJsonLdNewsSource | None = None,
+        interest_source: InterestNewsSource | None = None,
     ) -> None:
         """Permite injetar fontes fake nos testes sem acoplar a infra a CLI."""
         self.the_news_source = the_news_source or TheNewsSource()
         self.rss_source = rss_source or RssNewsSource()
         self.html_source = html_source or HtmlJsonLdNewsSource()
+        self.interest_source = interest_source or InterestNewsSource()
 
     def listar(
         self,
@@ -58,6 +61,8 @@ class ClienteNoticias:
         for grupo in config.prioridades:
             itens = self._listar_grupo(grupo, config, limite_normalizado, data_alvo)
             noticias.extend(itens)
+        noticias.extend(self._listar_interesses(config, limite_normalizado, data_alvo))
+        noticias = deduplicar_noticias(noticias)
         noticias_ordenadas = ordenar_noticias_por_data(noticias, config.timezone)
         noticias_priorizadas = priorizar_noticias_por_interesses(
             noticias_ordenadas,
@@ -137,6 +142,22 @@ class ClienteNoticias:
             itens = []
         return [normalizar_item(item) for item in itens[:limite]]
 
+    def _listar_interesses(
+        self,
+        config: NoticiasConfig,
+        limite: int,
+        data_referencia: date,
+    ) -> list[Noticia]:
+        """Busca noticias em portais indexados usando as tags de interesse."""
+        itens = self.interest_source.listar(
+            interesses=config.interesses_busca,
+            limite=limite,
+            timezone=config.timezone,
+            data_referencia=data_referencia,
+            apenas_dia_atual=config.apenas_dia_atual,
+        )
+        return [normalizar_item(item) for item in itens[:limite]]
+
 
 def normalizar_item(item: ItemFonteNoticia) -> Noticia:
     """Converte o item interno da fonte para o tipo publico da aplicacao."""
@@ -159,22 +180,40 @@ def ordenar_noticias_por_data(noticias: list[Noticia], timezone: str) -> list[No
     )
 
 
+def deduplicar_noticias(noticias: list[Noticia]) -> list[Noticia]:
+    """Remove manchetes repetidas entre RSS, HTML local e buscas por interesse."""
+    deduplicadas: list[Noticia] = []
+    vistos: set[str] = set()
+    for noticia in noticias:
+        chave = _chave_noticia(noticia)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        deduplicadas.append(noticia)
+    return deduplicadas
+
+
 def selecionar_noticias(noticias: list[Noticia], limite: int, timezone: str) -> list[Noticia]:
-    """Recorta o feed preservando itens do The News quando eles existem."""
+    """Recorta o feed preservando fontes prioritarias quando elas existem."""
+    grupos_preservados = {"the_news", "santa_maria", "interesses"}
     selecionadas = noticias[:limite]
-    the_news = [noticia for noticia in noticias if noticia.grupo == "the_news"]
-    faltantes = [noticia for noticia in the_news if noticia not in selecionadas]
+    prioritarias = [noticia for noticia in noticias if noticia.grupo in grupos_preservados]
+    faltantes = [noticia for noticia in prioritarias if noticia not in selecionadas]
     if not faltantes:
         return ordenar_noticias_por_data(selecionadas, timezone)
 
-    preservadas = [noticia for noticia in selecionadas if noticia.grupo == "the_news"]
-    the_news_final = preservadas + faltantes
-    if len(the_news_final) >= limite:
-        return ordenar_noticias_por_data(the_news_final[:limite], timezone)
+    preservadas = [
+        noticia for noticia in selecionadas if noticia.grupo in grupos_preservados
+    ]
+    prioritarias_final = preservadas + faltantes
+    if len(prioritarias_final) >= limite:
+        return ordenar_noticias_por_data(prioritarias_final[:limite], timezone)
 
-    outras = [noticia for noticia in selecionadas if noticia.grupo != "the_news"]
-    vagas_outras = limite - len(the_news_final)
-    return ordenar_noticias_por_data(the_news_final + outras[:vagas_outras], timezone)
+    outras = [
+        noticia for noticia in selecionadas if noticia.grupo not in grupos_preservados
+    ]
+    vagas_outras = limite - len(prioritarias_final)
+    return ordenar_noticias_por_data(prioritarias_final + outras[:vagas_outras], timezone)
 
 
 def priorizar_noticias_por_interesses(
@@ -267,7 +306,7 @@ def _pontuacao_interesse(noticia: Noticia, termos: list[str]) -> int:
         f"{noticia.titulo} {noticia.fonte} {noticia.grupo} {noticia.link}"
     ).lower()
     tokens_universo = set(re.findall(r"[a-z0-9]+", universo))
-    pontuacao = 0
+    pontuacao = 2 if noticia.grupo == "interesses" else 0
     for termo in termos:
         tokens_termo = re.findall(r"[a-z0-9]+", termo)
         if not tokens_termo:
@@ -275,11 +314,22 @@ def _pontuacao_interesse(noticia: Noticia, termos: list[str]) -> int:
         if len(tokens_termo) == 1:
             pontuacao += int(tokens_termo[0] in tokens_universo)
             continue
+        if termo in universo:
+            pontuacao += 4
+            continue
         combina_termo = termo in universo or all(
             token in tokens_universo for token in tokens_termo
         )
         pontuacao += int(combina_termo)
     return pontuacao
+
+
+def _chave_noticia(noticia: Noticia) -> str:
+    titulo = normalizar_texto_ascii(noticia.titulo).lower().strip()
+    titulo = re.sub(r"\s+", " ", titulo)
+    if titulo:
+        return titulo
+    return noticia.link.strip().lower()
 
 
 def _normalizar_data_publicacao(publicado_em: datetime | None, timezone: str) -> datetime | None:

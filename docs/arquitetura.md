@@ -16,7 +16,7 @@ Esta versao separa o projeto em camadas pequenas para reduzir acoplamento entre 
 - `core_datas`: datas, timezone e resolucao de `hoje|amanha|dia da semana`
 - `memoria`: Markdown, SQLite FTS5, documentos fixos do dashboard
 - `clima`: Open-Meteo com previsao por dia selecionado
-- `fontes_noticias`: adaptadores de The News, RSS e HTML com JSON-LD
+- `fontes_noticias`: adaptadores de The News, RSS, HTML com JSON-LD e busca por interesses
 - `noticias`: orquestracao por prioridade e ordenacao por horario de publicacao
 - `painel`: casos de uso consumidos pela GUI
 - `gui`: dashboard local com NiceGUI
@@ -41,9 +41,11 @@ Isso corrige o caso em que a pessoa executa o projeto em uma pasta, mas abre out
    - `TheNewsSource`
    - `RssNewsSource`
    - `HtmlJsonLdNewsSource`
-4. os itens sao filtrados para o dia atual local
-5. a lista final e ordenada do mais recente para o mais antigo
-6. a interface recebe uma lista normalizada de `Noticia` com tempo relativo
+   - `InterestNewsSource`
+4. interesses salvos tambem geram buscas RSS em portais indexados
+5. os itens sao filtrados para o dia atual local e deduplicados
+6. a lista final e ordenada do mais recente para o mais antigo
+7. a interface recebe uma lista normalizada de `Noticia` com tempo relativo
 
 ## Fluxo da GUI
 
