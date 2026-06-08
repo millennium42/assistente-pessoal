@@ -260,6 +260,29 @@ def data_evento_google(evento: EventoGoogleAgenda) -> date | None:
         return None
 
 
+def evento_google_ainda_futuro(
+    evento: EventoGoogleAgenda,
+    timezone: str,
+    agora: datetime | None = None,
+) -> bool:
+    """Indica se o evento ainda nao terminou no fuso informado."""
+    tzinfo = ZoneInfo(timezone)
+    referencia = agora or datetime.now(tzinfo)
+    if referencia.tzinfo is None:
+        referencia = referencia.replace(tzinfo=tzinfo)
+    else:
+        referencia = referencia.astimezone(tzinfo)
+
+    fim = _parse_data_hora_google(evento.fim, timezone)
+    if fim is not None:
+        return fim >= referencia
+
+    inicio = _parse_data_hora_google(evento.inicio, timezone)
+    if inicio is not None:
+        return inicio >= referencia
+    return False
+
+
 def formatar_data_hora_google(valor: str, timezone: str) -> str:
     """Converte timestamps ISO do Google Agenda em texto local curto."""
     if not valor:
@@ -274,6 +297,25 @@ def formatar_data_hora_google(valor: str, timezone: str) -> str:
         return data.astimezone(ZoneInfo(timezone)).strftime("%d/%m %H:%M")
     except ValueError:
         return valor
+
+
+def _parse_data_hora_google(valor: str, timezone: str) -> datetime | None:
+    """Converte datas do Google Agenda para datetime com timezone."""
+    if not valor:
+        return None
+    tzinfo = ZoneInfo(timezone)
+    if len(valor) == 10:
+        try:
+            return datetime.combine(date.fromisoformat(valor), datetime.min.time(), tzinfo=tzinfo)
+        except ValueError:
+            return None
+    try:
+        data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if data.tzinfo is None:
+        return data.replace(tzinfo=tzinfo)
+    return data.astimezone(tzinfo)
 
 
 def _credenciais_tem_escopos_esperados(credenciais) -> bool:

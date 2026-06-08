@@ -17,6 +17,7 @@ from assistente_pessoal.agenda_google import (
     NovoEventoGoogleAgenda,
     ResultadoGoogleAgenda,
     data_evento_google,
+    evento_google_ainda_futuro,
     formatar_data_hora_google,
 )
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
@@ -2041,13 +2042,18 @@ def _popular_agenda_google(
     if resultado.erro:
         erro_container.content = f'<div class="calendar-error">{escape(resultado.erro)}</div>'
     _renderizar_calendario_google(calendario_container, resultado.eventos, referencia, timezone)
-    if not resultado.eventos:
+    eventos_lista = [
+        evento for evento in resultado.eventos if evento_google_ainda_futuro(evento, timezone)
+    ]
+    if not eventos_lista:
         with lista_container:
-            ui.label("Nenhum evento encontrado para este mes.").classes("text-sm text-slate-500")
+            ui.label("Nenhum evento futuro encontrado para este mes.").classes(
+                "text-sm text-slate-500"
+            )
         return
     with lista_container:
-        ui.label("Eventos do mes").classes("section-title")
-        for evento in resultado.eventos[:10]:
+        ui.label("Proximos eventos do mes").classes("section-title")
+        for evento in eventos_lista[:10]:
             with ui.element("div").classes("stat-box"):
                 ui.label(evento.titulo).classes("text-sm font-semibold text-slate-800")
                 ui.label(formatar_data_hora_google(evento.inicio, timezone)).classes(

@@ -10,8 +10,10 @@ import pytest
 import assistente_pessoal.agenda_google as agenda_google
 from assistente_pessoal.agenda_google import (
     ClienteGoogleAgenda,
+    EventoGoogleAgenda,
     NovoEventoGoogleAgenda,
     ResultadoGoogleAgenda,
+    evento_google_ainda_futuro,
     formatar_eventos_google,
 )
 from assistente_pessoal.config import GoogleAgendaConfig
@@ -69,6 +71,30 @@ def test_obter_eventos_intervalo_preserva_erro_de_token(
 
     assert resultado.eventos == []
     assert resultado.erro == "Token antigo"
+
+
+def test_evento_google_ainda_futuro_ignora_evento_encerrado() -> None:
+    """Nao considera evento ja encerrado como futuro no painel."""
+    evento_passado = EventoGoogleAgenda(
+        titulo="Reuniao encerrada",
+        inicio="2026-06-08T08:00:00-03:00",
+        fim="2026-06-08T09:00:00-03:00",
+        link="",
+        local="",
+        origem="",
+    )
+    evento_futuro = EventoGoogleAgenda(
+        titulo="Consulta",
+        inicio="2026-06-08T11:00:00-03:00",
+        fim="2026-06-08T12:00:00-03:00",
+        link="",
+        local="",
+        origem="",
+    )
+    agora = datetime(2026, 6, 8, 10, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
+
+    assert evento_google_ainda_futuro(evento_passado, "America/Sao_Paulo", agora=agora) is False
+    assert evento_google_ainda_futuro(evento_futuro, "America/Sao_Paulo", agora=agora) is True
 
 
 def test_criar_evento_envia_payload_para_google(monkeypatch, tmp_path: Path) -> None:

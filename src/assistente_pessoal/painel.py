@@ -10,6 +10,7 @@ from assistente_pessoal.agenda_google import (
     ClienteGoogleAgenda,
     EventoGoogleAgenda,
     ResultadoGoogleAgenda,
+    evento_google_ainda_futuro,
 )
 from assistente_pessoal.cambio import ClienteCambio, CotacaoMoeda
 from assistente_pessoal.clima import ClienteClima, PrevisaoClima, ResumoClimaDia
@@ -82,6 +83,11 @@ class DashboardService:
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
         agenda_google_resultado = self.google_agenda.obter_eventos_mes()
         agenda_google = agenda_google_resultado.eventos
+        agenda_google_futuros = [
+            evento
+            for evento in agenda_google
+            if evento_google_ainda_futuro(evento, self.config.localizacao.timezone)
+        ]
         contagem_grupos = Counter(noticia.grupo for noticia in noticias)
         return DashboardSnapshot(
             previsao=previsao,
@@ -99,7 +105,7 @@ class DashboardService:
                 noticias_the_news=contagem_grupos.get("the_news", 0),
                 noticias_santa_maria=contagem_grupos.get("santa_maria", 0),
                 notas_recentes=len(notas),
-                eventos_google=len(agenda_google),
+                eventos_google=len(agenda_google_futuros),
             ),
             noticias_por_grupo=dict(contagem_grupos),
             atualizado_em=datetime.now().strftime("%H:%M:%S"),
