@@ -19,13 +19,16 @@ class RespostaFake:
                 "temperature_2m": 20.0,
                 "apparent_temperature": 19.0,
                 "wind_speed_10m": 12.0,
+                "weather_code": 3,
             },
             "daily": {
                 "time": ["2026-06-08", "2026-06-09", "2026-06-10"],
                 "temperature_2m_max": [25.0, 26.0, 27.0],
                 "temperature_2m_min": [14.0, 15.0, 16.0],
                 "precipitation_probability_max": [30, 10, 70],
+                "weather_code": [3, 61, 1],
             },
+            "timezone": "America/Sao_Paulo",
         }
 
 
@@ -56,8 +59,9 @@ def test_cliente_clima_formata_previsao(monkeypatch) -> None:
     )
 
     assert "Teste" in formatar_previsao(previsao)
-    assert previsao.temperatura_atual == 20.0
+    assert previsao.temperatura_referencia == 20.5
     assert previsao.maxima == 26.0
+    assert "temperatura prevista" in formatar_previsao(previsao).lower()
 
 
 def test_cliente_clima_aceita_dia_da_semana(monkeypatch) -> None:
@@ -71,3 +75,4 @@ def test_cliente_clima_aceita_dia_da_semana(monkeypatch) -> None:
     )
 
     assert previsao.data_alvo.isoformat() == "2026-06-10"
+    assert previsao.temperatura_referencia == 21.5

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+from pathlib import Path
 
 from nicegui import ui
 
@@ -27,6 +28,10 @@ GRUPOS_COR = {
     "economia_global": "#b45309",
 }
 
+LOGO_APPA_PATH = (
+    Path(__file__).resolve().parents[2] / "assets" / "appa-logo-minimal.png"
+).as_posix()
+
 
 def resolver_porta_dashboard(host: str, porta_preferida: int, tentativas: int = 20) -> int:
     """Escolhe uma porta livre para o dashboard a partir da preferida."""
@@ -46,7 +51,7 @@ def iniciar_dashboard(
     config: AppConfig,
     host: str = "127.0.0.1",
     port: int = 8765,
-    titulo: str = "Assistente Pessoal",
+    titulo: str = "APPA",
 ) -> None:
     """Inicializa e executa a GUI local no navegador."""
     servico = DashboardService(config)
@@ -79,6 +84,20 @@ def construir_dashboard(
           color: white;
           border-radius: 8px;
           padding: 20px 24px;
+        }
+        .hero-brand {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        .hero-logo {
+          width: 72px;
+          height: 72px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.18);
+          background: rgba(255,255,255,0.06);
+          object-fit: cover;
+          flex: 0 0 auto;
         }
         .hero-kicker {
           font-size: 0.8rem;
@@ -418,11 +437,17 @@ def construir_dashboard(
 def _cabecalho(snapshot: DashboardSnapshot | None) -> None:
     """Renderiza a faixa superior com contexto operacional do painel."""
     with ui.element("section").classes("hero w-full gap-2"):
-        ui.label("Dashboard operacional").classes("hero-kicker")
-        ui.label("Painel de acompanhamento pessoal").classes("text-3xl font-semibold")
-        ui.label(
-            "Clima, noticias, agenda e organizacao diaria consolidados em um painel local."
-        ).classes("text-base text-slate-200")
+        with ui.row().classes("hero-brand"):
+            ui.image(LOGO_APPA_PATH).classes("hero-logo")
+            with ui.column().classes("gap-1"):
+                ui.label("Dashboard operacional").classes("hero-kicker")
+                ui.label("APPA").classes("text-3xl font-semibold")
+                ui.label("Assistente Pessoal Personalizado e Automatizado").classes(
+                    "text-base text-slate-200"
+                )
+                ui.label(
+                    "Clima, noticias, agenda e organizacao diaria consolidados em um painel local."
+                ).classes("text-sm text-slate-300")
         atualizado = snapshot.atualizado_em if snapshot else "--:--:--"
         ui.label(f"Ultima leitura consolidada: {atualizado}").classes("text-sm text-slate-300")
 
@@ -485,21 +510,23 @@ def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.ele
         data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
             "text-sm text-slate-500"
         )
+        referencia = ui.label(
+            _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
+        ).classes("text-xs uppercase text-slate-400")
         temperatura = ui.label(
-            f"{snapshot.previsao.temperatura_atual} C" if snapshot else "--"
+            f"{snapshot.previsao.temperatura_referencia} C" if snapshot else "--"
         ).classes("text-5xl font-bold")
         with ui.element("div").classes("stat-grid"):
             maxima = _stat_box("Maxima", f"{snapshot.previsao.maxima} C" if snapshot else "--")
             minima = _stat_box("Minima", f"{snapshot.previsao.minima} C" if snapshot else "--")
             chuva = _stat_box("Chuva", f"{snapshot.previsao.chuva}%" if snapshot else "--")
         contexto = ui.label(
-            f"Sensacao {snapshot.previsao.sensacao} C | Vento {snapshot.previsao.vento} km/h"
-            if snapshot
-            else "Sem leitura de clima ainda."
+            _texto_contexto_clima(snapshot.previsao) if snapshot else "Sem leitura de clima ainda."
         ).classes("text-sm text-slate-500")
     return {
         "cidade": cidade,
         "data": data,
+        "referencia": referencia,
         "temperatura": temperatura,
         "maxima": maxima,
         "minima": minima,
@@ -512,11 +539,12 @@ def _atualizar_clima_resumo(widgets: dict[str, ui.element], previsao: PrevisaoCl
     """Atualiza o bloco principal de clima."""
     widgets["cidade"].text = previsao.cidade
     widgets["data"].text = previsao.data_alvo.isoformat()
-    widgets["temperatura"].text = f"{previsao.temperatura_atual} C"
+    widgets["referencia"].text = _rotulo_referencia_clima(previsao)
+    widgets["temperatura"].text = f"{previsao.temperatura_referencia} C"
     widgets["maxima"].text = f"{previsao.maxima} C"
     widgets["minima"].text = f"{previsao.minima} C"
     widgets["chuva"].text = f"{previsao.chuva}%"
-    widgets["contexto"].text = f"Sensacao {previsao.sensacao} C | Vento {previsao.vento} km/h"
+    widgets["contexto"].text = _texto_contexto_clima(previsao)
 
 
 def _stat_box(rotulo: str, valor: str) -> ui.label:
@@ -525,6 +553,18 @@ def _stat_box(rotulo: str, valor: str) -> ui.label:
         ui.label(rotulo).classes("text-xs text-slate-500")
         texto = ui.label(valor).classes("text-lg font-semibold")
     return texto
+
+
+def _rotulo_referencia_clima(previsao: PrevisaoClima) -> str:
+    """Explica se o numero principal do clima representa agora ou um dia futuro."""
+    return "Agora" if previsao.e_hoje else "Temperatura prevista"
+
+
+def _texto_contexto_clima(previsao: PrevisaoClima) -> str:
+    """Monta um contexto coerente para hoje e para dias futuros."""
+    if previsao.e_hoje:
+        return f"Sensacao {previsao.sensacao} C | Vento {previsao.vento} km/h"
+    return f"Vento previsto {previsao.vento} km/h | Chance de chuva {previsao.chuva}%"
 
 
 def _opcoes_grafico(contagens: dict[str, int]) -> dict:

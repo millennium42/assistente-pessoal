@@ -65,12 +65,14 @@ def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
             return PrevisaoClima(
                 cidade=localizacao.cidade,
                 data_alvo=__import__("datetime").date(2026, 6, 9),
-                temperatura_atual=20.0,
-                sensacao=19.0,
+                e_hoje=False,
+                temperatura_referencia=21.0,
+                sensacao=None,
                 vento=12.0,
                 maxima=26.0,
                 minima=16.0,
                 chuva=10.0,
+                codigo_tempo=1,
             )
 
     monkeypatch.setattr("assistente_pessoal.cli.ClienteClima", ClienteClimaFake)

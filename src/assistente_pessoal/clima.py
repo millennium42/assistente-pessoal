@@ -17,12 +17,14 @@ class PrevisaoClima:
 
     cidade: str
     data_alvo: date
-    temperatura_atual: float | None
+    e_hoje: bool
+    temperatura_referencia: float | None
     sensacao: float | None
     vento: float | None
     maxima: float | None
     minima: float | None
     chuva: float | None
+    codigo_tempo: int | None
 
 
 class ClienteClima:
@@ -47,7 +49,9 @@ class ClienteClima:
             "longitude": localizacao.longitude,
             "timezone": localizacao.timezone,
             "current": "temperature_2m,apparent_temperature,wind_speed_10m,weather_code",
-            "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+            "daily": (
+                "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+            ),
             "forecast_days": min(max(forecast_days, 1), 16),
         }
         with httpx.Client(timeout=self.timeout) as client:
@@ -64,25 +68,42 @@ def montar_previsao(cidade: str, dados: dict, data_alvo: date) -> PrevisaoClima:
     indice = _indice_data(diario.get("time"), data_alvo.isoformat())
     if indice is None:
         raise ValueError(f"A API nao devolveu previsao para {data_alvo.isoformat()}.")
+    maxima = _valor_na_posicao(diario.get("temperature_2m_max"), indice)
+    minima = _valor_na_posicao(diario.get("temperature_2m_min"), indice)
+    e_hoje = data_alvo == hoje_local(dados.get("timezone", "UTC"))
+    temperatura_referencia = (
+        atual.get("temperature_2m") if e_hoje else _temperatura_media(maxima, minima)
+    )
     return PrevisaoClima(
         cidade=cidade,
         data_alvo=data_alvo,
-        temperatura_atual=atual.get("temperature_2m"),
-        sensacao=atual.get("apparent_temperature"),
+        e_hoje=e_hoje,
+        temperatura_referencia=temperatura_referencia,
+        sensacao=atual.get("apparent_temperature") if e_hoje else None,
         vento=atual.get("wind_speed_10m"),
-        maxima=_valor_na_posicao(diario.get("temperature_2m_max"), indice),
-        minima=_valor_na_posicao(diario.get("temperature_2m_min"), indice),
+        maxima=maxima,
+        minima=minima,
         chuva=_valor_na_posicao(diario.get("precipitation_probability_max"), indice),
+        codigo_tempo=_valor_na_posicao(diario.get("weather_code"), indice)
+        if not e_hoje
+        else atual.get("weather_code"),
     )
 
 
 def formatar_previsao(previsao: PrevisaoClima) -> str:
     """Formata a previsao em uma frase curta para CLI e voz."""
+    if previsao.e_hoje:
+        return (
+            f"Clima em {previsao.cidade} para {previsao.data_alvo.isoformat()}: "
+            f"agora {previsao.temperatura_referencia} C, sensacao {previsao.sensacao} C, "
+            f"vento {previsao.vento} km/h; maxima {previsao.maxima} C, minima "
+            f"{previsao.minima} C, chance de chuva {previsao.chuva}%."
+        )
     return (
-        f"Clima em {previsao.cidade} para {previsao.data_alvo.isoformat()}: "
-        f"agora {previsao.temperatura_atual} C, sensacao {previsao.sensacao} C, "
-        f"vento {previsao.vento} km/h; maxima {previsao.maxima} C, minima "
-        f"{previsao.minima} C, chance de chuva {previsao.chuva}%."
+        f"Previsao para {previsao.cidade} em {previsao.data_alvo.isoformat()}: "
+        f"temperatura prevista em torno de {previsao.temperatura_referencia} C, "
+        f"maxima {previsao.maxima} C, minima {previsao.minima} C, "
+        f"chance de chuva {previsao.chuva}% e vento {previsao.vento} km/h."
     )
 
 
@@ -103,3 +124,14 @@ def _valor_na_posicao(valores: list | None, indice: int) -> object:
     if indice >= len(valores):
         return None
     return valores[indice]
+
+
+def _temperatura_media(maxima: float | None, minima: float | None) -> float | None:
+    """Cria uma referencia termica simples para dias futuros sem usar o 'agora' de hoje."""
+    if maxima is None and minima is None:
+        return None
+    if maxima is None:
+        return minima
+    if minima is None:
+        return maxima
+    return round((maxima + minima) / 2, 1)
