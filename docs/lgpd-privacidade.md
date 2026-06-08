@@ -15,6 +15,7 @@ Este projeto e local por padrao, mas nao e "offline por definicao". Algumas func
 - noticias: requisicoes HTTP para The News, feeds RSS e paginas locais configuradas
 - musica: nomes de artistas para o MusicBrainz
 - chat: mensagem e contexto local para o endpoint LLM configurado
+- Google Agenda: leitura dos proximos eventos do calendario configurado via OAuth
 
 ## Escolhas praticas alinhadas com LGPD
 
@@ -22,11 +23,12 @@ Este projeto e local por padrao, mas nao e "offline por definicao". Algumas func
 - transparencia: o README explica quais modulos usam rede
 - controle do titular: o vault e legivel, editavel e apagavel
 - segregacao: agenda local e planejamento ficam em arquivos dedicados
-- reducao de superficie: Google Agenda ficou fora desta fase
+- reducao de privilegio: Google Agenda usa escopo somente leitura
 
 ## Recomendacoes de uso
 
 - nao comite `config.toml` com informacoes privadas
+- nao comite o arquivo de credenciais OAuth do Google nem o token local
 - prefira um vault dedicado ao inves de misturar tudo com notas antigas
 - revise o conteudo enviado a provedores LLM externos
 - nao use logs verbosos em producao com conteudo de notas pessoais

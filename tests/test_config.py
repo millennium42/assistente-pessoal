@@ -25,6 +25,10 @@ def test_criar_e_carregar_config_inicial(tmp_path: Path) -> None:
     assert config.localizacao.latitude == -29.68
     assert config.fontes.noticias.the_news.habilitado is True
     assert "tecnoblog.net" in config.fontes.noticias.tech.rss[0]
+    assert (
+        config.google_agenda.token_path
+        == (config_path.parent / ".assistente" / "google-calendar-token.json").resolve()
+    )
 
 
 def test_carregar_config_inexistente_retorna_padrao(tmp_path: Path) -> None:

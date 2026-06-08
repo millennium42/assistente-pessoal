@@ -89,8 +89,37 @@ O dashboard abre localmente no navegador e mostra:
 - nota rapida
 - plano de estudos
 - agenda local
+- Google Agenda
 
 Os blocos de planejamento escrevem em:
 
 - `60_planejamento/plano-estudos.md`
 - `61_agenda_local/agenda-local.md`
+
+## Google Agenda
+
+1. Crie um client OAuth de aplicativo desktop no Google Cloud.
+2. Baixe o JSON e coloque no caminho configurado em `google_agenda.credentials_path`.
+3. Ative a integracao no `config.toml`:
+
+```toml
+[google_agenda]
+habilitado = true
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
+```
+
+4. Autentique:
+
+```powershell
+assistente-pessoal agenda google-auth
+```
+
+5. Liste os proximos eventos:
+
+```powershell
+assistente-pessoal agenda google-listar
+```

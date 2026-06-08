@@ -5,7 +5,7 @@ Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combi
 ## O que mudou nesta versao
 
 - correcao da resolucao do `vault_path`, para as notas aparecerem no vault certo do Obsidian;
-- dashboard local com clima, noticias, notas rapidas, plano de estudos e agenda local;
+- dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
 - noticias priorizadas em quatro grupos:
   1. The News
   2. Santa Maria - RS
@@ -84,6 +84,8 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 - `assistente-pessoal clima --dia amanha`
 - `assistente-pessoal noticias --limite 5`
 - `assistente-pessoal musica`
+- `assistente-pessoal agenda google-auth`
+- `assistente-pessoal agenda google-listar`
 - `assistente-pessoal chat "mensagem"`
 - `assistente-pessoal ouvir`
 - `assistente-pessoal gui`
@@ -100,6 +102,14 @@ cidade = "Santa Maria, RS"
 latitude = -29.6868
 longitude = -53.8149
 timezone = "America/Sao_Paulo"
+
+[google_agenda]
+habilitado = false
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
 
 [fontes.noticias]
 timezone = "America/Sao_Paulo"
@@ -170,7 +180,8 @@ Se as notas nao aparecerem no Obsidian:
 - o vault e local, editavel e apagavel por voce
 - clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
 - logs nao devem carregar conteudo pessoal por padrao
-- a integracao com Google Agenda ainda nao foi habilitada nesta fase justamente para evitar escopo prematuro de dados
+- a Google Agenda usa OAuth local e escopo somente leitura
+- o arquivo de credenciais OAuth e o token local nao devem ser versionados
 
 Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
 

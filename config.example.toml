@@ -20,6 +20,14 @@ base_url = ""
 modelo = ""
 api_key_env = "OPENAI_API_KEY"
 
+[google_agenda]
+habilitado = false
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
+
 [fontes.noticias]
 timezone = "America/Sao_Paulo"
 apenas_dia_atual = true

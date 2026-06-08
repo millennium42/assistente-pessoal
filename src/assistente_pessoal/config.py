@@ -55,6 +55,17 @@ class LLMConfig(BaseModel):
         return bool(self.base_url.strip() and self.modelo.strip())
 
 
+class GoogleAgendaConfig(BaseModel):
+    """Configuracao da integracao somente leitura com Google Agenda."""
+
+    habilitado: bool = False
+    credentials_path: Path = Path("google-oauth-client.json")
+    token_path: Path = Path(".assistente/google-calendar-token.json")
+    calendar_id: str = "primary"
+    max_eventos: int = 10
+    janela_dias: int = 7
+
+
 class GrupoRssConfig(BaseModel):
     """Agrupa fontes RSS por tema e prioridade."""
 
@@ -132,6 +143,7 @@ class AppConfig(BaseModel):
     localizacao: LocalizacaoConfig = Field(default_factory=LocalizacaoConfig)
     voz: VozConfig = Field(default_factory=VozConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    google_agenda: GoogleAgendaConfig = Field(default_factory=GoogleAgendaConfig)
     fontes: FontesConfig = Field(default_factory=FontesConfig)
     _config_path: Path | None = PrivateAttr(default=None)
 
@@ -140,6 +152,14 @@ class AppConfig(BaseModel):
         self._config_path = caminho.resolve() if caminho else None
         if self._config_path:
             self.vault_path = resolver_relativo_ao_arquivo(self.vault_path, self._config_path)
+            self.google_agenda.credentials_path = resolver_relativo_ao_arquivo(
+                self.google_agenda.credentials_path,
+                self._config_path,
+            )
+            self.google_agenda.token_path = resolver_relativo_ao_arquivo(
+                self.google_agenda.token_path,
+                self._config_path,
+            )
             self.fontes.noticias.timezone = self.localizacao.timezone
 
     @property
@@ -228,6 +248,14 @@ taxa_amostragem = {config.voz.taxa_amostragem}
 base_url = "{_escapar(config.llm.base_url)}"
 modelo = "{_escapar(config.llm.modelo)}"
 api_key_env = "{_escapar(config.llm.api_key_env)}"
+
+[google_agenda]
+habilitado = {_toml_bool(config.google_agenda.habilitado)}
+credentials_path = "{_normalizar_path(config.google_agenda.credentials_path)}"
+token_path = "{_normalizar_path(config.google_agenda.token_path)}"
+calendar_id = "{_escapar(config.google_agenda.calendar_id)}"
+max_eventos = {config.google_agenda.max_eventos}
+janela_dias = {config.google_agenda.janela_dias}
 
 [fontes.noticias]
 timezone = "{_escapar(config.fontes.noticias.timezone)}"

@@ -20,6 +20,7 @@ Esta versao separa o projeto em camadas pequenas para reduzir acoplamento entre 
 - `noticias`: orquestracao por prioridade
 - `painel`: casos de uso consumidos pela GUI
 - `gui`: dashboard local com NiceGUI
+- `agenda_google`: OAuth local e leitura de eventos do Google Agenda
 - `cli`: comandos Typer
 - `roteador`: texto livre para clima, noticias, memoria e estudo
 

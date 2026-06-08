@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 from rich.table import Table
 
+from assistente_pessoal.agenda_google import ClienteGoogleAgenda, formatar_eventos_google
 from assistente_pessoal.clima import ClienteClima, formatar_previsao
 from assistente_pessoal.config import (
     caminho_config_padrao,
@@ -29,7 +30,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 memoria_app = typer.Typer(help="Comandos para memoria em Obsidian.")
+agenda_app = typer.Typer(help="Comandos para agenda local e Google Agenda.")
 app.add_typer(memoria_app, name="memoria")
+app.add_typer(agenda_app, name="agenda")
 
 
 @app.callback()
@@ -187,6 +190,29 @@ def musica(
     console.print(
         formatar_lancamentos(cliente.listar_lancamentos(config.fontes.artistas, dias=dias))
     )
+
+
+@agenda_app.command("google-auth")
+def agenda_google_auth(ctx: typer.Context) -> None:
+    """Executa o login OAuth da Google Agenda e salva um token local."""
+    config = _carregar(ctx)
+    cliente = ClienteGoogleAgenda(config.google_agenda)
+    if not config.google_agenda.credentials_path.exists():
+        erro(
+            "Nao encontrei o arquivo de credenciais OAuth do Google. "
+            "Configure google_agenda.credentials_path no config.toml."
+        )
+        raise typer.Exit(1)
+    caminho = cliente.autenticar_interativo()
+    sucesso(f"Token Google salvo em {caminho.as_posix()}.")
+
+
+@agenda_app.command("google-listar")
+def agenda_google_listar(ctx: typer.Context) -> None:
+    """Lista os proximos eventos da Google Agenda configurada."""
+    config = _carregar(ctx)
+    eventos = ClienteGoogleAgenda(config.google_agenda).listar_eventos()
+    console.print(formatar_eventos_google(eventos))
 
 
 @memoria_app.command("salvar")

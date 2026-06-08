@@ -6,6 +6,7 @@ import socket
 
 from nicegui import ui
 
+from assistente_pessoal.agenda_google import EventoGoogleAgenda
 from assistente_pessoal.clima import PrevisaoClima
 from assistente_pessoal.config import AppConfig
 from assistente_pessoal.logs import avisar
@@ -155,7 +156,7 @@ def construir_dashboard(
             status = ui.label("Painel pronto.").classes("text-sm text-slate-500 ml-auto")
 
         kpi_cards = _criar_kpis(snapshot_inicial)
-        with ui.grid(columns=4).classes("w-full gap-3"):
+        with ui.grid(columns=5).classes("w-full gap-3"):
             for card in kpi_cards:
                 with ui.element("div").classes("kpi"):
                     ui.label(card["label"]).classes("kpi-label")
@@ -251,6 +252,7 @@ def construir_dashboard(
                         aba_nota = ui.tab("Nota rapida")
                         aba_plano = ui.tab("Plano de estudos")
                         aba_agenda = ui.tab("Agenda local")
+                        aba_google = ui.tab("Google Agenda")
 
                     with ui.tab_panels(abas, value=aba_nota).classes("w-full"):
                         with ui.tab_panel(aba_nota).classes("surface"):
@@ -304,6 +306,16 @@ def construir_dashboard(
                                 ),
                             ).classes("w-full")
 
+                        with ui.tab_panel(aba_google).classes("surface"):
+                            ui.label("Proximos eventos da sua agenda Google").classes(
+                                "text-sm text-slate-500"
+                            )
+                            google_lista = ui.column().classes("gap-2")
+                            _popular_eventos_google(
+                                google_lista,
+                                snapshot_inicial.agenda_google if snapshot_inicial else [],
+                            )
+
         def atualizar() -> None:
             """Recarrega os dados dinamicos sem reconstruir a pagina inteira."""
             try:
@@ -329,6 +341,7 @@ def construir_dashboard(
             plano_texto.value = snapshot.plano_estudos
             agenda_texto.value = snapshot.agenda_local
             _popular_notas_recentes(notas_recentes, snapshot.notas_recentes)
+            _popular_eventos_google(google_lista, snapshot.agenda_google)
             status.text = f"Painel atualizado as {snapshot.atualizado_em}."
 
         noticias_total.text = (
@@ -375,12 +388,18 @@ def _criar_kpis(snapshot: DashboardSnapshot | None) -> list[dict]:
                 "value": f"{previsao.maxima or '--'} C",
                 "detail": (f"Minima {previsao.minima or '--'} C | Chuva {previsao.chuva or '--'}%"),
             },
+            {
+                "label": "Google Agenda",
+                "value": str(snapshot.indicadores.eventos_google),
+                "detail": "Eventos futuros sincronizados",
+            },
         ]
     return [
         {"label": "Noticias no radar", "value": "0", "detail": "Sem dados iniciais"},
         {"label": "The News em destaque", "value": "0", "detail": "Sem dados iniciais"},
         {"label": "Santa Maria hoje", "value": "0", "detail": "Sem dados iniciais"},
         {"label": "Temperatura alvo", "value": "--", "detail": "Sem dados iniciais"},
+        {"label": "Google Agenda", "value": "0", "detail": "Sem dados iniciais"},
     ]
 
 
@@ -506,6 +525,24 @@ def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:
             with ui.element("div").classes("stat-box"):
                 ui.label("Vault").classes("text-[11px] uppercase text-slate-400")
                 ui.label(nota).classes("text-sm font-medium text-slate-700")
+
+
+def _popular_eventos_google(container: ui.column, eventos: list[EventoGoogleAgenda]) -> None:
+    """Atualiza a lista resumida de eventos da agenda Google."""
+    container.clear()
+    if not eventos:
+        with container:
+            ui.label("Nenhum evento Google encontrado ou integracao ainda nao conectada.").classes(
+                "text-sm text-slate-500"
+            )
+        return
+    with container:
+        for evento in eventos:
+            with ui.element("div").classes("stat-box"):
+                ui.label(evento.titulo).classes("text-sm font-semibold text-slate-800")
+                ui.label(evento.inicio).classes("text-xs text-slate-500")
+                if evento.local:
+                    ui.label(evento.local).classes("text-xs text-slate-500")
 
 
 def _salvar_nota(

@@ -59,15 +59,16 @@ Critica: nao tentamos transformar clima em motor de linguagem natural. O foco e 
 
 ## Agenda
 
-Escolha: agenda local no vault, sem Google Agenda nesta fase
+Escolha: agenda local no vault + Google Agenda em leitura
 
 Motivo:
 
 - reduz risco de privacidade
-- evita OAuth, tokens e escopos cedo
-- mantem a funcionalidade diaria que realmente importa: registrar planejamento
+- mantem o planejamento local no vault
+- adiciona visibilidade dos proximos eventos reais da conta Google
+- usa escopo somente leitura para reduzir superficie
 
-Critica: isso nao substitui uma agenda em nuvem. E uma camada local de organizacao, nao sincronizacao.
+Critica: a integracao atual nao cria nem edita eventos. Ela existe para leitura e contexto no dashboard, nao para substituir um cliente completo de agenda.
 
 ## LGPD
 

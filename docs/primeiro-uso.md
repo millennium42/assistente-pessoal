@@ -108,7 +108,30 @@ api_key_env = "OPENAI_API_KEY"
 
 Se usar um servidor local compativel, o chat melhora sem mudar o restante do projeto.
 
-## 9. Problemas comuns
+## 9. Integrar Google Agenda
+
+No `config.toml`:
+
+```toml
+[google_agenda]
+habilitado = true
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
+```
+
+Depois de baixar o arquivo OAuth do Google Cloud para `credentials_path`:
+
+```powershell
+.\.venv\Scripts\assistente-pessoal.exe agenda google-auth
+.\.venv\Scripts\assistente-pessoal.exe agenda google-listar
+```
+
+Quando a integracao estiver pronta, o dashboard passa a mostrar os proximos eventos tambem.
+
+## 10. Problemas comuns
 
 ### As notas nao aparecem no Obsidian
 

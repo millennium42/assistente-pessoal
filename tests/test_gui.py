@@ -18,6 +18,7 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
 
     assert caminho_plano == "60_planejamento/plano-estudos.md"
     assert caminho_agenda == "61_agenda_local/agenda-local.md"
+    assert servico.carregar().indicadores.eventos_google == 0
 
 
 def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
