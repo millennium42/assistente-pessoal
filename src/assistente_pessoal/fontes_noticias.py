@@ -7,14 +7,34 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from html import unescape
-from urllib.parse import urljoin
+from urllib.parse import quote_plus, urljoin
 from zoneinfo import ZoneInfo
 
 import feedparser
 import httpx
 
 from assistente_pessoal.config import GrupoRssConfig, TheNewsConfig
-from assistente_pessoal.core_datas import extrair_data_iso, extrair_data_rss, publicado_no_dia
+from assistente_pessoal.core_datas import (
+    extrair_data_iso,
+    extrair_data_rss,
+    normalizar_texto_ascii,
+    publicado_no_dia,
+)
+
+PORTAIS_LOCAIS_CONFIAVEIS = (
+    "diariosm.com.br",
+    "bei.net.br",
+)
+
+THE_NEWS_CATEGORIAS_GERAIS = (
+    "brasil",
+    "mundo",
+    "negocios",
+    "economia",
+    "tecnologia",
+    "esportes",
+    "variedades",
+)
 
 
 @dataclass(frozen=True)
@@ -48,26 +68,30 @@ class TheNewsSource:
             return []
         url = "https://api.waffle.com.br/api/public/articles"
         categoria = config.categoria.strip()
-        params: dict[str, object] = {
-            "limit": max(limite * 3, 20),
-            "page": 1,
-            "isAds": "false",
-        }
-        if categoria:
-            params["category"] = categoria
+        categorias = (categoria,) if categoria else ("", *THE_NEWS_CATEGORIAS_GERAIS)
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                resposta = client.get(
-                    url,
-                    params=params,
-                    headers={"User-Agent": "assistente-pessoal/0.1.0"},
-                )
-                resposta.raise_for_status()
-                dados = resposta.json()
+                artigos = []
+                for categoria_consulta in categorias:
+                    params: dict[str, object] = {
+                        "limit": max(limite * 3, 30),
+                        "page": 1,
+                        "isAds": "false",
+                    }
+                    if categoria_consulta:
+                        params["category"] = categoria_consulta
+                    resposta = client.get(
+                        url,
+                        params=params,
+                        headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                    )
+                    resposta.raise_for_status()
+                    dados = resposta.json()
+                    artigos.extend(dados.get("data", {}).get("articles", []))
         except (httpx.HTTPError, ValueError):
             return []
-        artigos = dados.get("data", {}).get("articles", [])
         noticias: list[ItemFonteNoticia] = []
+        vistos: set[str] = set()
         for artigo in artigos:
             publicado_em = extrair_data_iso(artigo.get("publishedAt"))
             if not publicado_no_dia(publicado_em, data_referencia, timezone):
@@ -81,6 +105,10 @@ class TheNewsSource:
             categoria_artigo = artigo.get("category") or {}
             categoria_nome = categoria_artigo.get("name") or categoria or "geral"
             categoria_slug = categoria_artigo.get("slug") or categoria
+            chave = _chave_noticia(artigo.get("title", ""), link or slug)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
             link_categoria = "https://www.thenews.com.br/pt-BR/portal"
             if categoria_slug:
                 link_categoria = (
@@ -96,9 +124,7 @@ class TheNewsSource:
                     grupo="the_news",
                 )
             )
-            if len(noticias) >= limite:
-                break
-        return noticias
+        return ordenar_itens_por_publicacao(noticias)[:limite]
 
 
 class RssNewsSource:
@@ -151,6 +177,58 @@ class RssNewsSource:
         return noticias
 
 
+class InterestNewsSource:
+    """Busca noticias por tags de interesse em agregadores RSS de portais."""
+
+    def listar(
+        self,
+        interesses: list[str],
+        limite: int,
+        timezone: str,
+        data_referencia: date,
+        apenas_dia_atual: bool,
+    ) -> list[ItemFonteNoticia]:
+        """Consulta Google News RSS por interesse e devolve itens recentes."""
+        termos = [" ".join(interesse.split()) for interesse in interesses if interesse.strip()]
+        if not termos:
+            return []
+        noticias: list[ItemFonteNoticia] = []
+        vistos: set[str] = set()
+        limite_por_termo = max(8, min(24, limite // max(len(termos), 1) + 4))
+        for termo in termos[:12]:
+            url = _url_google_news_interesse(termo)
+            feed = feedparser.parse(url)
+            for item in feed.entries[: max(limite_por_termo * 2, 16)]:
+                titulo = item.get("title", "Sem titulo")
+                link = item.get("link", "")
+                publicado_em = extrair_data_rss(item)
+                if apenas_dia_atual and not publicado_no_dia(
+                    publicado_em,
+                    data_referencia,
+                    timezone,
+                ):
+                    continue
+                chave = _chave_noticia(titulo, link)
+                if chave in vistos:
+                    continue
+                vistos.add(chave)
+                noticias.append(
+                    ItemFonteNoticia(
+                        titulo=titulo,
+                        link=link,
+                        fonte=_fonte_interesse(item, termo),
+                        publicado=item.get("published") or item.get("updated") or "",
+                        publicado_em=publicado_em,
+                        grupo="interesses",
+                    )
+                )
+                if len(noticias) >= limite:
+                    break
+            if len(noticias) >= limite:
+                break
+        return ordenar_itens_por_publicacao(noticias)[:limite]
+
+
 class HtmlJsonLdNewsSource:
     """Extrai noticias de paginas HTML que expoem JSON-LD de artigos."""
 
@@ -171,7 +249,7 @@ class HtmlJsonLdNewsSource:
         if not config.habilitado or not config.urls:
             return []
         noticias: list[ItemFonteNoticia] = []
-        vistos: set[tuple[str, str]] = set()
+        vistos: set[str] = set()
         with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
             for url in config.urls:
                 try:
@@ -209,7 +287,7 @@ class HtmlJsonLdNewsSource:
                         publicado_em, data_referencia, timezone
                     ):
                         continue
-                    chave = (titulo.lower(), link)
+                    chave = _chave_noticia(titulo, link)
                     if chave in vistos:
                         continue
                     vistos.add(chave)
@@ -225,26 +303,21 @@ class HtmlJsonLdNewsSource:
                             grupo=grupo,
                         )
                     )
-                    if len(noticias) >= limite:
-                        return noticias
-                if len(noticias) < limite:
-                    noticias.extend(
-                        self._listar_por_manchetes_html(
-                            client=client,
-                            grupo=grupo,
-                            config=config,
-                            limite=limite - len(noticias),
-                            timezone=timezone,
-                            data_referencia=data_referencia,
-                            apenas_dia_atual=apenas_dia_atual,
-                            origem=url,
-                            html=html,
-                            vistos=vistos,
-                        )
+                noticias.extend(
+                    self._listar_por_manchetes_html(
+                        client=client,
+                        grupo=grupo,
+                        config=config,
+                        limite=limite,
+                        timezone=timezone,
+                        data_referencia=data_referencia,
+                        apenas_dia_atual=apenas_dia_atual,
+                        origem=url,
+                        html=html,
+                        vistos=vistos,
                     )
-                if len(noticias) >= limite:
-                    return noticias
-        return noticias
+                )
+        return ordenar_itens_por_publicacao(noticias)[:limite]
 
     def _listar_por_manchetes_html(
         self,
@@ -257,12 +330,12 @@ class HtmlJsonLdNewsSource:
         apenas_dia_atual: bool,
         origem: str,
         html: str,
-        vistos: set[tuple[str, str]],
+        vistos: set[str],
     ) -> list[ItemFonteNoticia]:
         """Usa manchetes clicaveis da home quando o site nao publica JSON-LD util."""
         noticias: list[ItemFonteNoticia] = []
         candidatos = extrair_links_manchetes(html, origem)
-        for titulo, link in candidatos[: max(limite * 4, 12)]:
+        for titulo, link in candidatos[: max(min(limite * 2, 36), 16)]:
             if grupo == "santa_maria" and not noticia_parece_local(
                 titulo,
                 link,
@@ -280,7 +353,7 @@ class HtmlJsonLdNewsSource:
             publicado_em, publicado = extrair_data_artigo_html(resposta_artigo.text, timezone)
             if apenas_dia_atual and not publicado_no_dia(publicado_em, data_referencia, timezone):
                 continue
-            chave = (titulo.lower(), link)
+            chave = _chave_noticia(titulo, link)
             if chave in vistos:
                 continue
             vistos.add(chave)
@@ -296,7 +369,7 @@ class HtmlJsonLdNewsSource:
             )
             if len(noticias) >= limite:
                 break
-        return noticias
+        return ordenar_itens_por_publicacao(noticias)[:limite]
 
 
 def extrair_artigos_json_ld(html: str) -> list[dict]:
@@ -367,10 +440,52 @@ def extrair_data_artigo_html(html: str, timezone: str) -> tuple[datetime | None,
 
 def noticia_parece_local(titulo: str, link: str, palavras_chave: list[str]) -> bool:
     """Aplica um filtro simples para reduzir ruido em fontes locais mistas."""
+    link_normalizado = link.lower()
+    if any(portal in link_normalizado for portal in PORTAIS_LOCAIS_CONFIAVEIS):
+        return True
     if not palavras_chave:
         return True
-    universo = f"{titulo} {link}".lower()
-    return any(palavra.lower() in universo for palavra in palavras_chave)
+    universo = normalizar_texto_ascii(f"{titulo} {link}").lower()
+    return any(
+        normalizar_texto_ascii(palavra).lower() in universo
+        for palavra in palavras_chave
+    )
+
+
+def _url_google_news_interesse(termo: str) -> str:
+    consulta = quote_plus(f"{termo} when:1d")
+    return (
+        "https://news.google.com/rss/search?"
+        f"q={consulta}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+    )
+
+
+def _fonte_interesse(item: object, termo: str) -> str:
+    fonte = ""
+    if isinstance(item, dict):
+        origem = item.get("source") or {}
+        if isinstance(origem, dict):
+            fonte = str(origem.get("title") or "").strip()
+    if not fonte:
+        fonte = f"busca: {termo}"
+    return fonte
+
+
+def ordenar_itens_por_publicacao(itens: list[ItemFonteNoticia]) -> list[ItemFonteNoticia]:
+    """Mantem fontes HTML e API na ordem mais recente possivel."""
+    return sorted(
+        itens,
+        key=lambda item: item.publicado_em.timestamp() if item.publicado_em else float("-inf"),
+        reverse=True,
+    )
+
+
+def _chave_noticia(titulo: object, link: object = "") -> str:
+    titulo_normalizado = normalizar_texto_ascii(str(titulo)).lower().strip()
+    titulo_normalizado = re.sub(r"\s+", " ", titulo_normalizado)
+    if titulo_normalizado:
+        return titulo_normalizado
+    return str(link).strip().lower()
 
 
 def _coletar_artigos(dado: object) -> list[dict]:

@@ -6,11 +6,12 @@ Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combi
 
 - correcao da resolucao do `vault_path`, para as notas aparecerem no vault certo do Obsidian;
 - dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
-- noticias priorizadas em quatro grupos:
+- noticias priorizadas em grupos dinamicos:
   1. The News
   2. Santa Maria - RS
   3. tech
   4. economia global
+  5. interesses de pesquisa
 - clima com `--dia hoje|amanha|segunda|...`;
 - limpeza da documentacao para remover caminhos pessoais;
 - revisao pratica de privacidade e LGPD.
@@ -115,6 +116,7 @@ janela_dias = 7
 [fontes.noticias]
 timezone = "America/Sao_Paulo"
 apenas_dia_atual = true
+interesses_busca = []
 prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
 
 [fontes.noticias.the_news]
@@ -128,6 +130,18 @@ titulo_fonte = "santa maria - midia local"
 urls = [
   "https://diariosm.com.br/",
   "https://bei.net.br/plantao/",
+]
+palavras_chave = [
+  "santa maria",
+  "santa-mariense",
+  "ufsm",
+  "regiao central",
+  "quarta colonia",
+  "agudo",
+  "sao sepe",
+  "sao pedro do sul",
+  "julio de castilhos",
+  "cruz alta",
 ]
 
 [fontes.noticias.tech]
