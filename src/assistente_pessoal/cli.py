@@ -17,7 +17,7 @@ from assistente_pessoal.config import (
 )
 from assistente_pessoal.estudos import criar_nota_estudo
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
-from assistente_pessoal.logs import console, erro, sucesso
+from assistente_pessoal.logs import avisar, console, erro, sucesso
 from assistente_pessoal.memoria import MemoriaObsidian
 from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
 from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
@@ -167,10 +167,13 @@ def gui(
 ) -> None:
     """Inicia um dashboard local com clima, noticias e notas do vault."""
     config = _carregar(ctx)
-    from assistente_pessoal.gui import iniciar_dashboard
+    from assistente_pessoal.gui import iniciar_dashboard, resolver_porta_dashboard
 
-    sucesso(f"Dashboard iniciando em http://{host}:{port}")
-    iniciar_dashboard(config, host=host, port=port)
+    porta_real = resolver_porta_dashboard(host, port)
+    if porta_real != port:
+        avisar(f"Porta {port} ocupada. Vou usar a porta {porta_real}.")
+    sucesso(f"Dashboard iniciando em http://{host}:{porta_real}")
+    iniciar_dashboard(config, host=host, port=porta_real)
 
 
 @app.command("musica")

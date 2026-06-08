@@ -79,3 +79,33 @@ def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "2026-06-09" in result.output
+
+
+def test_cli_gui_troca_porta_ocupada(monkeypatch, tmp_path: Path) -> None:
+    """Quando a porta padrao estiver ocupada, a CLI escolhe outra e avisa."""
+    runner = CliRunner()
+    config_path = tmp_path / "config.toml"
+    vault = tmp_path / "vault"
+    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+
+    chamadas: dict[str, object] = {}
+
+    def porta_fake(host: str, porta_preferida: int, tentativas: int = 20) -> int:
+        """Simula uma porta padrao ocupada e libera a proxima."""
+        assert host == "127.0.0.1"
+        assert porta_preferida == 8765
+        return 8766
+
+    def iniciar_fake(config, host: str, port: int) -> None:
+        """Captura a porta final sem subir o servidor real."""
+        chamadas["host"] = host
+        chamadas["port"] = port
+
+    monkeypatch.setattr("assistente_pessoal.gui.resolver_porta_dashboard", porta_fake)
+    monkeypatch.setattr("assistente_pessoal.gui.iniciar_dashboard", iniciar_fake)
+
+    result = runner.invoke(app, ["--config", str(config_path), "gui"])
+
+    assert result.exit_code == 0
+    assert "Porta 8765 ocupada" in result.output
+    assert chamadas["port"] == 8766

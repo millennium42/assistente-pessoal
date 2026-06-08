@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import socket
+
 from nicegui import ui
 
 from assistente_pessoal.clima import formatar_previsao
@@ -9,6 +11,20 @@ from assistente_pessoal.config import AppConfig
 from assistente_pessoal.logs import avisar
 from assistente_pessoal.noticias import texto_terminal_seguro
 from assistente_pessoal.painel import DashboardService, DashboardSnapshot
+
+
+def resolver_porta_dashboard(host: str, porta_preferida: int, tentativas: int = 20) -> int:
+    """Escolhe uma porta livre para o dashboard a partir da preferida."""
+    for porta in range(porta_preferida, porta_preferida + tentativas):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, porta))
+            except OSError:
+                continue
+            return porta
+    ultima_porta = porta_preferida + tentativas - 1
+    raise RuntimeError(f"Nao encontrei uma porta livre entre {porta_preferida} e {ultima_porta}.")
 
 
 def iniciar_dashboard(
