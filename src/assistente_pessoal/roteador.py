@@ -32,6 +32,7 @@ class RoteadorComandos:
             noticias = ClienteNoticias().listar(
                 self.config.fontes.rss,
                 incluir_the_news_tecnologia=self.config.fontes.incluir_the_news_tecnologia,
+                timezone_local=self.config.localizacao.timezone,
             )
             return formatar_noticias(noticias)
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:

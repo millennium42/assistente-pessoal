@@ -145,6 +145,7 @@ def noticias(
         config.fontes.rss,
         limite=limite,
         incluir_the_news_tecnologia=config.fontes.incluir_the_news_tecnologia,
+        timezone_local=config.localizacao.timezone,
     )
     console.print(formatar_noticias(itens))
 

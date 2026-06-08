@@ -64,6 +64,8 @@ Opcoes consideradas:
 
 Critica: The News nao anunciou RSS publico nas rotas comuns testadas. Por isso a V1 usa o endpoint publico consumido pelo proprio portal para a categoria tecnologia e mantem RSS tech como base resiliente. Se essa API mudar, os feeds de tecnologia continuam funcionando.
 
+Regra de recencia: o comando `noticias` mostra somente itens publicados no dia atual, calculado pelo fuso `localizacao.timezone`. Isso evita misturar manchetes antigas em uma rotina diaria.
+
 ## Clima
 
 Escolha da V1: **Open-Meteo**.

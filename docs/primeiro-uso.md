@@ -212,6 +212,8 @@ Rode:
 .\.venv\Scripts\assistente-pessoal.exe noticias --limite 5
 ```
 
+O comando mostra apenas noticias publicadas no dia atual, usando o fuso configurado em `localizacao.timezone`.
+
 As fontes ficam em `config.toml`:
 
 ```toml
@@ -225,6 +227,8 @@ rss = [
 ```
 
 O The News entra pela categoria publica de tecnologia do portal. Os RSS complementares sao focados em tecnologia. Voce pode adicionar outros feeds RSS de tecnologia, faculdade, ciencia ou musica, mas evite colocar sites sem RSS: a V1 nao faz scraping generico.
+
+Se nenhuma noticia aparecer, isso pode significar apenas que as fontes configuradas ainda nao publicaram nada hoje.
 
 ## 11. Primeiro teste de musica
 

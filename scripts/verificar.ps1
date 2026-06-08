@@ -13,6 +13,9 @@ function Invoke-Step {
     Write-Host ""
     Write-Host "==> $Nome" -ForegroundColor Cyan
     & $Comando
+    if ($LASTEXITCODE -ne 0) {
+        throw "Etapa '$Nome' falhou com codigo $LASTEXITCODE."
+    }
 }
 
 $Raiz = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -38,4 +41,3 @@ if (-not $SemFormatacao) {
 
 Write-Host ""
 Write-Host "Verificacao concluida com sucesso." -ForegroundColor Green
-

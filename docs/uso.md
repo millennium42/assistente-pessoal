@@ -82,6 +82,8 @@ assistente-pessoal noticias --limite 5
 
 Por padrao, as noticias priorizam The News tecnologia e complementam com RSS tech. As fontes RSS ficam em `fontes.rss` no `config.toml`, e `incluir_the_news_tecnologia = true` controla a fonte do The News.
 
+O filtro usa apenas noticias publicadas no dia atual do fuso `localizacao.timezone`.
+
 ## Musica
 
 Edite `config.toml`:
