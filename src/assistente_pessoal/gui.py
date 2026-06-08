@@ -318,7 +318,8 @@ def construir_dashboard(
 
             _atualizar_kpis(kpi_cards, snapshot)
             _atualizar_clima_resumo(clima_resumo, snapshot.previsao)
-            grafico_grupos.options = _opcoes_grafico(snapshot.noticias_por_grupo)
+            grafico_grupos.options.clear()
+            grafico_grupos.options.update(_opcoes_grafico(snapshot.noticias_por_grupo))
             grafico_grupos.update()
             tabela_noticias.rows = _linhas_noticias(snapshot.noticias)
             tabela_noticias.update()
