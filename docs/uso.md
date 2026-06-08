@@ -80,7 +80,7 @@ A localizacao vem de `config.toml`.
 assistente-pessoal noticias --limite 5
 ```
 
-As fontes RSS ficam em `fontes.rss` no `config.toml`.
+Por padrao, as noticias priorizam The News tecnologia e complementam com RSS tech. As fontes RSS ficam em `fontes.rss` no `config.toml`, e `incluir_the_news_tecnologia = true` controla a fonte do The News.
 
 ## Musica
 

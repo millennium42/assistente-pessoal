@@ -23,6 +23,8 @@ def test_criar_e_carregar_config_inicial(tmp_path: Path) -> None:
     assert config.vault_path == vault
     assert config.localizacao.cidade == "Santa Maria, RS"
     assert config.localizacao.latitude == -29.68
+    assert config.fontes.incluir_the_news_tecnologia is True
+    assert "tecnoblog.net" in config.fontes.rss[0]
 
 
 def test_carregar_config_inexistente_retorna_padrao(tmp_path: Path) -> None:

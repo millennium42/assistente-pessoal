@@ -117,7 +117,7 @@ api_key_env = "OPENAI_API_KEY"
 - `cli`: interface Typer.
 - `memoria`: vault Obsidian, Markdown e indice SQLite FTS5.
 - `estudos`: notas de estudo, resumos simples e perguntas de revisao.
-- `noticias`: leitura de RSS/Atom.
+- `noticias`: The News tecnologia e RSS/Atom de tecnologia.
 - `clima`: Open-Meteo.
 - `musica`: MusicBrainz.
 - `llm`: cliente pequeno para APIs compativeis com OpenAI.

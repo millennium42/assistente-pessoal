@@ -21,10 +21,11 @@ modelo = ""
 api_key_env = "OPENAI_API_KEY"
 
 [fontes]
+incluir_the_news_tecnologia = true
 rss = [
-  "https://g1.globo.com/rss/g1/",
-  "https://www.ufsm.br/feed",
+  "https://tecnoblog.net/feed/",
+  "https://www.canaltech.com.br/rss/",
+  "https://olhardigital.com.br/feed/",
 ]
 artistas = []
 musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
-

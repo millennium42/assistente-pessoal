@@ -29,7 +29,10 @@ class RoteadorComandos:
         if "clima" in comando_minusculo or "tempo" in comando_minusculo:
             return formatar_previsao(ClienteClima().obter_previsao(self.config.localizacao))
         if "noticia" in comando_minusculo or "noticias" in comando_minusculo:
-            noticias = ClienteNoticias().listar(self.config.fontes.rss)
+            noticias = ClienteNoticias().listar(
+                self.config.fontes.rss,
+                incluir_the_news_tecnologia=self.config.fontes.incluir_the_news_tecnologia,
+            )
             return formatar_noticias(noticias)
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:
             cliente = ClienteMusica(self.config.fontes.musicbrainz_user_agent)

@@ -15,7 +15,7 @@ Este documento explica como a V1 foi desenhada e por que algumas escolhas foram 
 - `config`: leitura de `config.toml`, `.env` e criacao inicial do vault.
 - `memoria`: escrita de Markdown e indice SQLite FTS5.
 - `estudos`: resumo local ou via LLM e perguntas de revisao.
-- `noticias`: agregacao RSS/Atom com `feedparser`.
+- `noticias`: agregacao do The News tecnologia e RSS/Atom tech com `feedparser`.
 - `clima`: consulta Open-Meteo.
 - `musica`: consulta MusicBrainz respeitando identificacao por User-Agent.
 - `llm`: adaptador pequeno para endpoints compativeis com OpenAI.
@@ -64,4 +64,3 @@ O adaptador usa o formato `/chat/completions`, o que permite:
 - Busca vetorial/RAG.
 - Agenda e automacoes recorrentes.
 - Preferencias musicais vindas de Spotify/ListenBrainz.
-

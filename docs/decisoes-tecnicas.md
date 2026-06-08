@@ -53,15 +53,16 @@ Critica: tentar fazer "IA local completa" nesta maquina seria vender uma experie
 
 ## Noticias
 
-Escolha da V1: **RSS/Atom com feedparser**.
+Escolha da V1: **The News tecnologia como fonte prioritaria + RSS/Atom tech com feedparser**.
 
 Opcoes consideradas:
 
 - RSS/Atom: aberto, simples e sem scraping agressivo.
+- API publica usada pelo portal The News: atende ao pedido de incluir The News, mas e uma integracao especifica e pode mudar.
 - APIs pagas de noticias: mais completas, mas desnecessarias para V1.
 - Scraping de sites: fragil, possivelmente contra termos de uso e mais dificil de manter.
 
-Critica: scraping cedo cria manutencao constante. RSS e menos ambicioso, mas mais alinhado com open source e estabilidade.
+Critica: The News nao anunciou RSS publico nas rotas comuns testadas. Por isso a V1 usa o endpoint publico consumido pelo proprio portal para a categoria tecnologia e mantem RSS tech como base resiliente. Se essa API mudar, os feeds de tecnologia continuam funcionando.
 
 ## Clima
 
@@ -110,4 +111,3 @@ Opcoes consideradas:
 - ruff: lint e formatacao rapidos em uma ferramenta so.
 
 Critica: qualidade nao e luxo aqui. Como o assistente vai tocar arquivos pessoais e integracoes externas, testes e lint precisam existir desde o inicio.
-

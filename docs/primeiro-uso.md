@@ -8,7 +8,7 @@ A V1 e um assistente de linha de comando. Ele nao tenta parecer um app completo 
 
 - salvar e buscar memoria em Markdown no Obsidian;
 - ajudar nos estudos com notas, resumos simples e perguntas de revisao;
-- ler noticias por RSS;
+- ler noticias focadas em tecnologia, priorizando The News tecnologia e RSS tech;
 - consultar previsao do tempo;
 - procurar lancamentos musicais por artista;
 - aceitar comandos por texto e por voz push-to-talk;
@@ -216,13 +216,15 @@ As fontes ficam em `config.toml`:
 
 ```toml
 [fontes]
+incluir_the_news_tecnologia = true
 rss = [
-  "https://g1.globo.com/rss/g1/",
-  "https://www.ufsm.br/feed",
+  "https://tecnoblog.net/feed/",
+  "https://www.canaltech.com.br/rss/",
+  "https://olhardigital.com.br/feed/",
 ]
 ```
 
-Voce pode adicionar feeds RSS de sites de tecnologia, faculdade, ciencia ou musica. Evite colocar sites sem RSS: a V1 nao faz scraping.
+O The News entra pela categoria publica de tecnologia do portal. Os RSS complementares sao focados em tecnologia. Voce pode adicionar outros feeds RSS de tecnologia, faculdade, ciencia ou musica, mas evite colocar sites sem RSS: a V1 nao faz scraping generico.
 
 ## 11. Primeiro teste de musica
 

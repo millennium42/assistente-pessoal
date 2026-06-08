@@ -56,10 +56,12 @@ class FontesConfig(BaseModel):
 
     rss: list[str] = Field(
         default_factory=lambda: [
-            "https://g1.globo.com/rss/g1/",
-            "https://www.ufsm.br/feed",
+            "https://tecnoblog.net/feed/",
+            "https://www.canaltech.com.br/rss/",
+            "https://olhardigital.com.br/feed/",
         ]
     )
+    incluir_the_news_tecnologia: bool = True
     artistas: list[str] = Field(default_factory=list)
     musicbrainz_user_agent: str = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
 
@@ -144,6 +146,7 @@ modelo = "{_escapar(config.llm.modelo)}"
 api_key_env = "{_escapar(config.llm.api_key_env)}"
 
 [fontes]
+incluir_the_news_tecnologia = {_toml_bool(config.fontes.incluir_the_news_tecnologia)}
 rss = [
 {rss}
 ]
@@ -175,3 +178,8 @@ def _normalizar_path(caminho: Path) -> str:
 def _escapar(valor: Any) -> str:
     """Escapa aspas e barras invertidas para escrita segura em strings TOML."""
     return str(valor).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _toml_bool(valor: bool) -> str:
+    """Renderiza booleanos no formato esperado pelo TOML."""
+    return "true" if valor else "false"

@@ -139,9 +139,13 @@ def noticias(
     ctx: typer.Context,
     limite: Annotated[int, typer.Option("--limite", help="Quantidade maxima de noticias.")] = 8,
 ) -> None:
-    """Lista noticias recentes das fontes RSS configuradas."""
+    """Lista noticias recentes do The News tecnologia e das fontes RSS tech."""
     config = _carregar(ctx)
-    itens = ClienteNoticias().listar(config.fontes.rss, limite=limite)
+    itens = ClienteNoticias().listar(
+        config.fontes.rss,
+        limite=limite,
+        incluir_the_news_tecnologia=config.fontes.incluir_the_news_tecnologia,
+    )
     console.print(formatar_noticias(itens))
 
 
