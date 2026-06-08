@@ -3,7 +3,13 @@
 from datetime import date, datetime
 
 from assistente_pessoal.config import GrupoRssConfig, NoticiasConfig, TheNewsConfig
-from assistente_pessoal.fontes_noticias import ItemFonteNoticia, extrair_artigos_json_ld
+from assistente_pessoal.fontes_noticias import (
+    ItemFonteNoticia,
+    extrair_artigos_json_ld,
+    extrair_data_artigo_html,
+    extrair_links_manchetes,
+    noticia_parece_local,
+)
 from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias, texto_terminal_seguro
 
 
@@ -132,3 +138,36 @@ def test_extrair_artigos_json_ld() -> None:
     artigos = extrair_artigos_json_ld(html)
 
     assert artigos[0]["headline"] == "Titulo local"
+
+
+def test_extrair_links_manchetes_do_html() -> None:
+    """Recupera manchetes clicaveis quando a home local nao traz JSON-LD util."""
+    html = """
+    <a href="/noticias/geral/exemplo-local.123">Titulo local de Santa Maria com detalhes</a>
+    <a href="/plantao/exemplo-plantao.456">Outra manchete local grande o suficiente para entrar</a>
+    <a href="/curto">curto</a>
+    """
+
+    links = extrair_links_manchetes(html, "https://diariosm.com.br/")
+
+    assert links[0][1] == "https://diariosm.com.br/noticias/geral/exemplo-local.123"
+    assert len(links) == 2
+
+
+def test_extrair_data_artigo_html_textual() -> None:
+    """Aproveita a data textual comum em paginas locais para manter o filtro do dia atual."""
+    html = "<span>Atualizado em: 08/06/2026 07:37</span>"
+
+    publicado_em, publicado = extrair_data_artigo_html(html, "America/Sao_Paulo")
+
+    assert publicado == "08/06/2026 07:37"
+    assert publicado_em is not None
+    assert publicado_em.date().isoformat() == "2026-06-08"
+
+
+def test_noticia_parece_local() -> None:
+    """Evita ruído de paginas locais mistas com conteudo fora de Santa Maria."""
+    palavras = ["santa maria", "ufsm", "itaara"]
+
+    assert noticia_parece_local("Acidente em Santa Maria", "https://x.test", palavras)
+    assert not noticia_parece_local("Mega-Sena acumula", "https://x.test", palavras)

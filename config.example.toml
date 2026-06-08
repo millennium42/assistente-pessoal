@@ -45,6 +45,16 @@ urls = [
   "https://diariosm.com.br/",
   "https://bei.net.br/plantao/",
 ]
+palavras_chave = [
+  "santa maria",
+  "santa-mariense",
+  "ufsm",
+  "itaara",
+  "camobi",
+  "restinga seca",
+  "silveira martins",
+  "faxinal do soturno",
+]
 
 [fontes.noticias.tech]
 habilitado = true

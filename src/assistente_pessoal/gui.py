@@ -140,6 +140,23 @@ def construir_dashboard(
           padding: 10px 12px;
           background: #f8fafc;
         }
+        .headline-card {
+          border: 1px solid #dbe4f0;
+          border-radius: 8px;
+          padding: 12px 14px;
+          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        }
+        .headline-link {
+          color: #0f172a;
+          text-decoration: none;
+          font-weight: 700;
+          line-height: 1.4;
+        }
+        .headline-meta {
+          font-size: 0.78rem;
+          color: #64748b;
+          margin-top: 6px;
+        }
         .surface { background: transparent; }
         </style>
         """
@@ -193,6 +210,21 @@ def construir_dashboard(
                         grafico_grupos = ui.echart(_opcoes_grafico(contagens)).classes(
                             "w-full h-72"
                         )
+
+                with ui.expansion(
+                    "Santa Maria em Foco",
+                    caption="Leitura local priorizada para hoje, com destaque visual.",
+                    value=True,
+                    icon="location_city",
+                ).classes("expansion-shell w-full"):
+                    santa_maria_cards = ui.column().classes("w-full gap-3")
+                    _popular_santa_maria_em_foco(
+                        santa_maria_cards,
+                        _noticias_por_grupo(
+                            snapshot_inicial.noticias if snapshot_inicial else [],
+                            "santa_maria",
+                        ),
+                    )
 
                 with ui.expansion(
                     "Feed Priorizado",
@@ -361,6 +393,10 @@ def construir_dashboard(
             grafico_grupos.options.clear()
             grafico_grupos.options.update(_opcoes_grafico(snapshot.noticias_por_grupo))
             grafico_grupos.update()
+            _popular_santa_maria_em_foco(
+                santa_maria_cards,
+                _noticias_por_grupo(snapshot.noticias, "santa_maria"),
+            )
             tabela_noticias.rows = _linhas_noticias(snapshot.noticias)
             tabela_noticias.update()
             noticias_total.text = (
@@ -539,6 +575,39 @@ def _linhas_noticias(noticias: list[Noticia]) -> list[dict]:
             }
         )
     return linhas
+
+
+def _noticias_por_grupo(noticias: list[Noticia], grupo: str) -> list[Noticia]:
+    """Filtra um subconjunto de noticias para blocos tematicos do dashboard."""
+    return [noticia for noticia in noticias if noticia.grupo == grupo]
+
+
+def _popular_santa_maria_em_foco(container: ui.column, noticias: list[Noticia]) -> None:
+    """Renderiza um bloco visual para noticias locais, sem depender da tabela principal."""
+    container.clear()
+    if not noticias:
+        with container:
+            with ui.element("div").classes("headline-card"):
+                ui.label("Sem noticias locais validadas no dia atual.").classes(
+                    "text-sm font-semibold text-slate-700"
+                )
+                ui.label(
+                    "Quando as fontes locais nao publicam data confiavel, "
+                    "o painel prefere nao inventar resultado."
+                ).classes("headline-meta")
+        return
+    with container:
+        for noticia in noticias[:3]:
+            with ui.element("div").classes("headline-card"):
+                titulo = texto_terminal_seguro(noticia.titulo)
+                meta = (
+                    f"{texto_terminal_seguro(noticia.fonte)} | "
+                    f"{texto_terminal_seguro(noticia.publicado or 'hoje')}"
+                )
+                ui.html(
+                    f'<a class="headline-link" href="{noticia.link}" target="_blank">{titulo}</a>'
+                )
+                ui.label(meta).classes("headline-meta")
 
 
 def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:

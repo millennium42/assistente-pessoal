@@ -72,6 +72,7 @@ class GrupoRssConfig(BaseModel):
     habilitado: bool = True
     rss: list[str] = Field(default_factory=list)
     urls: list[str] = Field(default_factory=list)
+    palavras_chave: list[str] = Field(default_factory=list)
     modo: str = "rss"
     titulo_fonte: str = ""
 
@@ -98,6 +99,16 @@ class NoticiasConfig(BaseModel):
             urls=[
                 "https://diariosm.com.br/",
                 "https://bei.net.br/plantao/",
+            ],
+            palavras_chave=[
+                "santa maria",
+                "santa-mariense",
+                "ufsm",
+                "itaara",
+                "camobi",
+                "restinga seca",
+                "silveira martins",
+                "faxinal do soturno",
             ],
             titulo_fonte="santa maria - midia local",
         )
@@ -224,6 +235,9 @@ def renderizar_toml(config: AppConfig) -> str:
     """Renderiza a configuracao em TOML simples, suficiente para a V1.1."""
     tech_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.tech.rss)
     santa_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.santa_maria.urls)
+    santa_palavras_chave = "\n".join(
+        f'  "{_escapar(palavra)}",' for palavra in config.fontes.noticias.santa_maria.palavras_chave
+    )
     economia_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.rss)
     economia_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.urls)
     prioridades = "\n".join(
@@ -274,6 +288,9 @@ modo = "{_escapar(config.fontes.noticias.santa_maria.modo)}"
 titulo_fonte = "{_escapar(config.fontes.noticias.santa_maria.titulo_fonte)}"
 urls = [
 {santa_urls}
+]
+palavras_chave = [
+{santa_palavras_chave}
 ]
 
 [fontes.noticias.tech]

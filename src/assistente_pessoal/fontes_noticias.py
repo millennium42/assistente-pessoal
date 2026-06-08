@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from html import unescape
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import feedparser
 import httpx
@@ -153,49 +154,130 @@ class HtmlJsonLdNewsSource:
             return []
         noticias: list[ItemFonteNoticia] = []
         vistos: set[tuple[str, str]] = set()
-        for url in config.urls:
-            try:
-                with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
-                    resposta = client.get(url, headers={"User-Agent": "assistente-pessoal/0.1.0"})
+        with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+            for url in config.urls:
+                try:
+                    resposta = client.get(
+                        url,
+                        headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                    )
                     resposta.raise_for_status()
                     html = resposta.text
-            except httpx.HTTPError:
-                continue
-            for artigo in extrair_artigos_json_ld(html):
-                titulo = str(
-                    artigo.get("headline") or artigo.get("title") or artigo.get("name") or ""
-                ).strip()
-                link = str(
-                    artigo.get("url") or artigo.get("mainEntityOfPage") or artigo.get("@id") or url
-                ).strip()
-                if not titulo:
+                except httpx.HTTPError:
                     continue
-                link = urljoin(url, link)
-                publicado_em = extrair_data_iso(
-                    artigo.get("datePublished") or artigo.get("dateModified")
-                )
-                if apenas_dia_atual and not publicado_no_dia(
-                    publicado_em, data_referencia, timezone
-                ):
-                    continue
-                chave = (titulo.lower(), link)
-                if chave in vistos:
-                    continue
-                vistos.add(chave)
-                noticias.append(
-                    ItemFonteNoticia(
-                        titulo=titulo,
-                        link=link,
-                        fonte=config.titulo_fonte or grupo.replace("_", " "),
-                        publicado=str(
-                            artigo.get("datePublished") or artigo.get("dateModified") or ""
-                        ),
-                        publicado_em=publicado_em,
-                        grupo=grupo,
+                for artigo in extrair_artigos_json_ld(html):
+                    titulo = str(
+                        artigo.get("headline") or artigo.get("title") or artigo.get("name") or ""
+                    ).strip()
+                    link = str(
+                        artigo.get("url")
+                        or artigo.get("mainEntityOfPage")
+                        or artigo.get("@id")
+                        or url
+                    ).strip()
+                    if not titulo:
+                        continue
+                    link = urljoin(url, link)
+                    if grupo == "santa_maria" and not noticia_parece_local(
+                        titulo,
+                        link,
+                        config.palavras_chave,
+                    ):
+                        continue
+                    publicado_em = extrair_data_iso(
+                        artigo.get("datePublished") or artigo.get("dateModified")
                     )
-                )
+                    if apenas_dia_atual and not publicado_no_dia(
+                        publicado_em, data_referencia, timezone
+                    ):
+                        continue
+                    chave = (titulo.lower(), link)
+                    if chave in vistos:
+                        continue
+                    vistos.add(chave)
+                    noticias.append(
+                        ItemFonteNoticia(
+                            titulo=titulo,
+                            link=link,
+                            fonte=config.titulo_fonte or grupo.replace("_", " "),
+                            publicado=str(
+                                artigo.get("datePublished") or artigo.get("dateModified") or ""
+                            ),
+                            publicado_em=publicado_em,
+                            grupo=grupo,
+                        )
+                    )
+                    if len(noticias) >= limite:
+                        return noticias
+                if len(noticias) < limite:
+                    noticias.extend(
+                        self._listar_por_manchetes_html(
+                            client=client,
+                            grupo=grupo,
+                            config=config,
+                            limite=limite - len(noticias),
+                            timezone=timezone,
+                            data_referencia=data_referencia,
+                            apenas_dia_atual=apenas_dia_atual,
+                            origem=url,
+                            html=html,
+                            vistos=vistos,
+                        )
+                    )
                 if len(noticias) >= limite:
                     return noticias
+        return noticias
+
+    def _listar_por_manchetes_html(
+        self,
+        client: httpx.Client,
+        grupo: str,
+        config: GrupoRssConfig,
+        limite: int,
+        timezone: str,
+        data_referencia: date,
+        apenas_dia_atual: bool,
+        origem: str,
+        html: str,
+        vistos: set[tuple[str, str]],
+    ) -> list[ItemFonteNoticia]:
+        """Usa manchetes clicaveis da home quando o site nao publica JSON-LD util."""
+        noticias: list[ItemFonteNoticia] = []
+        candidatos = extrair_links_manchetes(html, origem)
+        for titulo, link in candidatos[: max(limite * 4, 12)]:
+            if grupo == "santa_maria" and not noticia_parece_local(
+                titulo,
+                link,
+                config.palavras_chave,
+            ):
+                continue
+            try:
+                resposta_artigo = client.get(
+                    link,
+                    headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                )
+                resposta_artigo.raise_for_status()
+            except httpx.HTTPError:
+                continue
+            publicado_em, publicado = extrair_data_artigo_html(resposta_artigo.text, timezone)
+            if apenas_dia_atual and not publicado_no_dia(publicado_em, data_referencia, timezone):
+                continue
+            chave = (titulo.lower(), link)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            noticias.append(
+                ItemFonteNoticia(
+                    titulo=titulo,
+                    link=link,
+                    fonte=config.titulo_fonte or grupo.replace("_", " "),
+                    publicado=publicado,
+                    publicado_em=publicado_em,
+                    grupo=grupo,
+                )
+            )
+            if len(noticias) >= limite:
+                break
         return noticias
 
 
@@ -216,6 +298,61 @@ def extrair_artigos_json_ld(html: str) -> list[dict]:
             continue
         artigos.extend(_coletar_artigos(dado))
     return artigos
+
+
+def extrair_links_manchetes(html: str, base_url: str) -> list[tuple[str, str]]:
+    """Extrai links de manchetes visiveis quando a home nao oferece JSON-LD aproveitavel."""
+    encontrados: list[tuple[str, str]] = []
+    vistos: set[str] = set()
+    padrao = re.compile(
+        r"<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for href, conteudo in padrao.findall(html):
+        titulo = re.sub(r"<[^>]+>", " ", conteudo)
+        titulo = re.sub(r"\s+", " ", unescape(titulo)).strip(" -\n\r\t>")
+        if len(titulo) < 30:
+            continue
+        link = urljoin(base_url, href.strip())
+        if link in vistos or "/noticias/" not in link and "/plantao/" not in link:
+            continue
+        vistos.add(link)
+        encontrados.append((titulo, link))
+    return encontrados
+
+
+def extrair_data_artigo_html(html: str, timezone: str) -> tuple[datetime | None, str]:
+    """Lê datas comuns de páginas jornalísticas brasileiras sem depender de JSON-LD."""
+    candidatos_meta = [
+        r'article:published_time"\s+content="([^"]+)"',
+        r'article:modified_time"\s+content="([^"]+)"',
+        r'datetime="([^"]+)"',
+    ]
+    for padrao in candidatos_meta:
+        encontrados = re.findall(padrao, html, flags=re.IGNORECASE)
+        for valor in encontrados:
+            data = extrair_data_iso(valor)
+            if data:
+                return data, valor
+    encontrado_texto = re.search(
+        r"(Atualizado em|Publicado em)\s*:?\s*(\d{2}/\d{2}/\d{4})(?:\s+(\d{2}:\d{2}))?",
+        html,
+        flags=re.IGNORECASE,
+    )
+    if encontrado_texto:
+        data_texto = encontrado_texto.group(2)
+        hora_texto = encontrado_texto.group(3) or "00:00"
+        valor = f"{data_texto} {hora_texto}"
+        return datetime.strptime(valor, "%d/%m/%Y %H:%M").replace(tzinfo=ZoneInfo(timezone)), valor
+    return None, ""
+
+
+def noticia_parece_local(titulo: str, link: str, palavras_chave: list[str]) -> bool:
+    """Aplica um filtro simples para reduzir ruido em fontes locais mistas."""
+    if not palavras_chave:
+        return True
+    universo = f"{titulo} {link}".lower()
+    return any(palavra.lower() in universo for palavra in palavras_chave)
 
 
 def _coletar_artigos(dado: object) -> list[dict]:
