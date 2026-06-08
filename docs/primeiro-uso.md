@@ -64,7 +64,7 @@ Depois confirme no Obsidian se o arquivo apareceu em `10_memoria`.
 ## 6. Teste as noticias
 
 ```powershell
-.\.venv\Scripts\assistente-pessoal.exe noticias --limite 5
+.\.venv\Scripts\assistente-pessoal.exe noticias
 ```
 
 Prioridade atual:
@@ -89,6 +89,7 @@ Abra a URL informada no terminal. O painel tem:
 - nota rapida
 - plano de estudos
 - agenda local
+- Google Agenda
 
 Quando voce salvar:
 
@@ -131,9 +132,12 @@ Depois de baixar o arquivo OAuth do Google Cloud para `credentials_path`:
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe agenda google-auth
 .\.venv\Scripts\assistente-pessoal.exe agenda google-listar
+.\.venv\Scripts\assistente-pessoal.exe agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30
 ```
 
-Quando a integracao estiver pronta, o dashboard passa a mostrar os proximos eventos tambem.
+Quando a integracao estiver autenticada, o dashboard mostra os proximos eventos e permite
+criar eventos no calendario configurado. Se o token foi criado antes da criacao de eventos,
+rode `agenda google-auth` novamente.
 
 ## 10. Problemas comuns
 

@@ -31,11 +31,12 @@ janela_dias = 7
 [fontes.noticias]
 timezone = "America/Sao_Paulo"
 apenas_dia_atual = true
+interesses_busca = []
 prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
 
 [fontes.noticias.the_news]
 habilitado = true
-categoria = "tecnologia"
+categoria = ""
 
 [fontes.noticias.santa_maria]
 habilitado = true
@@ -72,6 +73,7 @@ titulo_fonte = "economia global"
 rss = [
   "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
   "https://feeds.bbci.co.uk/news/business/rss.xml",
+  "http://feeds.marketwatch.com/marketwatch/topstories/",
   "https://www.ecb.europa.eu/rss/press.html",
   "https://www.federalreserve.gov/feeds/press_all.xml",
 ]
@@ -84,6 +86,18 @@ palavras_chave = [
   "gdp",
   "tariff",
   "market",
+  "markets",
+  "stock",
+  "stocks",
+  "trade",
+  "jobs",
+  "labour",
+  "labor",
+  "recession",
+  "yield",
+  "oil",
+  "factory",
+  "manufacturing",
 ]
 
 [fontes]

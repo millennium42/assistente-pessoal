@@ -30,7 +30,11 @@ class RoteadorComandos:
             return formatar_previsao(ClienteClima().obter_previsao(self.config.localizacao))
         if "noticia" in comando_minusculo or "noticias" in comando_minusculo:
             noticias = ClienteNoticias().listar(self.config.fontes.noticias)
-            return formatar_noticias(noticias)
+            resposta = formatar_noticias(noticias, timezone=self.config.fontes.noticias.timezone)
+            if noticias:
+                caminho = self._registrar_consulta_noticias(comando, noticias)
+                resposta = f"{resposta}\n\nConsulta salva no Obsidian em {caminho}."
+            return resposta
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:
             cliente = ClienteMusica(self.config.fontes.musicbrainz_user_agent)
             return formatar_lancamentos(cliente.listar_lancamentos(self.config.fontes.artistas))
@@ -52,6 +56,21 @@ class RoteadorComandos:
         if resposta:
             return resposta.texto
         return resposta_fallback()
+
+    def _registrar_consulta_noticias(self, consulta: str, noticias: list) -> str:
+        """Guarda no vault as noticias devolvidas para uma pergunta do usuario."""
+        linhas = [f"Pergunta: {consulta}", "", "## Noticias retornadas", ""]
+        for noticia in noticias:
+            linhas.append(f"- [{noticia.titulo}]({noticia.link})")
+            linhas.append(f"  - Fonte: {noticia.fonte}")
+            linhas.append(f"  - Grupo: {noticia.grupo}")
+        caminho = self.memoria.salvar_nota(
+            "Consulta de noticias",
+            "\n".join(linhas),
+            pasta="40_noticias",
+            tags=["noticias", "consulta", "obsidian"],
+        )
+        return self.memoria.caminho_relativo(caminho)
 
 
 def _remover_prefixo_memoria(texto: str) -> str:

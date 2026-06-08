@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from assistente_pessoal.cli import app
+from assistente_pessoal.noticias import LIMITE_PADRAO_NOTICIAS
 
 
 def test_cli_init_e_memoria(tmp_path: Path) -> None:
@@ -81,6 +82,30 @@ def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "2026-06-09" in result.output
+
+
+def test_cli_noticias_usa_limite_padrao_50(monkeypatch, tmp_path: Path) -> None:
+    """Comando de noticias usa 50 itens quando --limite nao e informado."""
+    runner = CliRunner()
+    config_path = tmp_path / "config.toml"
+    vault = tmp_path / "vault"
+    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+    chamadas: dict[str, int] = {}
+
+    class ClienteNoticiasFake:
+        """Cliente fake para capturar o limite padrao."""
+
+        def listar(self, config, limite: int):
+            """Registra o limite e nao chama fontes externas."""
+            chamadas["limite"] = limite
+            return []
+
+    monkeypatch.setattr("assistente_pessoal.cli.ClienteNoticias", ClienteNoticiasFake)
+
+    result = runner.invoke(app, ["--config", str(config_path), "noticias"])
+
+    assert result.exit_code == 0
+    assert chamadas["limite"] == LIMITE_PADRAO_NOTICIAS
 
 
 def test_cli_gui_troca_porta_ocupada(monkeypatch, tmp_path: Path) -> None:

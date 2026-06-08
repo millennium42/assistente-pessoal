@@ -67,7 +67,7 @@ Se preferir usar o executavel da venv sem ativacao:
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar calculo toda segunda."
 .\.venv\Scripts\assistente-pessoal.exe clima --dia amanha
-.\.venv\Scripts\assistente-pessoal.exe noticias --limite 5
+.\.venv\Scripts\assistente-pessoal.exe noticias
 .\.venv\Scripts\assistente-pessoal.exe gui
 ```
 
@@ -82,10 +82,11 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 - `assistente-pessoal memoria info`
 - `assistente-pessoal estudar`
 - `assistente-pessoal clima --dia amanha`
-- `assistente-pessoal noticias --limite 5`
+- `assistente-pessoal noticias`
 - `assistente-pessoal musica`
 - `assistente-pessoal agenda google-auth`
 - `assistente-pessoal agenda google-listar`
+- `assistente-pessoal agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30`
 - `assistente-pessoal chat "mensagem"`
 - `assistente-pessoal ouvir`
 - `assistente-pessoal gui`
@@ -118,7 +119,7 @@ prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
 
 [fontes.noticias.the_news]
 habilitado = true
-categoria = "tecnologia"
+categoria = "" # vazio busca todas as categorias do The News
 
 [fontes.noticias.santa_maria]
 habilitado = true
@@ -180,7 +181,7 @@ Se as notas nao aparecerem no Obsidian:
 - o vault e local, editavel e apagavel por voce
 - clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
 - logs nao devem carregar conteudo pessoal por padrao
-- a Google Agenda usa OAuth local, escopo somente leitura e a API oficial `calendar-json.googleapis.com`
+- a Google Agenda usa OAuth local, escopo de eventos e a API oficial `calendar-json.googleapis.com`
 - o arquivo de credenciais OAuth e o token local nao devem ser versionados
 
 Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)

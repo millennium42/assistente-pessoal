@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import typer
 from rich.table import Table
 
-from assistente_pessoal.agenda_google import ClienteGoogleAgenda, formatar_eventos_google
+from assistente_pessoal.agenda_google import (
+    ClienteGoogleAgenda,
+    NovoEventoGoogleAgenda,
+    formatar_eventos_google,
+)
 from assistente_pessoal.clima import ClienteClima, formatar_previsao
 from assistente_pessoal.config import (
     caminho_config_padrao,
@@ -21,7 +27,11 @@ from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import avisar, console, erro, sucesso
 from assistente_pessoal.memoria import MemoriaObsidian
 from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
-from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
+from assistente_pessoal.noticias import (
+    LIMITE_PADRAO_NOTICIAS,
+    ClienteNoticias,
+    formatar_noticias,
+)
 from assistente_pessoal.roteador import RoteadorComandos
 from assistente_pessoal.voz import ouvir_e_transcrever
 
@@ -140,12 +150,15 @@ def estudar(
 @app.command("noticias")
 def noticias(
     ctx: typer.Context,
-    limite: Annotated[int, typer.Option("--limite", help="Quantidade maxima de noticias.")] = 8,
+    limite: Annotated[
+        int,
+        typer.Option("--limite", help="Quantidade maxima de noticias."),
+    ] = LIMITE_PADRAO_NOTICIAS,
 ) -> None:
-    """Lista noticias recentes na ordem The News, Santa Maria, tech e economia global."""
+    """Lista noticias recentes do dia em ordem de publicacao."""
     config = _carregar(ctx)
     itens = ClienteNoticias().listar(config.fontes.noticias, limite=limite)
-    console.print(formatar_noticias(itens))
+    console.print(formatar_noticias(itens, timezone=config.fontes.noticias.timezone))
 
 
 @app.command("clima")
@@ -213,6 +226,32 @@ def agenda_google_listar(ctx: typer.Context) -> None:
     config = _carregar(ctx)
     eventos = ClienteGoogleAgenda(config.google_agenda).listar_eventos()
     console.print(formatar_eventos_google(eventos))
+
+
+@agenda_app.command("google-criar")
+def agenda_google_criar(
+    ctx: typer.Context,
+    titulo: Annotated[str, typer.Argument(help="Titulo do evento.")],
+    data: Annotated[str, typer.Option("--data", help="Data no formato AAAA-MM-DD.")],
+    hora: Annotated[str, typer.Option("--hora", help="Hora no formato HH:MM.")] = "09:00",
+    duracao: Annotated[int, typer.Option("--duracao", help="Duracao em minutos.")] = 60,
+    local: Annotated[str, typer.Option("--local", help="Local do evento.")] = "",
+    descricao: Annotated[str, typer.Option("--descricao", help="Descricao do evento.")] = "",
+) -> None:
+    """Cria um evento simples na Google Agenda configurada."""
+    config = _carregar(ctx)
+    inicio = datetime.fromisoformat(f"{data}T{hora}:00").replace(
+        tzinfo=ZoneInfo(config.localizacao.timezone)
+    )
+    evento = NovoEventoGoogleAgenda(
+        titulo=titulo,
+        inicio=inicio,
+        fim=inicio + timedelta(minutes=duracao),
+        local=local,
+        descricao=descricao,
+    )
+    criado = ClienteGoogleAgenda(config.google_agenda).criar_evento(evento)
+    sucesso(f"Evento criado: {criado.titulo} em {criado.inicio}.")
 
 
 @memoria_app.command("salvar")

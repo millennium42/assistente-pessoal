@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from assistente_pessoal.config import NoticiasConfig
-from assistente_pessoal.core_datas import hoje_local
+from assistente_pessoal.core_datas import hoje_local, normalizar_texto_ascii
 from assistente_pessoal.fontes_noticias import (
     HtmlJsonLdNewsSource,
     ItemFonteNoticia,
     RssNewsSource,
     TheNewsSource,
 )
+
+LIMITE_PADRAO_NOTICIAS = 50
 
 
 @dataclass(frozen=True)
@@ -28,7 +32,7 @@ class Noticia:
 
 
 class ClienteNoticias:
-    """Coordena a coleta de noticias por grupos de prioridade configurados."""
+    """Coordena a coleta por grupos e entrega noticias em ordem cronologica."""
 
     def __init__(
         self,
@@ -44,22 +48,22 @@ class ClienteNoticias:
     def listar(
         self,
         config: NoticiasConfig,
-        limite: int = 8,
+        limite: int = LIMITE_PADRAO_NOTICIAS,
         data_referencia: date | None = None,
     ) -> list[Noticia]:
-        """Busca noticias respeitando a ordem de prioridade definida no config."""
+        """Busca noticias por prioridade de fonte e devolve do mais novo ao mais antigo."""
         data_alvo = data_referencia or hoje_local(config.timezone)
         noticias: list[Noticia] = []
-        restantes = max(limite, 1)
-        for indice, grupo in enumerate(config.prioridades):
-            if restantes <= 0:
-                break
-            grupos_a_frente = len(config.prioridades) - indice - 1
-            limite_grupo = max(restantes - grupos_a_frente, 1)
-            itens = self._listar_grupo(grupo, config, limite_grupo, data_alvo)
+        limite_normalizado = max(limite, 1)
+        for grupo in config.prioridades:
+            itens = self._listar_grupo(grupo, config, limite_normalizado, data_alvo)
             noticias.extend(itens)
-            restantes = limite - len(noticias)
-        return noticias[:limite]
+        noticias_ordenadas = ordenar_noticias_por_data(noticias, config.timezone)
+        noticias_priorizadas = priorizar_noticias_por_interesses(
+            noticias_ordenadas,
+            config.interesses_busca,
+        )
+        return selecionar_noticias(noticias_priorizadas, limite_normalizado, config.timezone)
 
     def _listar_grupo(
         self,
@@ -146,20 +150,156 @@ def normalizar_item(item: ItemFonteNoticia) -> Noticia:
     )
 
 
-def formatar_noticias(noticias: list[Noticia]) -> str:
+def ordenar_noticias_por_data(noticias: list[Noticia], timezone: str) -> list[Noticia]:
+    """Ordena noticias da publicacao mais recente para a mais antiga."""
+    return sorted(
+        noticias,
+        key=lambda noticia: _timestamp_publicacao(noticia.publicado_em, timezone),
+        reverse=True,
+    )
+
+
+def selecionar_noticias(noticias: list[Noticia], limite: int, timezone: str) -> list[Noticia]:
+    """Recorta o feed preservando itens do The News quando eles existem."""
+    selecionadas = noticias[:limite]
+    the_news = [noticia for noticia in noticias if noticia.grupo == "the_news"]
+    faltantes = [noticia for noticia in the_news if noticia not in selecionadas]
+    if not faltantes:
+        return ordenar_noticias_por_data(selecionadas, timezone)
+
+    preservadas = [noticia for noticia in selecionadas if noticia.grupo == "the_news"]
+    the_news_final = preservadas + faltantes
+    if len(the_news_final) >= limite:
+        return ordenar_noticias_por_data(the_news_final[:limite], timezone)
+
+    outras = [noticia for noticia in selecionadas if noticia.grupo != "the_news"]
+    vagas_outras = limite - len(the_news_final)
+    return ordenar_noticias_por_data(the_news_final + outras[:vagas_outras], timezone)
+
+
+def priorizar_noticias_por_interesses(
+    noticias: list[Noticia],
+    interesses: list[str],
+) -> list[Noticia]:
+    """Coloca noticias relacionadas aos interesses antes, preservando a recencia."""
+    termos = [
+        normalizar_texto_ascii(interesse).lower().strip()
+        for interesse in interesses
+        if interesse.strip()
+    ]
+    if not termos:
+        return noticias
+    return sorted(
+        noticias,
+        key=lambda noticia: _pontuacao_interesse(noticia, termos),
+        reverse=True,
+    )
+
+
+def rotulo_tempo_publicacao(
+    noticia: Noticia,
+    timezone: str = "America/Sao_Paulo",
+    agora: datetime | None = None,
+) -> str:
+    """Mostra a idade da noticia sem expor a data bruta da fonte."""
+    publicado_em = _normalizar_data_publicacao(noticia.publicado_em, timezone)
+    if publicado_em is None:
+        return "tempo indisponivel"
+    agora_local = _normalizar_agora(agora, timezone)
+    diferenca = agora_local - publicado_em
+    segundos = max(int(diferenca.total_seconds()), 0)
+    if segundos < 60:
+        return "agora"
+    minutos = segundos // 60
+    if minutos < 60:
+        return _rotulo_quantidade(minutos, "minuto", "minutos")
+    horas = minutos // 60
+    if horas < 24:
+        return _rotulo_quantidade(horas, "hora", "horas")
+    dias = horas // 24
+    if dias < 7:
+        return _rotulo_quantidade(dias, "dia", "dias")
+    semanas = dias // 7
+    if semanas < 5:
+        return _rotulo_quantidade(semanas, "semana", "semanas")
+    meses = dias // 30
+    if meses < 12:
+        return _rotulo_quantidade(max(meses, 1), "mes", "meses")
+    anos = dias // 365
+    return _rotulo_quantidade(max(anos, 1), "ano", "anos")
+
+
+def formatar_noticias(
+    noticias: list[Noticia],
+    timezone: str = "America/Sao_Paulo",
+    agora: datetime | None = None,
+) -> str:
     """Formata uma lista de noticias em texto legivel."""
     if not noticias:
         return "Nenhuma noticia publicada no dia atual foi encontrada nas fontes configuradas."
     linhas = ["Noticias encontradas:"]
-    for indice, noticia in enumerate(noticias, start=1):
+    for indice, noticia in enumerate(ordenar_noticias_por_data(noticias, timezone), start=1):
         titulo = texto_terminal_seguro(noticia.titulo)
         fonte = texto_terminal_seguro(noticia.fonte)
         link = texto_terminal_seguro(noticia.link)
         grupo = texto_terminal_seguro(noticia.grupo.replace("_", " "))
-        linhas.append(f"{indice}. {titulo} ({fonte} | {grupo}) - {link}")
+        publicado = texto_terminal_seguro(
+            rotulo_tempo_publicacao(noticia, timezone=timezone, agora=agora)
+        )
+        linhas.append(f"{indice}. {titulo} ({fonte} | {grupo} | {publicado}) - {link}")
     return "\n".join(linhas)
 
 
 def texto_terminal_seguro(texto: str) -> str:
     """Remove caracteres que quebram consoles Windows antigos em CP1252."""
     return texto.encode("cp1252", errors="ignore").decode("cp1252")
+
+
+def _timestamp_publicacao(publicado_em: datetime | None, timezone: str) -> float:
+    data = _normalizar_data_publicacao(publicado_em, timezone)
+    if data is None:
+        return float("-inf")
+    return data.timestamp()
+
+
+def _pontuacao_interesse(noticia: Noticia, termos: list[str]) -> int:
+    universo = normalizar_texto_ascii(
+        f"{noticia.titulo} {noticia.fonte} {noticia.grupo} {noticia.link}"
+    ).lower()
+    tokens_universo = set(re.findall(r"[a-z0-9]+", universo))
+    pontuacao = 0
+    for termo in termos:
+        tokens_termo = re.findall(r"[a-z0-9]+", termo)
+        if not tokens_termo:
+            continue
+        if len(tokens_termo) == 1:
+            pontuacao += int(tokens_termo[0] in tokens_universo)
+            continue
+        combina_termo = termo in universo or all(
+            token in tokens_universo for token in tokens_termo
+        )
+        pontuacao += int(combina_termo)
+    return pontuacao
+
+
+def _normalizar_data_publicacao(publicado_em: datetime | None, timezone: str) -> datetime | None:
+    if publicado_em is None:
+        return None
+    fuso = ZoneInfo(timezone)
+    if publicado_em.tzinfo is None:
+        return publicado_em.replace(tzinfo=fuso)
+    return publicado_em.astimezone(fuso)
+
+
+def _normalizar_agora(agora: datetime | None, timezone: str) -> datetime:
+    fuso = ZoneInfo(timezone)
+    if agora is None:
+        return datetime.now(fuso)
+    if agora.tzinfo is None:
+        return agora.replace(tzinfo=fuso)
+    return agora.astimezone(fuso)
+
+
+def _rotulo_quantidade(valor: int, singular: str, plural: str) -> str:
+    unidade = singular if valor == 1 else plural
+    return f"ha {valor} {unidade}"

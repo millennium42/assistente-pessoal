@@ -17,10 +17,10 @@ Esta versao separa o projeto em camadas pequenas para reduzir acoplamento entre 
 - `memoria`: Markdown, SQLite FTS5, documentos fixos do dashboard
 - `clima`: Open-Meteo com previsao por dia selecionado
 - `fontes_noticias`: adaptadores de The News, RSS e HTML com JSON-LD
-- `noticias`: orquestracao por prioridade
+- `noticias`: orquestracao por prioridade e ordenacao por horario de publicacao
 - `painel`: casos de uso consumidos pela GUI
 - `gui`: dashboard local com NiceGUI
-- `agenda_google`: OAuth local e leitura de eventos do Google Agenda
+- `agenda_google`: OAuth local, leitura e criacao de eventos do Google Agenda
 - `cli`: comandos Typer
 - `roteador`: texto livre para clima, noticias, memoria e estudo
 
@@ -42,7 +42,8 @@ Isso corrige o caso em que a pessoa executa o projeto em uma pasta, mas abre out
    - `RssNewsSource`
    - `HtmlJsonLdNewsSource`
 4. os itens sao filtrados para o dia atual local
-5. a interface recebe uma lista normalizada de `Noticia`
+5. a lista final e ordenada do mais recente para o mais antigo
+6. a interface recebe uma lista normalizada de `Noticia` com tempo relativo
 
 ## Fluxo da GUI
 
@@ -50,6 +51,7 @@ Isso corrige o caso em que a pessoa executa o projeto em uma pasta, mas abre out
 2. `DashboardService` monta um snapshot com clima, noticias e textos do vault
 3. `gui` renderiza blocos editaveis
 4. salvar agenda/plano escreve em arquivos fixos do vault
+5. criar evento chama a Google Agenda configurada e recarrega o mes exibido
 
 ## Estrutura do vault
 

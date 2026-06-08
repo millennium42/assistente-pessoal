@@ -24,6 +24,7 @@ def test_criar_e_carregar_config_inicial(tmp_path: Path) -> None:
     assert config.localizacao.cidade == "Santa Maria, RS"
     assert config.localizacao.latitude == -29.68
     assert config.fontes.noticias.the_news.habilitado is True
+    assert config.fontes.noticias.the_news.categoria == ""
     assert "tecnoblog.net" in config.fontes.noticias.tech.rss[0]
     assert (
         config.google_agenda.token_path

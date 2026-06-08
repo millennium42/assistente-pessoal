@@ -43,20 +43,23 @@ class TheNewsSource:
         timezone: str,
         data_referencia: date,
     ) -> list[ItemFonteNoticia]:
-        """Busca artigos da categoria configurada filtrados pelo dia local."""
+        """Busca artigos do The News filtrados pelo dia local."""
         if not config.habilitado:
             return []
         url = "https://api.waffle.com.br/api/public/articles"
+        categoria = config.categoria.strip()
+        params: dict[str, object] = {
+            "limit": max(limite * 3, 20),
+            "page": 1,
+            "isAds": "false",
+        }
+        if categoria:
+            params["category"] = categoria
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resposta = client.get(
                     url,
-                    params={
-                        "limit": max(limite * 3, 20),
-                        "category": config.categoria,
-                        "page": 1,
-                        "isAds": "false",
-                    },
+                    params=params,
                     headers={"User-Agent": "assistente-pessoal/0.1.0"},
                 )
                 resposta.raise_for_status()
@@ -75,12 +78,19 @@ class TheNewsSource:
                 link = f"https://www.thenews.com.br/pt-BR/portal/news/{slug}"
             if link:
                 link = urljoin("https://www.thenews.com.br", link)
+            categoria_artigo = artigo.get("category") or {}
+            categoria_nome = categoria_artigo.get("name") or categoria or "geral"
+            categoria_slug = categoria_artigo.get("slug") or categoria
+            link_categoria = "https://www.thenews.com.br/pt-BR/portal"
+            if categoria_slug:
+                link_categoria = (
+                    f"https://www.thenews.com.br/pt-BR/portal/categories/{categoria_slug}"
+                )
             noticias.append(
                 ItemFonteNoticia(
                     titulo=artigo.get("title", "Sem titulo"),
-                    link=link
-                    or f"https://www.thenews.com.br/pt-BR/portal/categories/{config.categoria}",
-                    fonte=f"the news - {config.categoria}",
+                    link=link or link_categoria,
+                    fonte=f"the news - {categoria_nome}",
                     publicado=artigo.get("publishedTimeAgo") or artigo.get("publishedAt") or "",
                     publicado_em=publicado_em,
                     grupo="the_news",

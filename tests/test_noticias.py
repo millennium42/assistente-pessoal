@@ -5,16 +5,24 @@ from datetime import date, datetime
 from assistente_pessoal.config import GrupoRssConfig, NoticiasConfig, TheNewsConfig
 from assistente_pessoal.fontes_noticias import (
     ItemFonteNoticia,
+    TheNewsSource,
     extrair_artigos_json_ld,
     extrair_data_artigo_html,
     extrair_links_manchetes,
     noticia_parece_local,
 )
-from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias, texto_terminal_seguro
+from assistente_pessoal.noticias import (
+    ClienteNoticias,
+    Noticia,
+    formatar_noticias,
+    priorizar_noticias_por_interesses,
+    rotulo_tempo_publicacao,
+    texto_terminal_seguro,
+)
 
 
 class TheNewsFake:
-    """Fonte fake para controlar a prioridade do primeiro grupo."""
+    """Fonte fake para controlar um item recente do primeiro grupo."""
 
     def listar(self, config: TheNewsConfig, limite: int, timezone: str, data_referencia: date):
         """Entrega um unico item do The News."""
@@ -30,6 +38,24 @@ class TheNewsFake:
         ]
 
 
+class TheNewsAntigoFake:
+    """Fonte fake para garantir presenca do The News no recorte final."""
+
+    def listar(self, config: TheNewsConfig, limite: int, timezone: str, data_referencia: date):
+        """Entrega dois itens antigos do The News."""
+        return [
+            ItemFonteNoticia(
+                titulo=f"The News antigo {indice}",
+                link=f"https://thenews.test/antigo-{indice}",
+                fonte="the news - mundo",
+                publicado="hoje",
+                publicado_em=datetime(2026, 6, 8, 8, indice),
+                grupo="the_news",
+            )
+            for indice in range(2)
+        ]
+
+
 class RssFake:
     """Fonte fake para feeds RSS agrupados."""
 
@@ -42,7 +68,7 @@ class RssFake:
         data_referencia: date,
         apenas_dia_atual: bool,
     ):
-        """Devolve um item por grupo para testar a ordem de montagem."""
+        """Devolve um item por grupo para testar a ordenacao final."""
         titulo = {
             "tech": "Tech depois",
             "economia_global": "Economia por ultimo",
@@ -72,7 +98,7 @@ class HtmlFake:
         data_referencia: date,
         apenas_dia_atual: bool,
     ):
-        """Entrega Santa Maria antes de tech quando a prioridade assim exigir."""
+        """Entrega Santa Maria como item mais antigo do recorte fake."""
         if grupo != "santa_maria":
             return []
         return [
@@ -87,8 +113,82 @@ class HtmlFake:
         ]
 
 
-def test_prioriza_grupos_na_ordem_configurada() -> None:
-    """Monta o feed final respeitando a prioridade The News > Santa Maria > Tech > Economia."""
+class RssMuitosItensFake:
+    """Fonte fake para validar limites altos sem depender de RSS externo."""
+
+    def __init__(self) -> None:
+        self.limites_recebidos: list[int] = []
+
+    def listar(
+        self,
+        grupo: str,
+        config: GrupoRssConfig,
+        limite: int,
+        timezone: str,
+        data_referencia: date,
+        apenas_dia_atual: bool,
+    ):
+        """Devolve exatamente a quantidade solicitada."""
+        self.limites_recebidos.append(limite)
+        return [
+            ItemFonteNoticia(
+                titulo=f"Noticia {indice}",
+                link=f"https://{grupo}.test/{indice}",
+                fonte=grupo,
+                publicado="2026-06-08",
+                publicado_em=datetime(2026, 6, 8, 12, 0),
+                grupo=grupo,
+            )
+            for indice in range(limite)
+        ]
+
+
+class RespostaTheNewsFake:
+    """Resposta minima da API publica do The News."""
+
+    def raise_for_status(self) -> None:
+        """Simula resposta HTTP bem-sucedida."""
+
+    def json(self) -> dict:
+        """Retorna um artigo do dia com categoria propria."""
+        return {
+            "data": {
+                "articles": [
+                    {
+                        "title": "Materia geral",
+                        "slug": "materia-geral",
+                        "publishedAt": "2026-06-08T09:02:00.000Z",
+                        "publishedTimeAgo": "hoje",
+                        "category": {"name": "Mundo", "slug": "mundo"},
+                    }
+                ]
+            }
+        }
+
+
+class ClienteHttpTheNewsFake:
+    """Cliente HTTP fake que registra parametros enviados ao The News."""
+
+    params_recebidos: list[dict] = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Aceita os mesmos argumentos do httpx.Client."""
+
+    def __enter__(self):
+        """Suporta uso como context manager."""
+        return self
+
+    def __exit__(self, *args) -> None:
+        """Fecha o context manager fake."""
+
+    def get(self, url: str, params: dict, headers: dict) -> RespostaTheNewsFake:
+        """Registra a chamada e devolve a resposta fake."""
+        self.params_recebidos.append(params)
+        return RespostaTheNewsFake()
+
+
+def test_organiza_noticias_por_publicacao_mais_recente() -> None:
+    """Monta o feed final do item mais novo para o mais antigo."""
     config = NoticiasConfig(
         the_news=TheNewsConfig(habilitado=True),
         santa_maria=GrupoRssConfig(
@@ -107,10 +207,86 @@ def test_prioriza_grupos_na_ordem_configurada() -> None:
 
     assert [noticia.grupo for noticia in noticias] == [
         "the_news",
-        "santa_maria",
         "tech",
         "economia_global",
+        "santa_maria",
     ]
+
+
+def test_limite_alto_chega_ate_a_fonte_sem_teto_por_grupo() -> None:
+    """Permite carregar 50 itens quando uma fonte tem volume suficiente."""
+    rss = RssMuitosItensFake()
+    config = NoticiasConfig(
+        prioridades=["tech"],
+        the_news=TheNewsConfig(habilitado=False),
+        santa_maria=GrupoRssConfig(habilitado=False),
+        tech=GrupoRssConfig(habilitado=True, rss=["https://tech.test"]),
+        economia_global=GrupoRssConfig(habilitado=False),
+    )
+    cliente = ClienteNoticias(
+        the_news_source=TheNewsFake(),
+        rss_source=rss,
+        html_source=HtmlFake(),
+    )
+
+    noticias = cliente.listar(config, limite=50, data_referencia=date(2026, 6, 8))
+
+    assert len(noticias) == 50
+    assert rss.limites_recebidos == [50]
+
+
+def test_recorte_final_preserva_the_news_mesmo_com_rss_mais_recente() -> None:
+    """Nao deixa The News sumir quando outras fontes preenchem o limite."""
+    rss = RssMuitosItensFake()
+    config = NoticiasConfig(
+        prioridades=["the_news", "tech"],
+        santa_maria=GrupoRssConfig(habilitado=False),
+        tech=GrupoRssConfig(habilitado=True, rss=["https://tech.test"]),
+        economia_global=GrupoRssConfig(habilitado=False),
+    )
+    cliente = ClienteNoticias(
+        the_news_source=TheNewsAntigoFake(),
+        rss_source=rss,
+        html_source=HtmlFake(),
+    )
+
+    noticias = cliente.listar(config, limite=50, data_referencia=date(2026, 6, 8))
+    grupos = [noticia.grupo for noticia in noticias]
+
+    assert len(noticias) == 50
+    assert grupos.count("the_news") == 2
+    assert grupos[-2:] == ["the_news", "the_news"]
+
+
+def test_the_news_sem_categoria_nao_envia_filtro(monkeypatch) -> None:
+    """Categoria vazia deve buscar todas as editorias do The News."""
+    ClienteHttpTheNewsFake.params_recebidos = []
+    monkeypatch.setattr("assistente_pessoal.fontes_noticias.httpx.Client", ClienteHttpTheNewsFake)
+
+    noticias = TheNewsSource().listar(
+        TheNewsConfig(categoria=""),
+        limite=10,
+        timezone="America/Sao_Paulo",
+        data_referencia=date(2026, 6, 8),
+    )
+
+    assert "category" not in ClienteHttpTheNewsFake.params_recebidos[0]
+    assert noticias[0].fonte == "the news - Mundo"
+
+
+def test_the_news_com_categoria_envia_filtro(monkeypatch) -> None:
+    """Categoria preenchida continua permitindo filtro explicito."""
+    ClienteHttpTheNewsFake.params_recebidos = []
+    monkeypatch.setattr("assistente_pessoal.fontes_noticias.httpx.Client", ClienteHttpTheNewsFake)
+
+    TheNewsSource().listar(
+        TheNewsConfig(categoria="tecnologia"),
+        limite=10,
+        timezone="America/Sao_Paulo",
+        data_referencia=date(2026, 6, 8),
+    )
+
+    assert ClienteHttpTheNewsFake.params_recebidos[0]["category"] == "tecnologia"
 
 
 def test_texto_terminal_seguro_remove_caracteres_incompativeis() -> None:
@@ -122,6 +298,96 @@ def test_texto_terminal_seguro_remove_caracteres_incompativeis() -> None:
 def test_formatar_noticias_sem_itens() -> None:
     """Explica claramente quando nao ha nada no dia atual."""
     assert "Nenhuma noticia" in formatar_noticias([])
+
+
+def test_rotulo_tempo_publicacao_prefere_minutos_e_horas() -> None:
+    """Exibe a idade da noticia no escopo mais curto que continua legivel."""
+    noticia_minutos = Noticia(
+        titulo="Minutos",
+        link="https://noticias.test/minutos",
+        fonte="Fonte",
+        publicado="2026-06-08T12:45:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 12, 45),
+        grupo="tech",
+    )
+    noticia_horas = Noticia(
+        titulo="Horas",
+        link="https://noticias.test/horas",
+        fonte="Fonte",
+        publicado="2026-06-08T10:00:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 10, 0),
+        grupo="tech",
+    )
+    agora = datetime(2026, 6, 8, 13, 0)
+
+    assert rotulo_tempo_publicacao(noticia_minutos, agora=agora) == "ha 15 minutos"
+    assert rotulo_tempo_publicacao(noticia_horas, agora=agora) == "ha 3 horas"
+
+
+def test_formatar_noticias_omite_data_bruta() -> None:
+    """Mostra tempo relativo em vez da data original da fonte."""
+    noticia = Noticia(
+        titulo="Materia recente",
+        link="https://noticias.test/recentes",
+        fonte="Fonte",
+        publicado="2026-06-08T12:30:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 12, 30),
+        grupo="tech",
+    )
+
+    texto = formatar_noticias([noticia], agora=datetime(2026, 6, 8, 13, 0))
+
+    assert "ha 30 minutos" in texto
+    assert "2026-06-08" not in texto
+    assert "12:30" not in texto
+
+
+def test_formatar_noticias_tambem_ordena_por_publicacao() -> None:
+    """Garante ordem cronologica mesmo quando o formatador recebe uma lista solta."""
+    antiga = Noticia(
+        titulo="Antiga",
+        link="https://noticias.test/antiga",
+        fonte="Fonte",
+        publicado="2026-06-08T09:00:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 9, 0),
+        grupo="tech",
+    )
+    nova = Noticia(
+        titulo="Nova",
+        link="https://noticias.test/nova",
+        fonte="Fonte",
+        publicado="2026-06-08T12:00:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 12, 0),
+        grupo="tech",
+    )
+
+    texto = formatar_noticias([antiga, nova], agora=datetime(2026, 6, 8, 13, 0))
+
+    assert texto.index("Nova") < texto.index("Antiga")
+
+
+def test_interesses_priorizam_noticias_relacionadas() -> None:
+    """Tags de interesse sobem no feed sem apagar noticias fora do perfil."""
+    generica = Noticia(
+        titulo="Mercado abre em alta",
+        link="https://noticias.test/mercado",
+        fonte="Fonte",
+        publicado="",
+        publicado_em=datetime(2026, 6, 8, 12, 0),
+        grupo="economia_global",
+    )
+    relacionada = Noticia(
+        titulo="Nova ferramenta de IA para pesquisa",
+        link="https://noticias.test/ia",
+        fonte="Fonte",
+        publicado="",
+        publicado_em=datetime(2026, 6, 8, 9, 0),
+        grupo="tech",
+    )
+
+    noticias = priorizar_noticias_por_interesses([generica, relacionada], ["ia"])
+
+    assert noticias == [relacionada, generica]
 
 
 def test_extrair_artigos_json_ld() -> None:

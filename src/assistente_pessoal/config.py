@@ -56,7 +56,7 @@ class LLMConfig(BaseModel):
 
 
 class GoogleAgendaConfig(BaseModel):
-    """Configuracao da integracao somente leitura com Google Agenda."""
+    """Configuracao da integracao com Google Agenda para leitura mensal e criacao de eventos."""
 
     habilitado: bool = False
     credentials_path: Path = Path("google-oauth-client.json")
@@ -81,7 +81,7 @@ class TheNewsConfig(BaseModel):
     """Configuracao da fonte The News."""
 
     habilitado: bool = True
-    categoria: str = "tecnologia"
+    categoria: str = ""
 
 
 class NoticiasConfig(BaseModel):
@@ -89,6 +89,7 @@ class NoticiasConfig(BaseModel):
 
     timezone: str = "America/Sao_Paulo"
     apenas_dia_atual: bool = True
+    interesses_busca: list[str] = Field(default_factory=list)
     prioridades: list[str] = Field(
         default_factory=lambda: ["the_news", "santa_maria", "tech", "economia_global"]
     )
@@ -129,6 +130,7 @@ class NoticiasConfig(BaseModel):
             rss=[
                 "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
                 "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "http://feeds.marketwatch.com/marketwatch/topstories/",
                 "https://www.ecb.europa.eu/rss/press.html",
                 "https://www.federalreserve.gov/feeds/press_all.xml",
             ],
@@ -142,6 +144,18 @@ class NoticiasConfig(BaseModel):
                 "gdp",
                 "tariff",
                 "market",
+                "markets",
+                "stock",
+                "stocks",
+                "trade",
+                "jobs",
+                "labour",
+                "labor",
+                "recession",
+                "yield",
+                "oil",
+                "factory",
+                "manufacturing",
             ],
             titulo_fonte="economia global",
         )
@@ -249,6 +263,9 @@ def renderizar_toml(config: AppConfig) -> str:
     )
     economia_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.rss)
     economia_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.urls)
+    interesses_busca = "\n".join(
+        f'  "{_escapar(interesse)}",' for interesse in config.fontes.noticias.interesses_busca
+    )
     prioridades = "\n".join(
         f'  "{prioridade}",' for prioridade in config.fontes.noticias.prioridades
     )
@@ -283,6 +300,9 @@ janela_dias = {config.google_agenda.janela_dias}
 [fontes.noticias]
 timezone = "{_escapar(config.fontes.noticias.timezone)}"
 apenas_dia_atual = {_toml_bool(config.fontes.noticias.apenas_dia_atual)}
+interesses_busca = [
+{interesses_busca}
+]
 prioridades = [
 {prioridades}
 ]

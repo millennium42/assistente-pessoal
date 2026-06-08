@@ -6,10 +6,11 @@ import calendar
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from assistente_pessoal.config import GoogleAgendaConfig
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,17 @@ class ResultadoGoogleAgenda:
     eventos: list[EventoGoogleAgenda]
     erro: str | None = None
     mes_referencia: date | None = None
+
+
+@dataclass(frozen=True)
+class NovoEventoGoogleAgenda:
+    """Representa um novo evento a ser criado pela UI ou CLI."""
+
+    titulo: str
+    inicio: datetime
+    fim: datetime
+    local: str = ""
+    descricao: str = ""
 
 
 class ClienteGoogleAgenda:
@@ -76,6 +88,8 @@ class ClienteGoogleAgenda:
                 eventos=[],
                 erro="Arquivo de credenciais da Google Agenda nao encontrado.",
             )
+        except RuntimeError as exc:
+            return ResultadoGoogleAgenda(eventos=[], erro=str(exc))
         if credenciais is None:
             return ResultadoGoogleAgenda(
                 eventos=[],
@@ -132,17 +146,68 @@ class ClienteGoogleAgenda:
             mes_referencia=primeiro_dia,
         )
 
+    def criar_evento(self, evento: NovoEventoGoogleAgenda) -> EventoGoogleAgenda:
+        """Cria um evento no calendario configurado usando a API oficial."""
+        if not self.config.habilitado:
+            raise RuntimeError("Google Agenda desabilitada no config.toml.")
+        try:
+            credenciais = self._obter_credenciais()
+        except FileNotFoundError as exc:
+            raise RuntimeError("Arquivo de credenciais da Google Agenda nao encontrado.") from exc
+        if credenciais is None:
+            raise RuntimeError("Google Agenda ainda nao autenticada neste ambiente.")
+        build = _import_build()
+        try:
+            servico = build("calendar", "v3", credentials=credenciais)
+            timezone = evento.inicio.tzinfo.key if hasattr(evento.inicio.tzinfo, "key") else "UTC"
+            resposta = (
+                servico.events()
+                .insert(
+                    calendarId=self.config.calendar_id,
+                    body={
+                        "summary": evento.titulo,
+                        "location": evento.local,
+                        "description": evento.descricao,
+                        "start": {
+                            "dateTime": evento.inicio.isoformat(),
+                            "timeZone": timezone,
+                        },
+                        "end": {
+                            "dateTime": evento.fim.isoformat(),
+                            "timeZone": timezone,
+                        },
+                    },
+                )
+                .execute()
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Nao foi possivel criar o evento. Verifique autenticacao e estabilidade da conexao."
+            ) from exc
+        return normalizar_evento_google(resposta)
+
     def _obter_credenciais(self):
         """Carrega, renova ou cria as credenciais OAuth conforme o estado local."""
         Credentials = _import_credentials()
         Request = _import_request()
         credenciais = None
         if self.config.token_path.exists():
-            credenciais = Credentials.from_authorized_user_file(str(self.config.token_path), SCOPES)
+            credenciais = Credentials.from_authorized_user_file(str(self.config.token_path))
+        if credenciais and not _credenciais_tem_escopos_esperados(credenciais):
+            raise RuntimeError(
+                "Token da Google Agenda foi criado com permissoes antigas. "
+                "Execute 'assistente-pessoal agenda google-auth' novamente."
+            )
         if credenciais and credenciais.valid:
             return credenciais
         if credenciais and credenciais.expired and credenciais.refresh_token:
-            credenciais.refresh(Request())
+            try:
+                credenciais.refresh(Request())
+            except Exception as exc:
+                raise RuntimeError(
+                    "Falha ao renovar token da Google Agenda. "
+                    "Verifique a conexao ou autentique novamente."
+                ) from exc
             self.config.token_path.write_text(credenciais.to_json(), encoding="utf-8")
             return credenciais
         if self.config.credentials_path.exists():
@@ -193,6 +258,29 @@ def data_evento_google(evento: EventoGoogleAgenda) -> date | None:
         return datetime.fromisoformat(valor.replace("Z", "+00:00")).date()
     except ValueError:
         return None
+
+
+def formatar_data_hora_google(valor: str, timezone: str) -> str:
+    """Converte timestamps ISO do Google Agenda em texto local curto."""
+    if not valor:
+        return "--"
+    if len(valor) == 10:
+        try:
+            return date.fromisoformat(valor).strftime("%d/%m")
+        except ValueError:
+            return valor
+    try:
+        data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+        return data.astimezone(ZoneInfo(timezone)).strftime("%d/%m %H:%M")
+    except ValueError:
+        return valor
+
+
+def _credenciais_tem_escopos_esperados(credenciais) -> bool:
+    """Confere se o token local cobre leitura e escrita de eventos."""
+    if not hasattr(credenciais, "has_scopes"):
+        return True
+    return bool(credenciais.has_scopes(SCOPES))
 
 
 def _import_credentials():

@@ -42,7 +42,7 @@ Regra: se voce pedir um dia que ja passou na semana, o sistema assume a proxima 
 ## Noticias
 
 ```powershell
-assistente-pessoal noticias --limite 5
+assistente-pessoal noticias
 ```
 
 Prioridade atual:
@@ -128,4 +128,12 @@ assistente-pessoal agenda google-auth
 assistente-pessoal agenda google-listar
 ```
 
-A integracao atual e de leitura, usando a API oficial do Google Agenda para buscar os proximos eventos do calendario configurado.
+7. Crie um evento:
+
+```powershell
+assistente-pessoal agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30 --duracao 45
+```
+
+O dashboard tambem tem um bloco "Adicionar evento" dentro de Google Agenda.
+Se o token tiver sido criado com permissao antiga, rode `assistente-pessoal agenda google-auth`
+novamente para conceder o escopo de eventos.

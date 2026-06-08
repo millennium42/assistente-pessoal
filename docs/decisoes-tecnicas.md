@@ -28,9 +28,9 @@ Critica: ainda nao ha busca semantica real. Isso e aceitavel porque a prioridade
 
 ## Noticias
 
-Escolha: orquestrador com grupos de prioridade
+Escolha: orquestrador com grupos de prioridade e exibicao cronologica
 
-Ordem:
+Prioridade de coleta:
 
 1. The News
 2. Santa Maria
@@ -42,6 +42,7 @@ Motivo:
 - deixa o comportamento explicito
 - evita um modulo monolitico de noticias
 - permite trocar uma fonte fragil sem reescrever o restante
+- mostra o feed final do mais recente ao mais antigo, com tempo relativo em vez de data bruta
 
 Critica: Santa Maria por midia local e o grupo menos estavel do sistema. A estrategia foi isolar parsing HTML em um adaptador proprio e aceitar falha graciosa.
 
@@ -59,16 +60,17 @@ Critica: nao tentamos transformar clima em motor de linguagem natural. O foco e 
 
 ## Agenda
 
-Escolha: agenda local no vault + Google Agenda em leitura
+Escolha: agenda local no vault + Google Agenda para leitura e criacao de eventos
 
 Motivo:
 
 - reduz risco de privacidade
 - mantem o planejamento local no vault
 - adiciona visibilidade dos proximos eventos reais da conta Google
-- usa escopo somente leitura para reduzir superficie
+- usa escopo restrito a eventos, necessario para criar compromissos
 
-Critica: a integracao atual nao cria nem edita eventos. Ela existe para leitura e contexto no dashboard, nao para substituir um cliente completo de agenda.
+Critica: a integracao cria eventos simples e lista o calendario configurado, mas nao tenta
+substituir um cliente completo de agenda.
 
 ## LGPD
 
