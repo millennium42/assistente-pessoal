@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import typer
 from rich.table import Table
 
+from assistente_pessoal.agenda_google import (
+    ClienteGoogleAgenda,
+    NovoEventoGoogleAgenda,
+    formatar_eventos_google,
+)
 from assistente_pessoal.clima import ClienteClima, formatar_previsao
 from assistente_pessoal.config import (
     caminho_config_padrao,
@@ -17,10 +24,14 @@ from assistente_pessoal.config import (
 )
 from assistente_pessoal.estudos import criar_nota_estudo
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
-from assistente_pessoal.logs import console, erro, sucesso
+from assistente_pessoal.logs import avisar, console, erro, sucesso
 from assistente_pessoal.memoria import MemoriaObsidian
 from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
-from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
+from assistente_pessoal.noticias import (
+    LIMITE_PADRAO_NOTICIAS,
+    ClienteNoticias,
+    formatar_noticias,
+)
 from assistente_pessoal.roteador import RoteadorComandos
 from assistente_pessoal.voz import ouvir_e_transcrever
 
@@ -29,7 +40,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 memoria_app = typer.Typer(help="Comandos para memoria em Obsidian.")
+agenda_app = typer.Typer(help="Comandos para agenda local e Google Agenda.")
 app.add_typer(memoria_app, name="memoria")
+app.add_typer(agenda_app, name="agenda")
 
 
 @app.callback()
@@ -68,7 +81,7 @@ def inicializar(
     """Cria configuracao inicial e estrutura do vault Obsidian."""
     caminho_config = _caminho_config(ctx)
     if caminho_config.exists() and not force:
-        erro(f"{caminho_config} ja existe. Use --force para sobrescrever.")
+        erro(f"{caminho_config.name} ja existe. Use --force para sobrescrever.")
         raise typer.Exit(1)
     config = criar_config_inicial(
         caminho=caminho_config,
@@ -79,8 +92,8 @@ def inicializar(
         timezone=timezone,
     )
     criar_pastas_vault(config.vault_path)
-    sucesso(f"Configuracao criada em {caminho_config}.")
-    sucesso(f"Vault preparado em {config.vault_path}.")
+    sucesso(f"Configuracao criada em {caminho_config.name}.")
+    sucesso(f"Vault efetivo preparado em {config.vault_path.as_posix()}.")
 
 
 @app.command("chat")
@@ -131,31 +144,52 @@ def estudar(
     material = _ler_material(conteudo, arquivo)
     memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
     caminho = criar_nota_estudo(memoria, tema, material, ClienteLLM(config.llm), perguntas)
-    sucesso(f"Nota de estudo criada em {caminho}.")
+    sucesso(f"Nota de estudo criada em {memoria.caminho_relativo(caminho)}.")
 
 
 @app.command("noticias")
 def noticias(
     ctx: typer.Context,
-    limite: Annotated[int, typer.Option("--limite", help="Quantidade maxima de noticias.")] = 8,
+    limite: Annotated[
+        int,
+        typer.Option("--limite", help="Quantidade maxima de noticias."),
+    ] = LIMITE_PADRAO_NOTICIAS,
 ) -> None:
-    """Lista noticias recentes do The News tecnologia e das fontes RSS tech."""
+    """Lista noticias recentes do dia em ordem de publicacao."""
     config = _carregar(ctx)
-    itens = ClienteNoticias().listar(
-        config.fontes.rss,
-        limite=limite,
-        incluir_the_news_tecnologia=config.fontes.incluir_the_news_tecnologia,
-        timezone_local=config.localizacao.timezone,
-    )
-    console.print(formatar_noticias(itens))
+    itens = ClienteNoticias().listar(config.fontes.noticias, limite=limite)
+    console.print(formatar_noticias(itens, timezone=config.fontes.noticias.timezone))
 
 
 @app.command("clima")
-def clima(ctx: typer.Context) -> None:
+def clima(
+    ctx: typer.Context,
+    dia: Annotated[
+        str | None,
+        typer.Option("--dia", help="Hoje, amanha ou um dia da semana futuro."),
+    ] = None,
+) -> None:
     """Mostra previsao do tempo da localizacao configurada."""
     config = _carregar(ctx)
-    previsao = ClienteClima().obter_previsao(config.localizacao)
+    previsao = ClienteClima().obter_previsao(config.localizacao, dia=dia)
     console.print(formatar_previsao(previsao))
+
+
+@app.command("gui")
+def gui(
+    ctx: typer.Context,
+    host: Annotated[str, typer.Option("--host", help="Host local do dashboard.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Porta local do dashboard.")] = 8765,
+) -> None:
+    """Inicia um dashboard local com clima, noticias e notas do vault."""
+    config = _carregar(ctx)
+    from assistente_pessoal.gui import iniciar_dashboard, resolver_porta_dashboard
+
+    porta_real = resolver_porta_dashboard(host, port)
+    if porta_real != port:
+        avisar(f"Porta {port} ocupada. Vou usar a porta {porta_real}.")
+    sucesso(f"Dashboard iniciando em http://{host}:{porta_real}")
+    iniciar_dashboard(config, host=host, port=porta_real)
 
 
 @app.command("musica")
@@ -171,6 +205,55 @@ def musica(
     )
 
 
+@agenda_app.command("google-auth")
+def agenda_google_auth(ctx: typer.Context) -> None:
+    """Executa o login OAuth da Google Agenda e salva um token local."""
+    config = _carregar(ctx)
+    cliente = ClienteGoogleAgenda(config.google_agenda)
+    if not config.google_agenda.credentials_path.exists():
+        erro(
+            "Nao encontrei o arquivo de credenciais OAuth do Google. "
+            "Configure google_agenda.credentials_path no config.toml."
+        )
+        raise typer.Exit(1)
+    caminho = cliente.autenticar_interativo()
+    sucesso(f"Token Google salvo em {caminho.as_posix()}.")
+
+
+@agenda_app.command("google-listar")
+def agenda_google_listar(ctx: typer.Context) -> None:
+    """Lista os proximos eventos da Google Agenda configurada."""
+    config = _carregar(ctx)
+    eventos = ClienteGoogleAgenda(config.google_agenda).listar_eventos()
+    console.print(formatar_eventos_google(eventos))
+
+
+@agenda_app.command("google-criar")
+def agenda_google_criar(
+    ctx: typer.Context,
+    titulo: Annotated[str, typer.Argument(help="Titulo do evento.")],
+    data: Annotated[str, typer.Option("--data", help="Data no formato AAAA-MM-DD.")],
+    hora: Annotated[str, typer.Option("--hora", help="Hora no formato HH:MM.")] = "09:00",
+    duracao: Annotated[int, typer.Option("--duracao", help="Duracao em minutos.")] = 60,
+    local: Annotated[str, typer.Option("--local", help="Local do evento.")] = "",
+    descricao: Annotated[str, typer.Option("--descricao", help="Descricao do evento.")] = "",
+) -> None:
+    """Cria um evento simples na Google Agenda configurada."""
+    config = _carregar(ctx)
+    inicio = datetime.fromisoformat(f"{data}T{hora}:00").replace(
+        tzinfo=ZoneInfo(config.localizacao.timezone)
+    )
+    evento = NovoEventoGoogleAgenda(
+        titulo=titulo,
+        inicio=inicio,
+        fim=inicio + timedelta(minutes=duracao),
+        local=local,
+        descricao=descricao,
+    )
+    criado = ClienteGoogleAgenda(config.google_agenda).criar_evento(evento)
+    sucesso(f"Evento criado: {criado.titulo} em {criado.inicio}.")
+
+
 @memoria_app.command("salvar")
 def memoria_salvar(
     ctx: typer.Context,
@@ -181,7 +264,7 @@ def memoria_salvar(
     config = _carregar(ctx)
     memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
     caminho = memoria.salvar_nota(titulo, conteudo)
-    sucesso(f"Memoria salva em {caminho}.")
+    sucesso(f"Memoria salva em {memoria.caminho_relativo(caminho)}.")
 
 
 @memoria_app.command("buscar")
@@ -200,9 +283,9 @@ def memoria_buscar(
     tabela = Table(title="Resultados da memoria")
     tabela.add_column("Titulo")
     tabela.add_column("Trecho")
-    tabela.add_column("Caminho")
+    tabela.add_column("Caminho no vault")
     for item in resultados:
-        tabela.add_row(item.titulo, item.trecho, str(item.caminho))
+        tabela.add_row(item.titulo, item.trecho, memoria.caminho_relativo(item.caminho))
     console.print(tabela)
 
 
@@ -212,6 +295,21 @@ def memoria_reindexar(ctx: typer.Context) -> None:
     config = _carregar(ctx)
     quantidade = MemoriaObsidian(config.vault_path, config.localizacao.timezone).reindexar()
     sucesso(f"{quantidade} notas reindexadas.")
+
+
+@memoria_app.command("info")
+def memoria_info(ctx: typer.Context) -> None:
+    """Mostra qual vault esta em uso e quantas notas ele contem."""
+    config = _carregar(ctx)
+    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+    estatisticas = memoria.estatisticas()
+    tabela = Table(title="Diagnostico do vault")
+    tabela.add_column("Campo")
+    tabela.add_column("Valor")
+    tabela.add_row("Vault efetivo", estatisticas.vault_path.as_posix())
+    tabela.add_row("Indice", estatisticas.indice_path.as_posix())
+    tabela.add_row("Notas Markdown", str(estatisticas.quantidade_notas))
+    console.print(tabela)
 
 
 def _carregar(ctx: typer.Context):
@@ -224,7 +322,7 @@ def _carregar(ctx: typer.Context):
 def _caminho_config(ctx: typer.Context) -> Path:
     """Resolve o caminho de configuracao salvo no contexto Typer."""
     if ctx.obj and ctx.obj.get("config_path"):
-        return ctx.obj["config_path"]
+        return Path(ctx.obj["config_path"])
     return caminho_config_padrao()
 
 

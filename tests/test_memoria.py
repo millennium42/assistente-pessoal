@@ -29,10 +29,25 @@ def test_reindexar_memorias(tmp_path: Path) -> None:
 
 
 def test_slugificar_em_pt_br() -> None:
-    """Remove acentos e caracteres problemáticos de nomes de arquivo."""
+    """Remove acentos e caracteres problematicos de nomes de arquivo."""
     assert slugificar("Olá, Cálculo 1!") == "ola-calculo-1"
 
 
 def test_normalizar_consulta_fts() -> None:
     """Remove operadores que poderiam quebrar a consulta FTS."""
-    assert normalizar_consulta_fts('"calculo"* OR') == "calculo OR"
+    assert normalizar_consulta_fts('"cálculo"* OR') == "calculo OR"
+
+
+def test_salvar_documento_fixo(tmp_path: Path) -> None:
+    """Mantem agenda e planejamento em caminhos estaveis dentro do vault."""
+    memoria = MemoriaObsidian(tmp_path / "vault")
+
+    caminho = memoria.salvar_documento_fixo(
+        nome_arquivo="agenda-local.md",
+        conteudo="Prova de algebra na quarta.",
+        pasta="61_agenda_local",
+        titulo="Agenda local",
+    )
+
+    assert caminho.name == "agenda-local.md"
+    assert "Prova de algebra" in memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")

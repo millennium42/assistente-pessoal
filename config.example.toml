@@ -20,12 +20,86 @@ base_url = ""
 modelo = ""
 api_key_env = "OPENAI_API_KEY"
 
-[fontes]
-incluir_the_news_tecnologia = true
+[google_agenda]
+habilitado = false
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
+
+[fontes.noticias]
+timezone = "America/Sao_Paulo"
+apenas_dia_atual = true
+interesses_busca = []
+prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
+
+[fontes.noticias.the_news]
+habilitado = true
+categoria = ""
+
+[fontes.noticias.santa_maria]
+habilitado = true
+modo = "midia_local"
+titulo_fonte = "santa maria - midia local"
+urls = [
+  "https://diariosm.com.br/",
+  "https://bei.net.br/plantao/",
+]
+palavras_chave = [
+  "santa maria",
+  "santa-mariense",
+  "ufsm",
+  "itaara",
+  "camobi",
+  "restinga seca",
+  "silveira martins",
+  "faxinal do soturno",
+]
+
+[fontes.noticias.tech]
+habilitado = true
+titulo_fonte = "tech"
 rss = [
   "https://tecnoblog.net/feed/",
   "https://www.canaltech.com.br/rss/",
   "https://olhardigital.com.br/feed/",
 ]
+
+[fontes.noticias.economia_global]
+habilitado = true
+modo = "misto"
+titulo_fonte = "economia global"
+rss = [
+  "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
+  "https://feeds.bbci.co.uk/news/business/rss.xml",
+  "http://feeds.marketwatch.com/marketwatch/topstories/",
+  "https://www.ecb.europa.eu/rss/press.html",
+  "https://www.federalreserve.gov/feeds/press_all.xml",
+]
+palavras_chave = [
+  "economy",
+  "economic",
+  "inflation",
+  "interest rate",
+  "central bank",
+  "gdp",
+  "tariff",
+  "market",
+  "markets",
+  "stock",
+  "stocks",
+  "trade",
+  "jobs",
+  "labour",
+  "labor",
+  "recession",
+  "yield",
+  "oil",
+  "factory",
+  "manufacturing",
+]
+
+[fontes]
 artistas = []
 musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"

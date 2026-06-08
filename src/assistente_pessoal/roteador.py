@@ -29,19 +29,19 @@ class RoteadorComandos:
         if "clima" in comando_minusculo or "tempo" in comando_minusculo:
             return formatar_previsao(ClienteClima().obter_previsao(self.config.localizacao))
         if "noticia" in comando_minusculo or "noticias" in comando_minusculo:
-            noticias = ClienteNoticias().listar(
-                self.config.fontes.rss,
-                incluir_the_news_tecnologia=self.config.fontes.incluir_the_news_tecnologia,
-                timezone_local=self.config.localizacao.timezone,
-            )
-            return formatar_noticias(noticias)
+            noticias = ClienteNoticias().listar(self.config.fontes.noticias)
+            resposta = formatar_noticias(noticias, timezone=self.config.fontes.noticias.timezone)
+            if noticias:
+                caminho = self._registrar_consulta_noticias(comando, noticias)
+                resposta = f"{resposta}\n\nConsulta salva no Obsidian em {caminho}."
+            return resposta
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:
             cliente = ClienteMusica(self.config.fontes.musicbrainz_user_agent)
             return formatar_lancamentos(cliente.listar_lancamentos(self.config.fontes.artistas))
         if comando_minusculo.startswith(("memorize ", "memorizar ", "salve ", "salvar ")):
             conteudo = _remover_prefixo_memoria(comando)
             caminho = self.memoria.salvar_nota("Memoria rapida", conteudo, tags=["memoria-rapida"])
-            return f"Memoria salva em {caminho}."
+            return f"Memoria salva em {self.memoria.caminho_relativo(caminho)}."
         if comando_minusculo.startswith(("buscar ", "procure ", "pesquisar ")):
             consulta = _remover_prefixo_busca(comando)
             resultados = self.memoria.buscar(consulta)
@@ -51,11 +51,26 @@ class RoteadorComandos:
         if comando_minusculo.startswith("estudar "):
             tema = comando.removeprefix("estudar").strip() or "Tema sem nome"
             caminho = criar_nota_estudo(self.memoria, tema, tema, self.llm)
-            return f"Nota de estudo criada em {caminho}."
+            return f"Nota de estudo criada em {self.memoria.caminho_relativo(caminho)}."
         resposta = self.llm.gerar(comando, contexto=_contexto_memoria(self.memoria, comando))
         if resposta:
             return resposta.texto
         return resposta_fallback()
+
+    def _registrar_consulta_noticias(self, consulta: str, noticias: list) -> str:
+        """Guarda no vault as noticias devolvidas para uma pergunta do usuario."""
+        linhas = [f"Pergunta: {consulta}", "", "## Noticias retornadas", ""]
+        for noticia in noticias:
+            linhas.append(f"- [{noticia.titulo}]({noticia.link})")
+            linhas.append(f"  - Fonte: {noticia.fonte}")
+            linhas.append(f"  - Grupo: {noticia.grupo}")
+        caminho = self.memoria.salvar_nota(
+            "Consulta de noticias",
+            "\n".join(linhas),
+            pasta="40_noticias",
+            tags=["noticias", "consulta", "obsidian"],
+        )
+        return self.memoria.caminho_relativo(caminho)
 
 
 def _remover_prefixo_memoria(texto: str) -> str:

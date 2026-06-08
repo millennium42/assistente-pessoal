@@ -1,5 +1,7 @@
 """Testes do cliente de clima com HTTP mockado."""
 
+from datetime import date
+
 from assistente_pessoal.clima import ClienteClima, formatar_previsao
 from assistente_pessoal.config import LocalizacaoConfig
 
@@ -17,12 +19,16 @@ class RespostaFake:
                 "temperature_2m": 20.0,
                 "apparent_temperature": 19.0,
                 "wind_speed_10m": 12.0,
+                "weather_code": 3,
             },
             "daily": {
-                "temperature_2m_max": [25.0],
-                "temperature_2m_min": [14.0],
-                "precipitation_probability_max": [30],
+                "time": ["2026-06-08", "2026-06-09", "2026-06-10"],
+                "temperature_2m_max": [25.0, 26.0, 27.0],
+                "temperature_2m_min": [14.0, 15.0, 16.0],
+                "precipitation_probability_max": [30, 10, 70],
+                "weather_code": [3, 61, 1],
             },
+            "timezone": "America/Sao_Paulo",
         }
 
 
@@ -48,7 +54,25 @@ def test_cliente_clima_formata_previsao(monkeypatch) -> None:
     """Verifica a transformacao da resposta de clima em texto final."""
     monkeypatch.setattr("assistente_pessoal.clima.httpx.Client", ClientFake)
 
-    previsao = ClienteClima().obter_previsao(LocalizacaoConfig(cidade="Teste"))
+    previsao = ClienteClima().obter_previsao(
+        LocalizacaoConfig(cidade="Teste"), dia="amanha", data_referencia=date(2026, 6, 8)
+    )
 
     assert "Teste" in formatar_previsao(previsao)
-    assert previsao.temperatura == 20.0
+    assert previsao.temperatura_referencia == 20.5
+    assert previsao.maxima == 26.0
+    assert "temperatura prevista" in formatar_previsao(previsao).lower()
+
+
+def test_cliente_clima_aceita_dia_da_semana(monkeypatch) -> None:
+    """Converte nomes de dia em datas futuras de forma previsivel."""
+    monkeypatch.setattr("assistente_pessoal.clima.httpx.Client", ClientFake)
+
+    previsao = ClienteClima().obter_previsao(
+        LocalizacaoConfig(cidade="Teste"),
+        dia="quarta",
+        data_referencia=date(2026, 6, 8),
+    )
+
+    assert previsao.data_alvo.isoformat() == "2026-06-10"
+    assert previsao.temperatura_referencia == 21.5

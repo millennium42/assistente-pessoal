@@ -7,8 +7,10 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from assistente_pessoal.core_paths import resolver_relativo_ao_arquivo
 
 PASTAS_VAULT = (
     "00_inbox",
@@ -17,6 +19,8 @@ PASTAS_VAULT = (
     "30_resumos",
     "40_noticias",
     "50_musica",
+    "60_planejamento",
+    "61_agenda_local",
     "90_logs",
 )
 
@@ -51,17 +55,117 @@ class LLMConfig(BaseModel):
         return bool(self.base_url.strip() and self.modelo.strip())
 
 
+class GoogleAgendaConfig(BaseModel):
+    """Configuracao da integracao com Google Agenda para leitura mensal e criacao de eventos."""
+
+    habilitado: bool = False
+    credentials_path: Path = Path("google-oauth-client.json")
+    token_path: Path = Path(".assistente/google-calendar-token.json")
+    calendar_id: str = "primary"
+    max_eventos: int = 10
+    janela_dias: int = 7
+
+
+class GrupoRssConfig(BaseModel):
+    """Agrupa fontes RSS por tema e prioridade."""
+
+    habilitado: bool = True
+    rss: list[str] = Field(default_factory=list)
+    urls: list[str] = Field(default_factory=list)
+    palavras_chave: list[str] = Field(default_factory=list)
+    modo: str = "rss"
+    titulo_fonte: str = ""
+
+
+class TheNewsConfig(BaseModel):
+    """Configuracao da fonte The News."""
+
+    habilitado: bool = True
+    categoria: str = ""
+
+
+class NoticiasConfig(BaseModel):
+    """Fontes de noticia agrupadas por prioridade semantica."""
+
+    timezone: str = "America/Sao_Paulo"
+    apenas_dia_atual: bool = True
+    interesses_busca: list[str] = Field(default_factory=list)
+    prioridades: list[str] = Field(
+        default_factory=lambda: ["the_news", "santa_maria", "tech", "economia_global"]
+    )
+    the_news: TheNewsConfig = Field(default_factory=TheNewsConfig)
+    santa_maria: GrupoRssConfig = Field(
+        default_factory=lambda: GrupoRssConfig(
+            modo="midia_local",
+            urls=[
+                "https://diariosm.com.br/",
+                "https://bei.net.br/plantao/",
+            ],
+            palavras_chave=[
+                "santa maria",
+                "santa-mariense",
+                "ufsm",
+                "itaara",
+                "camobi",
+                "restinga seca",
+                "silveira martins",
+                "faxinal do soturno",
+            ],
+            titulo_fonte="santa maria - midia local",
+        )
+    )
+    tech: GrupoRssConfig = Field(
+        default_factory=lambda: GrupoRssConfig(
+            rss=[
+                "https://tecnoblog.net/feed/",
+                "https://www.canaltech.com.br/rss/",
+                "https://olhardigital.com.br/feed/",
+            ],
+            titulo_fonte="tech",
+        )
+    )
+    economia_global: GrupoRssConfig = Field(
+        default_factory=lambda: GrupoRssConfig(
+            modo="misto",
+            rss=[
+                "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
+                "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "http://feeds.marketwatch.com/marketwatch/topstories/",
+                "https://www.ecb.europa.eu/rss/press.html",
+                "https://www.federalreserve.gov/feeds/press_all.xml",
+            ],
+            urls=[],
+            palavras_chave=[
+                "economy",
+                "economic",
+                "inflation",
+                "interest rate",
+                "central bank",
+                "gdp",
+                "tariff",
+                "market",
+                "markets",
+                "stock",
+                "stocks",
+                "trade",
+                "jobs",
+                "labour",
+                "labor",
+                "recession",
+                "yield",
+                "oil",
+                "factory",
+                "manufacturing",
+            ],
+            titulo_fonte="economia global",
+        )
+    )
+
+
 class FontesConfig(BaseModel):
     """Fontes externas consultadas pelo assistente."""
 
-    rss: list[str] = Field(
-        default_factory=lambda: [
-            "https://tecnoblog.net/feed/",
-            "https://www.canaltech.com.br/rss/",
-            "https://olhardigital.com.br/feed/",
-        ]
-    )
-    incluir_the_news_tecnologia: bool = True
+    noticias: NoticiasConfig = Field(default_factory=NoticiasConfig)
     artistas: list[str] = Field(default_factory=list)
     musicbrainz_user_agent: str = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
 
@@ -73,7 +177,29 @@ class AppConfig(BaseModel):
     localizacao: LocalizacaoConfig = Field(default_factory=LocalizacaoConfig)
     voz: VozConfig = Field(default_factory=VozConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    google_agenda: GoogleAgendaConfig = Field(default_factory=GoogleAgendaConfig)
     fontes: FontesConfig = Field(default_factory=FontesConfig)
+    _config_path: Path | None = PrivateAttr(default=None)
+
+    def definir_origem_config(self, caminho: Path | None) -> None:
+        """Guarda o caminho real do config para resolver paths relativos com estabilidade."""
+        self._config_path = caminho.resolve() if caminho else None
+        if self._config_path:
+            self.vault_path = resolver_relativo_ao_arquivo(self.vault_path, self._config_path)
+            self.google_agenda.credentials_path = resolver_relativo_ao_arquivo(
+                self.google_agenda.credentials_path,
+                self._config_path,
+            )
+            self.google_agenda.token_path = resolver_relativo_ao_arquivo(
+                self.google_agenda.token_path,
+                self._config_path,
+            )
+            self.fontes.noticias.timezone = self.localizacao.timezone
+
+    @property
+    def config_path(self) -> Path | None:
+        """Expõe o caminho do arquivo de configuracao quando conhecido."""
+        return self._config_path
 
 
 class EnvConfig(BaseSettings):
@@ -91,12 +217,16 @@ def caminho_config_padrao() -> Path:
 
 def carregar_config(caminho: Path | None = None) -> AppConfig:
     """Carrega o arquivo TOML de configuracao ou retorna valores padrao."""
-    caminho_real = caminho or caminho_config_padrao()
+    caminho_real = (caminho or caminho_config_padrao()).resolve()
     if not caminho_real.exists():
-        return AppConfig()
+        config = AppConfig()
+        config.definir_origem_config(caminho_real)
+        return config
     with caminho_real.open("rb") as arquivo:
         dados = tomllib.load(arquivo)
-    return AppConfig.model_validate(dados)
+    config = AppConfig.model_validate(dados)
+    config.definir_origem_config(caminho_real)
+    return config
 
 
 def criar_config_inicial(
@@ -108,6 +238,7 @@ def criar_config_inicial(
     timezone: str,
 ) -> AppConfig:
     """Cria um arquivo ``config.toml`` inicial e devolve a configuracao carregada."""
+    caminho_real = caminho.resolve()
     config = AppConfig(
         vault_path=vault_path,
         localizacao=LocalizacaoConfig(
@@ -117,14 +248,27 @@ def criar_config_inicial(
             timezone=timezone,
         ),
     )
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    caminho.write_text(renderizar_toml(config), encoding="utf-8")
-    return config
+    config.fontes.noticias.timezone = timezone
+    caminho_real.parent.mkdir(parents=True, exist_ok=True)
+    caminho_real.write_text(renderizar_toml(config), encoding="utf-8")
+    return carregar_config(caminho_real)
 
 
 def renderizar_toml(config: AppConfig) -> str:
-    """Renderiza a configuracao em TOML simples, suficiente para a V1."""
-    rss = "\n".join(f'  "{url}",' for url in config.fontes.rss)
+    """Renderiza a configuracao em TOML simples, suficiente para a V1.1."""
+    tech_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.tech.rss)
+    santa_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.santa_maria.urls)
+    santa_palavras_chave = "\n".join(
+        f'  "{_escapar(palavra)}",' for palavra in config.fontes.noticias.santa_maria.palavras_chave
+    )
+    economia_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.rss)
+    economia_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.economia_global.urls)
+    interesses_busca = "\n".join(
+        f'  "{_escapar(interesse)}",' for interesse in config.fontes.noticias.interesses_busca
+    )
+    prioridades = "\n".join(
+        f'  "{prioridade}",' for prioridade in config.fontes.noticias.prioridades
+    )
     artistas = "\n".join(f'  "{artista}",' for artista in config.fontes.artistas)
     return f"""vault_path = "{_normalizar_path(config.vault_path)}"
 
@@ -145,11 +289,58 @@ base_url = "{_escapar(config.llm.base_url)}"
 modelo = "{_escapar(config.llm.modelo)}"
 api_key_env = "{_escapar(config.llm.api_key_env)}"
 
-[fontes]
-incluir_the_news_tecnologia = {_toml_bool(config.fontes.incluir_the_news_tecnologia)}
-rss = [
-{rss}
+[google_agenda]
+habilitado = {_toml_bool(config.google_agenda.habilitado)}
+credentials_path = "{_normalizar_path(config.google_agenda.credentials_path)}"
+token_path = "{_normalizar_path(config.google_agenda.token_path)}"
+calendar_id = "{_escapar(config.google_agenda.calendar_id)}"
+max_eventos = {config.google_agenda.max_eventos}
+janela_dias = {config.google_agenda.janela_dias}
+
+[fontes.noticias]
+timezone = "{_escapar(config.fontes.noticias.timezone)}"
+apenas_dia_atual = {_toml_bool(config.fontes.noticias.apenas_dia_atual)}
+interesses_busca = [
+{interesses_busca}
 ]
+prioridades = [
+{prioridades}
+]
+
+[fontes.noticias.the_news]
+habilitado = {_toml_bool(config.fontes.noticias.the_news.habilitado)}
+categoria = "{_escapar(config.fontes.noticias.the_news.categoria)}"
+
+[fontes.noticias.santa_maria]
+habilitado = {_toml_bool(config.fontes.noticias.santa_maria.habilitado)}
+modo = "{_escapar(config.fontes.noticias.santa_maria.modo)}"
+titulo_fonte = "{_escapar(config.fontes.noticias.santa_maria.titulo_fonte)}"
+urls = [
+{santa_urls}
+]
+palavras_chave = [
+{santa_palavras_chave}
+]
+
+[fontes.noticias.tech]
+habilitado = {_toml_bool(config.fontes.noticias.tech.habilitado)}
+titulo_fonte = "{_escapar(config.fontes.noticias.tech.titulo_fonte)}"
+rss = [
+{tech_rss}
+]
+
+[fontes.noticias.economia_global]
+habilitado = {_toml_bool(config.fontes.noticias.economia_global.habilitado)}
+modo = "{_escapar(config.fontes.noticias.economia_global.modo)}"
+titulo_fonte = "{_escapar(config.fontes.noticias.economia_global.titulo_fonte)}"
+rss = [
+{economia_rss}
+]
+urls = [
+{economia_urls}
+]
+
+[fontes]
 artistas = [
 {artistas}
 ]

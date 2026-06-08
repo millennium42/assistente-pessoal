@@ -1,91 +1,99 @@
 # Assistente Pessoal
 
-Assistente pessoal modular, open source, em Python e em pt-BR. A V1 foi pensada para ser util agora, mesmo em uma maquina simples: comandos por texto, voz push-to-talk, memoria em um vault dedicado do Obsidian, clima, noticias, lancamentos musicais e IA opcional via endpoint compativel com OpenAI.
+Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combina CLI, dashboard local com `NiceGUI`, memoria em vault do Obsidian, noticias priorizadas, clima por dia, estudo, musica e LLM opcional.
 
-## Decisoes da V1
+## O que mudou nesta versao
 
-- **CLI antes de interface grafica:** reduz bugs e deixa os comandos testaveis.
-- **Voz push-to-talk:** evita wake word instavel e consumo constante de CPU.
-- **Obsidian como memoria:** o assistente grava Markdown comum, entao voce pode ler, editar e versionar tudo.
-- **SQLite FTS5 para busca:** simples, local e rebuildavel; vector DB fica para uma versao futura.
-- **LLM opcional:** sem provedor configurado, o assistente ainda executa clima, noticias, musica e memoria.
-- **Sem LiteLLM por enquanto:** a V1 usa um adaptador proprio pequeno para reduzir dependencia de cadeia de suprimentos.
+- correcao da resolucao do `vault_path`, para as notas aparecerem no vault certo do Obsidian;
+- dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
+- noticias priorizadas em quatro grupos:
+  1. The News
+  2. Santa Maria - RS
+  3. tech
+  4. economia global
+- clima com `--dia hoje|amanha|segunda|...`;
+- limpeza da documentacao para remover caminhos pessoais;
+- revisao pratica de privacidade e LGPD.
 
 ## Requisitos
 
-- Windows 10 ou superior.
-- Python 3.12.
-- `uv`.
-- Git.
-- FFmpeg.
+- Windows 10 ou superior
+- Python 3.12
+- `uv`
+- Git
+- FFmpeg
 
-Depois de instalar as ferramentas, reinicie o terminal se os comandos nao forem reconhecidos no PATH.
+Se algum comando novo nao for reconhecido, abra um terminal novo.
 
 ## Instalacao
 
-Para preparar uma maquina Windows com as ferramentas base:
+Para preparar uma maquina Windows:
 
 ```powershell
 .\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
 ```
 
-Para apenas conferir o que ja existe:
-
-```powershell
-.\scripts\bootstrap_windows.ps1 -SomenteVerificar
-```
-
-Instalacao manual equivalente:
+Instalacao manual:
 
 ```powershell
 uv venv
 uv pip install -e ".[dev]"
 ```
 
-## Como executar
-
-Depois da instalacao, o comando fica dentro da `.venv`. Escolha uma das formas:
+Se preferir usar o executavel da venv sem ativacao:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe --help
 ```
 
-Ou ative o ambiente virtual uma vez por terminal:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-assistente-pessoal --help
-```
-
-Se o PowerShell bloquear a ativacao, use o executavel direto em `.venv\Scripts`.
-
 ## Primeiro uso
 
-Para um passo a passo completo, veja [Guia de primeiro uso](docs/primeiro-uso.md).
+1. Crie a configuracao inicial:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe init
-.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Quero estudar com revisoes curtas e frequentes."
-.\.venv\Scripts\assistente-pessoal.exe memoria buscar "revisoes"
-.\.venv\Scripts\assistente-pessoal.exe clima
-.\.venv\Scripts\assistente-pessoal.exe noticias
-.\.venv\Scripts\assistente-pessoal.exe musica
-.\.venv\Scripts\assistente-pessoal.exe chat "o que voce consegue fazer?"
 ```
 
-Para voz:
+2. Confira qual vault esta sendo usado:
 
 ```powershell
-.\.venv\Scripts\assistente-pessoal.exe ouvir
+.\.venv\Scripts\assistente-pessoal.exe memoria info
 ```
 
-O comando `ouvir` grava por alguns segundos, transcreve com `faster-whisper` e manda o texto para o roteador de comandos.
+3. Abra esse vault no Obsidian.
+
+4. Teste os modulos basicos:
+
+```powershell
+.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar calculo toda segunda."
+.\.venv\Scripts\assistente-pessoal.exe clima --dia amanha
+.\.venv\Scripts\assistente-pessoal.exe noticias
+.\.venv\Scripts\assistente-pessoal.exe gui
+```
+
+Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
+
+## Comandos principais
+
+- `assistente-pessoal init`
+- `assistente-pessoal memoria salvar`
+- `assistente-pessoal memoria buscar`
+- `assistente-pessoal memoria reindexar`
+- `assistente-pessoal memoria info`
+- `assistente-pessoal estudar`
+- `assistente-pessoal clima --dia amanha`
+- `assistente-pessoal noticias`
+- `assistente-pessoal musica`
+- `assistente-pessoal agenda google-auth`
+- `assistente-pessoal agenda google-listar`
+- `assistente-pessoal agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30`
+- `assistente-pessoal chat "mensagem"`
+- `assistente-pessoal ouvir`
+- `assistente-pessoal gui`
 
 ## Configuracao
 
-Rode `assistente-pessoal init` para criar `config.toml` e um vault dedicado em `vault/AssistentePessoal`.
-
-Exemplo minimo:
+Estrutura resumida do `config.toml`:
 
 ```toml
 vault_path = "vault/AssistentePessoal"
@@ -96,55 +104,108 @@ latitude = -29.6868
 longitude = -53.8149
 timezone = "America/Sao_Paulo"
 
-[llm]
-base_url = ""
-modelo = ""
-api_key_env = "OPENAI_API_KEY"
+[google_agenda]
+habilitado = false
+credentials_path = "google-oauth-client.json"
+token_path = ".assistente/google-calendar-token.json"
+calendar_id = "primary"
+max_eventos = 10
+janela_dias = 7
+
+[fontes.noticias]
+timezone = "America/Sao_Paulo"
+apenas_dia_atual = true
+prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
+
+[fontes.noticias.the_news]
+habilitado = true
+categoria = "" # vazio busca todas as categorias do The News
+
+[fontes.noticias.santa_maria]
+habilitado = true
+modo = "midia_local"
+titulo_fonte = "santa maria - midia local"
+urls = [
+  "https://diariosm.com.br/",
+  "https://bei.net.br/plantao/",
+]
+
+[fontes.noticias.tech]
+habilitado = true
+titulo_fonte = "tech"
+rss = [
+  "https://tecnoblog.net/feed/",
+  "https://www.canaltech.com.br/rss/",
+  "https://olhardigital.com.br/feed/",
+]
+
+[fontes.noticias.economia_global]
+habilitado = true
+modo = "misto"
+titulo_fonte = "economia global"
+rss = [
+  "https://www.federalreserve.gov/feeds/press_monetary.xml",
+  "https://www.federalreserve.gov/feeds/press_all.xml",
+]
+urls = [
+  "https://www.imf.org/en/News",
+  "https://www.worldbank.org/en/news",
+]
 ```
 
-Para usar Ollama futuramente:
+## Obsidian
 
-```toml
-[llm]
-base_url = "http://localhost:11434/v1"
-modelo = "llama3.2:3b"
-api_key_env = "OPENAI_API_KEY"
-```
+O assistente grava Markdown comum e usa um vault dedicado. As pastas iniciais sao:
 
-## Arquitetura
+- `00_inbox`
+- `10_memoria`
+- `20_estudos`
+- `30_resumos`
+- `40_noticias`
+- `50_musica`
+- `60_planejamento`
+- `61_agenda_local`
+- `90_logs`
 
-- `config`: leitura e criacao da configuracao.
-- `cli`: interface Typer.
-- `memoria`: vault Obsidian, Markdown e indice SQLite FTS5.
-- `estudos`: notas de estudo, resumos simples e perguntas de revisao.
-- `noticias`: The News tecnologia e RSS/Atom de tecnologia.
-- `clima`: Open-Meteo.
-- `musica`: MusicBrainz.
-- `llm`: cliente pequeno para APIs compativeis com OpenAI.
-- `voz`: gravacao push-to-talk e transcricao local.
-- `roteador`: decide qual modulo chamar a partir de texto livre.
+O indice tecnico fica em `.assistente/index.sqlite3`.
 
-Leia tambem:
+Se as notas nao aparecerem no Obsidian:
 
-- [Guia de primeiro uso](docs/primeiro-uso.md)
-- [Arquitetura da V1](docs/arquitetura.md)
-- [Decisoes tecnicas e criticas](docs/decisoes-tecnicas.md)
-- [Guia de uso](docs/uso.md)
-- [Publicacao no GitHub](docs/publicacao-github.md)
-- [Guia de contribuicao](CONTRIBUTING.md)
+1. rode `assistente-pessoal memoria info`
+2. abra exatamente o `Vault efetivo` mostrado no comando
+3. confirme se o `config.toml` que voce esta usando e o mesmo da sessao atual
+
+## Privacidade e LGPD
+
+- nenhuma chave de API deve ser salva no `config.toml`; use variaveis de ambiente
+- o vault e local, editavel e apagavel por voce
+- clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
+- logs nao devem carregar conteudo pessoal por padrao
+- a Google Agenda usa OAuth local, escopo de eventos e a API oficial `calendar-json.googleapis.com`
+- o arquivo de credenciais OAuth e o token local nao devem ser versionados
+
+Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
+
+## Documentacao
+
+- [docs/primeiro-uso.md](docs/primeiro-uso.md)
+- [docs/uso.md](docs/uso.md)
+- [docs/arquitetura.md](docs/arquitetura.md)
+- [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md)
+- [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
+- [docs/publicacao-github.md](docs/publicacao-github.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Qualidade
-
-```powershell
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-```
-
-Ou use o script:
 
 ```powershell
 .\scripts\verificar.ps1
 ```
 
-Todas as funcoes, classes e metodos publicos devem ter docstrings em pt-BR. Comentarios devem explicar decisoes relevantes, nao repetir mecanicamente o que cada linha faz.
+Ou:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m ruff check src tests
+.\.venv\Scripts\python.exe -m ruff format --check .
+```

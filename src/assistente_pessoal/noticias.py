@@ -1,17 +1,22 @@
-"""Leitura de noticias de tecnologia via The News, RSS ou Atom."""
+"""Orquestracao de noticias priorizadas para CLI, voz e GUI."""
 
 from __future__ import annotations
 
-import calendar
+import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
-from email.utils import parsedate_to_datetime
-from time import struct_time
-from urllib.parse import urljoin
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-import feedparser
-import httpx
+from assistente_pessoal.config import NoticiasConfig
+from assistente_pessoal.core_datas import hoje_local, normalizar_texto_ascii
+from assistente_pessoal.fontes_noticias import (
+    HtmlJsonLdNewsSource,
+    ItemFonteNoticia,
+    RssNewsSource,
+    TheNewsSource,
+)
+
+LIMITE_PADRAO_NOTICIAS = 50
 
 
 @dataclass(frozen=True)
@@ -23,123 +28,225 @@ class Noticia:
     fonte: str
     publicado: str
     publicado_em: datetime | None = None
+    grupo: str = ""
 
 
 class ClienteNoticias:
-    """Agrega noticias do The News tecnologia e de feeds RSS/Atom tech."""
+    """Coordena a coleta por grupos e entrega noticias em ordem cronologica."""
 
-    def __init__(self, timeout: float = 15.0) -> None:
-        """Define timeout para fontes HTTP diretas, como o portal The News."""
-        self.timeout = timeout
+    def __init__(
+        self,
+        the_news_source: TheNewsSource | None = None,
+        rss_source: RssNewsSource | None = None,
+        html_source: HtmlJsonLdNewsSource | None = None,
+    ) -> None:
+        """Permite injetar fontes fake nos testes sem acoplar a infra a CLI."""
+        self.the_news_source = the_news_source or TheNewsSource()
+        self.rss_source = rss_source or RssNewsSource()
+        self.html_source = html_source or HtmlJsonLdNewsSource()
 
     def listar(
         self,
-        urls: list[str],
-        limite: int = 8,
-        incluir_the_news_tecnologia: bool = True,
-        timezone_local: str = "America/Sao_Paulo",
+        config: NoticiasConfig,
+        limite: int = LIMITE_PADRAO_NOTICIAS,
         data_referencia: date | None = None,
     ) -> list[Noticia]:
-        """Coleta apenas noticias publicadas no dia local de referencia."""
-        data_alvo = data_referencia or datetime.now(ZoneInfo(timezone_local)).date()
+        """Busca noticias por prioridade de fonte e devolve do mais novo ao mais antigo."""
+        data_alvo = data_referencia or hoje_local(config.timezone)
         noticias: list[Noticia] = []
-        if incluir_the_news_tecnologia:
-            noticias.extend(
-                self._listar_the_news_tecnologia(
-                    limite=limite,
-                    timezone_local=timezone_local,
-                    data_referencia=data_alvo,
-                )
-            )
-        for url in urls:
-            feed = feedparser.parse(url)
-            fonte = feed.feed.get("title", url)
-            for item in feed.entries[: max(limite * 3, 20)]:
-                publicado_em = extrair_data_rss(item)
-                if not publicado_no_dia(publicado_em, data_alvo, timezone_local):
-                    continue
-                noticias.append(
-                    Noticia(
-                        titulo=item.get("title", "Sem titulo"),
-                        link=item.get("link", ""),
-                        fonte=fonte,
-                        publicado=_publicado(item),
-                        publicado_em=publicado_em,
-                    )
-                )
-                if len(noticias) >= limite:
-                    break
-            if len(noticias) >= limite:
-                break
-        return noticias[:limite]
+        limite_normalizado = max(limite, 1)
+        for grupo in config.prioridades:
+            itens = self._listar_grupo(grupo, config, limite_normalizado, data_alvo)
+            noticias.extend(itens)
+        noticias_ordenadas = ordenar_noticias_por_data(noticias, config.timezone)
+        noticias_priorizadas = priorizar_noticias_por_interesses(
+            noticias_ordenadas,
+            config.interesses_busca,
+        )
+        return selecionar_noticias(noticias_priorizadas, limite_normalizado, config.timezone)
 
-    def _listar_the_news_tecnologia(
+    def _listar_grupo(
         self,
+        grupo: str,
+        config: NoticiasConfig,
         limite: int,
-        timezone_local: str,
         data_referencia: date,
     ) -> list[Noticia]:
-        """Busca noticias de tecnologia do The News publicadas no dia local."""
-        url = "https://api.waffle.com.br/api/public/articles"
-        limite_busca = max(limite * 3, 20)
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resposta = client.get(
-                    url,
-                    params={
-                        "limit": limite_busca,
-                        "category": "tecnologia",
-                        "page": 1,
-                        "isAds": "false",
-                    },
-                    headers={"User-Agent": "assistente-pessoal/0.1.0"},
+        """Despacha cada grupo para o adaptador apropriado mantendo a camada publica enxuta."""
+        itens: list[ItemFonteNoticia]
+        if grupo == "the_news":
+            itens = self.the_news_source.listar(
+                config.the_news,
+                limite=limite,
+                timezone=config.timezone,
+                data_referencia=data_referencia,
+            )
+        elif grupo == "santa_maria":
+            itens = []
+            itens.extend(
+                self.html_source.listar(
+                    grupo=grupo,
+                    config=config.santa_maria,
+                    limite=limite,
+                    timezone=config.timezone,
+                    data_referencia=data_referencia,
+                    apenas_dia_atual=config.apenas_dia_atual,
                 )
-                resposta.raise_for_status()
-                dados = resposta.json()
-        except (httpx.HTTPError, ValueError):
-            # The News nao oferece RSS publico; se a API mudar, os RSS tech continuam funcionando.
-            return []
-        artigos = dados.get("data", {}).get("articles", [])
-        noticias = []
-        for artigo in artigos:
-            publicado_em = extrair_data_iso(artigo.get("publishedAt"))
-            if not publicado_no_dia(publicado_em, data_referencia, timezone_local):
-                continue
-            noticias.append(normalizar_the_news_artigo(artigo, publicado_em=publicado_em))
-            if len(noticias) >= limite:
-                break
-        return noticias
+            )
+            if len(itens) < limite and config.santa_maria.rss:
+                itens.extend(
+                    self.rss_source.listar(
+                        grupo=grupo,
+                        config=config.santa_maria,
+                        limite=limite - len(itens),
+                        timezone=config.timezone,
+                        data_referencia=data_referencia,
+                        apenas_dia_atual=config.apenas_dia_atual,
+                    )
+                )
+        elif grupo == "tech":
+            itens = self.rss_source.listar(
+                grupo=grupo,
+                config=config.tech,
+                limite=limite,
+                timezone=config.timezone,
+                data_referencia=data_referencia,
+                apenas_dia_atual=config.apenas_dia_atual,
+            )
+        elif grupo == "economia_global":
+            itens = self.rss_source.listar(
+                grupo=grupo,
+                config=config.economia_global,
+                limite=limite,
+                timezone=config.timezone,
+                data_referencia=data_referencia,
+                apenas_dia_atual=config.apenas_dia_atual,
+            )
+            if len(itens) < limite and config.economia_global.urls:
+                itens.extend(
+                    self.html_source.listar(
+                        grupo=grupo,
+                        config=config.economia_global,
+                        limite=limite - len(itens),
+                        timezone=config.timezone,
+                        data_referencia=data_referencia,
+                        apenas_dia_atual=config.apenas_dia_atual,
+                    )
+                )
+        else:
+            itens = []
+        return [normalizar_item(item) for item in itens[:limite]]
 
 
-def normalizar_the_news_artigo(artigo: dict, publicado_em: datetime | None = None) -> Noticia:
-    """Converte um artigo do The News para o formato comum de noticia."""
-    slug = artigo.get("slug", "")
-    link = artigo.get("url") or artigo.get("canonicalUrl")
-    if not link and slug:
-        link = f"https://www.thenews.com.br/pt-BR/portal/news/{slug}"
-    if link:
-        link = urljoin("https://www.thenews.com.br", link)
+def normalizar_item(item: ItemFonteNoticia) -> Noticia:
+    """Converte o item interno da fonte para o tipo publico da aplicacao."""
     return Noticia(
-        titulo=artigo.get("title", "Sem titulo"),
-        link=link or "https://www.thenews.com.br/pt-BR/portal/categories/tecnologia",
-        fonte="the news - tecnologia",
-        publicado=artigo.get("publishedTimeAgo") or artigo.get("publishedAt") or _publicado({}),
-        publicado_em=publicado_em,
+        titulo=item.titulo,
+        link=item.link,
+        fonte=item.fonte,
+        publicado=item.publicado,
+        publicado_em=item.publicado_em,
+        grupo=item.grupo,
     )
 
 
-def formatar_noticias(noticias: list[Noticia]) -> str:
+def ordenar_noticias_por_data(noticias: list[Noticia], timezone: str) -> list[Noticia]:
+    """Ordena noticias da publicacao mais recente para a mais antiga."""
+    return sorted(
+        noticias,
+        key=lambda noticia: _timestamp_publicacao(noticia.publicado_em, timezone),
+        reverse=True,
+    )
+
+
+def selecionar_noticias(noticias: list[Noticia], limite: int, timezone: str) -> list[Noticia]:
+    """Recorta o feed preservando itens do The News quando eles existem."""
+    selecionadas = noticias[:limite]
+    the_news = [noticia for noticia in noticias if noticia.grupo == "the_news"]
+    faltantes = [noticia for noticia in the_news if noticia not in selecionadas]
+    if not faltantes:
+        return ordenar_noticias_por_data(selecionadas, timezone)
+
+    preservadas = [noticia for noticia in selecionadas if noticia.grupo == "the_news"]
+    the_news_final = preservadas + faltantes
+    if len(the_news_final) >= limite:
+        return ordenar_noticias_por_data(the_news_final[:limite], timezone)
+
+    outras = [noticia for noticia in selecionadas if noticia.grupo != "the_news"]
+    vagas_outras = limite - len(the_news_final)
+    return ordenar_noticias_por_data(the_news_final + outras[:vagas_outras], timezone)
+
+
+def priorizar_noticias_por_interesses(
+    noticias: list[Noticia],
+    interesses: list[str],
+) -> list[Noticia]:
+    """Coloca noticias relacionadas aos interesses antes, preservando a recencia."""
+    termos = [
+        normalizar_texto_ascii(interesse).lower().strip()
+        for interesse in interesses
+        if interesse.strip()
+    ]
+    if not termos:
+        return noticias
+    return sorted(
+        noticias,
+        key=lambda noticia: _pontuacao_interesse(noticia, termos),
+        reverse=True,
+    )
+
+
+def rotulo_tempo_publicacao(
+    noticia: Noticia,
+    timezone: str = "America/Sao_Paulo",
+    agora: datetime | None = None,
+) -> str:
+    """Mostra a idade da noticia sem expor a data bruta da fonte."""
+    publicado_em = _normalizar_data_publicacao(noticia.publicado_em, timezone)
+    if publicado_em is None:
+        return "tempo indisponivel"
+    agora_local = _normalizar_agora(agora, timezone)
+    diferenca = agora_local - publicado_em
+    segundos = max(int(diferenca.total_seconds()), 0)
+    if segundos < 60:
+        return "agora"
+    minutos = segundos // 60
+    if minutos < 60:
+        return _rotulo_quantidade(minutos, "minuto", "minutos")
+    horas = minutos // 60
+    if horas < 24:
+        return _rotulo_quantidade(horas, "hora", "horas")
+    dias = horas // 24
+    if dias < 7:
+        return _rotulo_quantidade(dias, "dia", "dias")
+    semanas = dias // 7
+    if semanas < 5:
+        return _rotulo_quantidade(semanas, "semana", "semanas")
+    meses = dias // 30
+    if meses < 12:
+        return _rotulo_quantidade(max(meses, 1), "mes", "meses")
+    anos = dias // 365
+    return _rotulo_quantidade(max(anos, 1), "ano", "anos")
+
+
+def formatar_noticias(
+    noticias: list[Noticia],
+    timezone: str = "America/Sao_Paulo",
+    agora: datetime | None = None,
+) -> str:
     """Formata uma lista de noticias em texto legivel."""
     if not noticias:
-        return (
-            "Nenhuma noticia de tecnologia publicada hoje foi encontrada nas fontes configuradas."
-        )
+        return "Nenhuma noticia publicada no dia atual foi encontrada nas fontes configuradas."
     linhas = ["Noticias encontradas:"]
-    for indice, noticia in enumerate(noticias, start=1):
+    for indice, noticia in enumerate(ordenar_noticias_por_data(noticias, timezone), start=1):
         titulo = texto_terminal_seguro(noticia.titulo)
         fonte = texto_terminal_seguro(noticia.fonte)
         link = texto_terminal_seguro(noticia.link)
-        linhas.append(f"{indice}. {titulo} ({fonte}) - {link}")
+        grupo = texto_terminal_seguro(noticia.grupo.replace("_", " "))
+        publicado = texto_terminal_seguro(
+            rotulo_tempo_publicacao(noticia, timezone=timezone, agora=agora)
+        )
+        linhas.append(f"{indice}. {titulo} ({fonte} | {grupo} | {publicado}) - {link}")
     return "\n".join(linhas)
 
 
@@ -148,49 +255,51 @@ def texto_terminal_seguro(texto: str) -> str:
     return texto.encode("cp1252", errors="ignore").decode("cp1252")
 
 
-def extrair_data_iso(valor: str | None) -> datetime | None:
-    """Converte datas ISO da API do The News para ``datetime`` com timezone."""
-    if not valor:
-        return None
-    try:
-        normalizado = valor.replace("Z", "+00:00")
-        data = datetime.fromisoformat(normalizado)
-    except ValueError:
-        return None
-    if data.tzinfo is None:
-        return data.replace(tzinfo=UTC)
-    return data
+def _timestamp_publicacao(publicado_em: datetime | None, timezone: str) -> float:
+    data = _normalizar_data_publicacao(publicado_em, timezone)
+    if data is None:
+        return float("-inf")
+    return data.timestamp()
 
 
-def extrair_data_rss(item: dict) -> datetime | None:
-    """Extrai a data de publicacao de um item RSS/Atom."""
-    publicado_parseado = item.get("published_parsed") or item.get("updated_parsed")
-    if isinstance(publicado_parseado, struct_time):
-        return datetime.fromtimestamp(calendar.timegm(publicado_parseado), tz=UTC)
-    valor = item.get("published") or item.get("updated")
-    if not valor:
-        return None
-    try:
-        data = parsedate_to_datetime(valor)
-    except (TypeError, ValueError):
-        return None
-    if data.tzinfo is None:
-        return data.replace(tzinfo=UTC)
-    return data
+def _pontuacao_interesse(noticia: Noticia, termos: list[str]) -> int:
+    universo = normalizar_texto_ascii(
+        f"{noticia.titulo} {noticia.fonte} {noticia.grupo} {noticia.link}"
+    ).lower()
+    tokens_universo = set(re.findall(r"[a-z0-9]+", universo))
+    pontuacao = 0
+    for termo in termos:
+        tokens_termo = re.findall(r"[a-z0-9]+", termo)
+        if not tokens_termo:
+            continue
+        if len(tokens_termo) == 1:
+            pontuacao += int(tokens_termo[0] in tokens_universo)
+            continue
+        combina_termo = termo in universo or all(
+            token in tokens_universo for token in tokens_termo
+        )
+        pontuacao += int(combina_termo)
+    return pontuacao
 
 
-def publicado_no_dia(
-    publicado_em: datetime | None,
-    data_referencia: date,
-    timezone_local: str,
-) -> bool:
-    """Confere se a publicacao caiu no dia local configurado."""
+def _normalizar_data_publicacao(publicado_em: datetime | None, timezone: str) -> datetime | None:
     if publicado_em is None:
-        return False
-    return publicado_em.astimezone(ZoneInfo(timezone_local)).date() == data_referencia
+        return None
+    fuso = ZoneInfo(timezone)
+    if publicado_em.tzinfo is None:
+        return publicado_em.replace(tzinfo=fuso)
+    return publicado_em.astimezone(fuso)
 
 
-def _publicado(item: dict) -> str:
-    """Extrai a data publicada de um item RSS com fallback previsivel."""
-    valor = item.get("published") or item.get("updated")
-    return valor or datetime.now().isoformat(timespec="seconds")
+def _normalizar_agora(agora: datetime | None, timezone: str) -> datetime:
+    fuso = ZoneInfo(timezone)
+    if agora is None:
+        return datetime.now(fuso)
+    if agora.tzinfo is None:
+        return agora.replace(tzinfo=fuso)
+    return agora.astimezone(fuso)
+
+
+def _rotulo_quantidade(valor: int, singular: str, plural: str) -> str:
+    unidade = singular if valor == 1 else plural
+    return f"ha {valor} {unidade}"

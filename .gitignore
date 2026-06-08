@@ -9,7 +9,10 @@ build/
 *.egg-info/
 .env
 config.toml
+.assistente/
+google-oauth-client*.json
+google-calendar-token*.json
+googleAgenda*.json
 vault/
 *.sqlite3
 *.wav
-
