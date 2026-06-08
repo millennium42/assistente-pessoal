@@ -127,12 +127,21 @@ class NoticiasConfig(BaseModel):
         default_factory=lambda: GrupoRssConfig(
             modo="misto",
             rss=[
-                "https://www.federalreserve.gov/feeds/press_monetary.xml",
+                "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed",
+                "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "https://www.ecb.europa.eu/rss/press.html",
                 "https://www.federalreserve.gov/feeds/press_all.xml",
             ],
-            urls=[
-                "https://www.imf.org/en/News",
-                "https://www.worldbank.org/en/news",
+            urls=[],
+            palavras_chave=[
+                "economy",
+                "economic",
+                "inflation",
+                "interest rate",
+                "central bank",
+                "gdp",
+                "tariff",
+                "market",
             ],
             titulo_fonte="economia global",
         )

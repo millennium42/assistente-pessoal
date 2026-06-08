@@ -111,6 +111,14 @@ class RssNewsSource:
             feed = feedparser.parse(url)
             fonte = feed.feed.get("title", config.titulo_fonte or url)
             for item in feed.entries[: max(limite * 3, 20)]:
+                titulo = item.get("title", "Sem titulo")
+                link = item.get("link", "")
+                if config.palavras_chave and not noticia_parece_local(
+                    titulo,
+                    link,
+                    config.palavras_chave,
+                ):
+                    continue
                 publicado_em = extrair_data_rss(item)
                 if apenas_dia_atual and not publicado_no_dia(
                     publicado_em, data_referencia, timezone
@@ -118,8 +126,8 @@ class RssNewsSource:
                     continue
                 noticias.append(
                     ItemFonteNoticia(
-                        titulo=item.get("title", "Sem titulo"),
-                        link=item.get("link", ""),
+                        titulo=titulo,
+                        link=link,
                         fonte=fonte,
                         publicado=item.get("published") or item.get("updated") or "",
                         publicado_em=publicado_em,

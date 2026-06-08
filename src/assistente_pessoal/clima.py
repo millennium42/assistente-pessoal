@@ -27,6 +27,17 @@ class PrevisaoClima:
     codigo_tempo: int | None
 
 
+@dataclass(frozen=True)
+class ResumoClimaDia:
+    """Faixa compacta usada pelo dashboard para os proximos dias."""
+
+    data: date
+    maxima: float | None
+    minima: float | None
+    chuva: float | None
+    codigo_tempo: int | None
+
+
 class ClienteClima:
     """Cliente HTTP pequeno para a API publica Open-Meteo."""
 
@@ -55,10 +66,33 @@ class ClienteClima:
             "forecast_days": min(max(forecast_days, 1), 16),
         }
         with httpx.Client(timeout=self.timeout) as client:
-            resposta = client.get("https://api.open-meteo.com/v1/forecast", params=parametros)
-            resposta.raise_for_status()
-            dados = resposta.json()
+            dados = self._buscar_payload(client, parametros)
         return montar_previsao(localizacao.cidade, dados, data_alvo)
+
+    def obter_resumo_semana(
+        self,
+        localizacao: LocalizacaoConfig,
+        dias: int = 7,
+    ) -> list[ResumoClimaDia]:
+        """Busca a faixa diaria de maximas e minimas da proxima semana."""
+        parametros = {
+            "latitude": localizacao.latitude,
+            "longitude": localizacao.longitude,
+            "timezone": localizacao.timezone,
+            "daily": (
+                "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+            ),
+            "forecast_days": min(max(dias, 1), 16),
+        }
+        with httpx.Client(timeout=self.timeout) as client:
+            dados = self._buscar_payload(client, parametros)
+        return montar_resumo_semana(dados)
+
+    def _buscar_payload(self, client: httpx.Client, parametros: dict) -> dict:
+        """Centraliza a chamada a Open-Meteo para evitar duplicacao nos casos de uso."""
+        resposta = client.get("https://api.open-meteo.com/v1/forecast", params=parametros)
+        resposta.raise_for_status()
+        return resposta.json()
 
 
 def montar_previsao(cidade: str, dados: dict, data_alvo: date) -> PrevisaoClima:
@@ -105,6 +139,24 @@ def formatar_previsao(previsao: PrevisaoClima) -> str:
         f"maxima {previsao.maxima} C, minima {previsao.minima} C, "
         f"chance de chuva {previsao.chuva}% e vento {previsao.vento} km/h."
     )
+
+
+def montar_resumo_semana(dados: dict) -> list[ResumoClimaDia]:
+    """Converte a serie diaria da API em uma lista compacta para o dashboard."""
+    diario = dados.get("daily", {})
+    datas = diario.get("time") or []
+    saida: list[ResumoClimaDia] = []
+    for indice, valor_data in enumerate(datas):
+        saida.append(
+            ResumoClimaDia(
+                data=date.fromisoformat(valor_data),
+                maxima=_valor_na_posicao(diario.get("temperature_2m_max"), indice),
+                minima=_valor_na_posicao(diario.get("temperature_2m_min"), indice),
+                chuva=_valor_na_posicao(diario.get("precipitation_probability_max"), indice),
+                codigo_tempo=_valor_na_posicao(diario.get("weather_code"), indice),
+            )
+        )
+    return saida
 
 
 def _indice_data(datas: list[str] | None, data_alvo: str) -> int | None:

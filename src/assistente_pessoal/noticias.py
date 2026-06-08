@@ -51,10 +51,12 @@ class ClienteNoticias:
         data_alvo = data_referencia or hoje_local(config.timezone)
         noticias: list[Noticia] = []
         restantes = max(limite, 1)
-        for grupo in config.prioridades:
+        for indice, grupo in enumerate(config.prioridades):
             if restantes <= 0:
                 break
-            itens = self._listar_grupo(grupo, config, restantes, data_alvo)
+            grupos_a_frente = len(config.prioridades) - indice - 1
+            limite_grupo = max(restantes - grupos_a_frente, 1)
+            itens = self._listar_grupo(grupo, config, limite_grupo, data_alvo)
             noticias.extend(itens)
             restantes = limite - len(noticias)
         return noticias[:limite]

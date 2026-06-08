@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from assistente_pessoal.config import GoogleAgendaConfig
@@ -21,6 +22,15 @@ class EventoGoogleAgenda:
     link: str
     local: str
     origem: str
+
+
+@dataclass(frozen=True)
+class ResultadoGoogleAgenda:
+    """Empacota eventos e estado de conectividade para a GUI e CLI."""
+
+    eventos: list[EventoGoogleAgenda]
+    erro: str | None = None
+    mes_referencia: date | None = None
 
 
 class ClienteGoogleAgenda:
@@ -48,31 +58,79 @@ class ClienteGoogleAgenda:
 
     def listar_eventos(self) -> list[EventoGoogleAgenda]:
         """Le os proximos eventos do calendario principal configurado."""
+        return self.obter_eventos_intervalo().eventos
+
+    def obter_eventos_intervalo(
+        self,
+        inicio: datetime | None = None,
+        fim: datetime | None = None,
+        limite: int | None = None,
+    ) -> ResultadoGoogleAgenda:
+        """Busca eventos em um intervalo e preserva erros de conectividade."""
         if not self.config.habilitado:
-            return []
+            return ResultadoGoogleAgenda(eventos=[])
         try:
             credenciais = self._obter_credenciais()
         except FileNotFoundError:
-            return []
-        if credenciais is None:
-            return []
-        build = _import_build()
-        servico = build("calendar", "v3", credentials=credenciais)
-        agora = datetime.now(UTC)
-        ate = agora + timedelta(days=self.config.janela_dias)
-        resposta = (
-            servico.events()
-            .list(
-                calendarId=self.config.calendar_id,
-                timeMin=agora.isoformat(),
-                timeMax=ate.isoformat(),
-                maxResults=self.config.max_eventos,
-                singleEvents=True,
-                orderBy="startTime",
+            return ResultadoGoogleAgenda(
+                eventos=[],
+                erro="Arquivo de credenciais da Google Agenda nao encontrado.",
             )
-            .execute()
+        if credenciais is None:
+            return ResultadoGoogleAgenda(
+                eventos=[],
+                erro="Google Agenda ainda nao autenticada neste ambiente.",
+            )
+        build = _import_build()
+        try:
+            servico = build("calendar", "v3", credentials=credenciais)
+            agora = inicio or datetime.now(UTC)
+            ate = fim or (agora + timedelta(days=self.config.janela_dias))
+            resposta = (
+                servico.events()
+                .list(
+                    calendarId=self.config.calendar_id,
+                    timeMin=agora.isoformat(),
+                    timeMax=ate.isoformat(),
+                    maxResults=limite or self.config.max_eventos,
+                    singleEvents=True,
+                    orderBy="startTime",
+                )
+                .execute()
+            )
+        except Exception:
+            return ResultadoGoogleAgenda(
+                eventos=[],
+                erro=(
+                    "Falha ao consultar a Google Agenda. "
+                    "Verifique autenticacao e estabilidade da conexao."
+                ),
+            )
+        return ResultadoGoogleAgenda(
+            eventos=[normalizar_evento_google(item) for item in resposta.get("items", [])]
         )
-        return [normalizar_evento_google(item) for item in resposta.get("items", [])]
+
+    def obter_eventos_mes(self, referencia: date | None = None) -> ResultadoGoogleAgenda:
+        """Busca os eventos do mes inteiro para visualizacao em calendario."""
+        data_base = referencia or datetime.now(UTC).date()
+        primeiro_dia = data_base.replace(day=1)
+        ultimo_dia = calendar.monthrange(primeiro_dia.year, primeiro_dia.month)[1]
+        inicio = datetime.combine(primeiro_dia, datetime.min.time(), tzinfo=UTC)
+        fim = datetime.combine(
+            primeiro_dia.replace(day=ultimo_dia) + timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=UTC,
+        )
+        resultado = self.obter_eventos_intervalo(
+            inicio=inicio,
+            fim=fim,
+            limite=max(self.config.max_eventos, 250),
+        )
+        return ResultadoGoogleAgenda(
+            eventos=resultado.eventos,
+            erro=resultado.erro,
+            mes_referencia=primeiro_dia,
+        )
 
     def _obter_credenciais(self):
         """Carrega, renova ou cria as credenciais OAuth conforme o estado local."""
@@ -119,6 +177,22 @@ def formatar_eventos_google(eventos: list[EventoGoogleAgenda]) -> str:
             f"{evento.local or 'sem local'} {evento.link}"
         )
     return "\n".join(linhas)
+
+
+def data_evento_google(evento: EventoGoogleAgenda) -> date | None:
+    """Extrai a data local basica do inicio do evento para montar calendarios."""
+    valor = evento.inicio.strip()
+    if not valor:
+        return None
+    if len(valor) == 10:
+        try:
+            return date.fromisoformat(valor)
+        except ValueError:
+            return None
+    try:
+        return datetime.fromisoformat(valor.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
 
 
 def _import_credentials():
