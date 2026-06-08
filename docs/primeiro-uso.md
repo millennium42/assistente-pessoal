@@ -110,6 +110,10 @@ Se usar um servidor local compativel, o chat melhora sem mudar o restante do pro
 
 ## 9. Integrar Google Agenda
 
+Primeiro, ative a Google Calendar API no projeto do Google Cloud:
+
+[Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?hl=pt-br)
+
 No `config.toml`:
 
 ```toml

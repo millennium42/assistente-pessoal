@@ -112,6 +112,21 @@ def construir_dashboard(
           border-radius: 8px;
           padding: 16px;
         }
+        .expansion-shell {
+          background: white;
+          border: 1px solid #dbe4f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .expansion-shell .q-expansion-item__container > .q-item {
+          min-height: 60px;
+          padding: 14px 16px;
+          background: #f8fafc;
+        }
+        .expansion-shell .q-expansion-item__content > div {
+          padding: 16px;
+          background: white;
+        }
         .section-title { font-size: 1rem; font-weight: 700; color: #0f172a; }
         .section-subtitle { font-size: 0.84rem; color: #64748b; }
         .stat-grid {
@@ -166,11 +181,12 @@ def construir_dashboard(
 
         with ui.grid(columns=3).classes("w-full gap-4"):
             with ui.column().classes("col-span-2 gap-4"):
-                with ui.element("section").classes("section gap-3"):
-                    ui.label("Radar do Dia").classes("section-title")
-                    ui.label("Clima alvo, distribuicao das fontes e noticias priorizadas.").classes(
-                        "section-subtitle"
-                    )
+                with ui.expansion(
+                    "Radar do Dia",
+                    caption="Clima alvo e distribuicao das fontes priorizadas.",
+                    value=True,
+                    icon="insights",
+                ).classes("expansion-shell w-full"):
                     with ui.grid(columns=2).classes("w-full gap-4"):
                         clima_resumo = _render_clima_resumo(snapshot_inicial)
                         contagens = snapshot_inicial.noticias_por_grupo if snapshot_inicial else {}
@@ -178,9 +194,13 @@ def construir_dashboard(
                             "w-full h-72"
                         )
 
-                with ui.element("section").classes("section gap-3"):
+                with ui.expansion(
+                    "Feed Priorizado",
+                    caption="The News, Santa Maria, tecnologia e economia global no dia atual.",
+                    value=True,
+                    icon="newspaper",
+                ).classes("expansion-shell w-full"):
                     with ui.row().classes("w-full items-center justify-between"):
-                        ui.label("Feed Priorizado").classes("section-title")
                         noticias_total = ui.label("").classes("text-sm text-slate-500")
 
                     linhas_iniciais = _linhas_noticias(
@@ -238,16 +258,24 @@ def construir_dashboard(
                     )
 
             with ui.column().classes("gap-4"):
-                with ui.element("section").classes("section gap-3"):
-                    ui.label("Trabalho no Vault").classes("section-title")
+                with ui.expansion(
+                    "Trabalho no Vault",
+                    caption="Notas e artefatos recentes que ja estao no Obsidian.",
+                    value=True,
+                    icon="folder_open",
+                ).classes("expansion-shell w-full"):
                     notas_recentes = ui.column().classes("gap-2")
                     if snapshot_inicial:
                         _popular_notas_recentes(notas_recentes, snapshot_inicial.notas_recentes)
                     else:
                         _popular_notas_recentes(notas_recentes, [])
 
-                with ui.element("section").classes("section gap-3"):
-                    ui.label("Planejamento").classes("section-title")
+                with ui.expansion(
+                    "Planejamento",
+                    caption="Captura rapida, plano de estudos, agenda local e Google Agenda.",
+                    value=True,
+                    icon="dashboard_customize",
+                ).classes("expansion-shell w-full"):
                     with ui.tabs().classes("w-full") as abas:
                         aba_nota = ui.tab("Nota rapida")
                         aba_plano = ui.tab("Plano de estudos")
@@ -355,9 +383,9 @@ def _cabecalho(snapshot: DashboardSnapshot | None) -> None:
     """Renderiza a faixa superior com contexto operacional do painel."""
     with ui.element("section").classes("hero w-full gap-2"):
         ui.label("Dashboard operacional").classes("hero-kicker")
-        ui.label("Assistente pessoal").classes("text-3xl font-semibold")
+        ui.label("Painel de acompanhamento pessoal").classes("text-3xl font-semibold")
         ui.label(
-            "Visao diaria de noticias, clima e organizacao pessoal com memoria em Obsidian."
+            "Clima, noticias, agenda e organizacao diaria consolidados em um painel local."
         ).classes("text-base text-slate-200")
         atualizado = snapshot.atualizado_em if snapshot else "--:--:--"
         ui.label(f"Ultima leitura consolidada: {atualizado}").classes("text-sm text-slate-300")

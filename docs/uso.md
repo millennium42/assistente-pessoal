@@ -98,9 +98,13 @@ Os blocos de planejamento escrevem em:
 
 ## Google Agenda
 
-1. Crie um client OAuth de aplicativo desktop no Google Cloud.
-2. Baixe o JSON e coloque no caminho configurado em `google_agenda.credentials_path`.
-3. Ative a integracao no `config.toml`:
+1. Ative a Google Calendar API no projeto do Google Cloud:
+
+[Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?hl=pt-br)
+
+2. Crie um client OAuth de aplicativo desktop no Google Cloud.
+3. Baixe o JSON e coloque no caminho configurado em `google_agenda.credentials_path`.
+4. Ative a integracao no `config.toml`:
 
 ```toml
 [google_agenda]
@@ -112,14 +116,16 @@ max_eventos = 10
 janela_dias = 7
 ```
 
-4. Autentique:
+5. Autentique:
 
 ```powershell
 assistente-pessoal agenda google-auth
 ```
 
-5. Liste os proximos eventos:
+6. Liste os proximos eventos:
 
 ```powershell
 assistente-pessoal agenda google-listar
 ```
+
+A integracao atual e de leitura, usando a API oficial do Google Agenda para buscar os proximos eventos do calendario configurado.

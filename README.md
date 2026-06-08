@@ -180,7 +180,7 @@ Se as notas nao aparecerem no Obsidian:
 - o vault e local, editavel e apagavel por voce
 - clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
 - logs nao devem carregar conteudo pessoal por padrao
-- a Google Agenda usa OAuth local e escopo somente leitura
+- a Google Agenda usa OAuth local, escopo somente leitura e a API oficial `calendar-json.googleapis.com`
 - o arquivo de credenciais OAuth e o token local nao devem ser versionados
 
 Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)

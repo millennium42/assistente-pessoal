@@ -1,4 +1,4 @@
-"""Integracao opcional com Google Agenda em modo somente leitura."""
+"""Integracao opcional com Google Agenda via Google Calendar API oficial."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class EventoGoogleAgenda:
 
 
 class ClienteGoogleAgenda:
-    """Autentica no Google e lista eventos futuros do calendario configurado."""
+    """Autentica no Google e lista eventos futuros pelo endpoint oficial Calendar API v3."""
 
     def __init__(self, config: GoogleAgendaConfig) -> None:
         """Guarda apenas a configuracao da integracao."""
