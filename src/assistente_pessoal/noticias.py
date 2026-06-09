@@ -18,6 +18,7 @@ from assistente_pessoal.fontes_noticias import (
 )
 
 LIMITE_PADRAO_NOTICIAS = 100
+LIMITE_INTERESSES_NOTICIAS = 50
 
 
 @dataclass(frozen=True)
@@ -149,14 +150,15 @@ class ClienteNoticias:
         data_referencia: date,
     ) -> list[Noticia]:
         """Busca noticias em portais indexados usando as tags de interesse."""
+        limite_interesses = min(limite, LIMITE_INTERESSES_NOTICIAS)
         itens = self.interest_source.listar(
             interesses=config.interesses_busca,
-            limite=limite,
+            limite=limite_interesses,
             timezone=config.timezone,
             data_referencia=data_referencia,
             apenas_dia_atual=config.apenas_dia_atual,
         )
-        return [normalizar_item(item) for item in itens[:limite]]
+        return [normalizar_item(item) for item in itens[:limite_interesses]]
 
 
 def normalizar_item(item: ItemFonteNoticia) -> Noticia:

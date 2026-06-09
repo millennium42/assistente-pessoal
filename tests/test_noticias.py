@@ -576,3 +576,46 @@ def test_noticia_parece_local() -> None:
         "https://x.test",
         ["regiao central"],
     )
+
+
+def test_limita_noticias_interesses_ao_maximo_de_50() -> None:
+    """Garante que noticias de interesse nao excedem 50 mesmo com limite alto."""
+    from assistente_pessoal.noticias import LIMITE_INTERESSES_NOTICIAS
+
+    class InteressesMuitosItens:
+        def listar(
+            self,
+            interesses: list[str],
+            limite: int,
+            timezone: str,
+            data_referencia: date,
+            apenas_dia_atual: bool,
+        ):
+            return [
+                ItemFonteNoticia(
+                    titulo=f"Interesse {i}",
+                    link=f"https://interesses.test/{i}",
+                    fonte="Portal Interesse",
+                    publicado="2026-06-08",
+                    publicado_em=datetime(2026, 6, 8, 12, 0),
+                    grupo="interesses",
+                )
+                for i in range(limite)
+            ]
+
+    config = NoticiasConfig(
+        interesses_busca=["ia"],
+        prioridades=[],
+        the_news=TheNewsConfig(habilitado=False),
+        santa_maria=GrupoRssConfig(habilitado=False),
+        tech=GrupoRssConfig(habilitado=False),
+        economia_global=GrupoRssConfig(habilitado=False),
+    )
+    cliente = ClienteNoticias(
+        interest_source=InteressesMuitosItens(),
+    )
+
+    noticias = cliente.listar(config, limite=200, data_referencia=date(2026, 6, 8))
+
+    assert len(noticias) == LIMITE_INTERESSES_NOTICIAS
+    assert all(noticia.grupo == "interesses" for noticia in noticias)
