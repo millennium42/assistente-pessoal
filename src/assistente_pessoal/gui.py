@@ -215,9 +215,9 @@ def _dashboard_css() -> str:
     }
 
     .dashboard-shell {
-      max-width: 1560px;
+      max-width: 1380px;
       margin: 0 auto;
-      padding: 18px 22px 28px;
+      padding: 14px 18px 22px;
     }
 
     .appa-top {
@@ -418,8 +418,8 @@ def _dashboard_css() -> str:
     }
 
     .expansion-shell .q-expansion-item__container > .q-item {
-      min-height: 58px;
-      padding: 13px 16px;
+      min-height: 52px;
+      padding: 11px 14px;
       background: var(--appa-cell);
       border-bottom: 1px solid var(--appa-line);
     }
@@ -433,15 +433,17 @@ def _dashboard_css() -> str:
     .expansion-shell .q-item__label {
       color: var(--appa-ink);
       font-weight: 800;
+      font-size: 0.96rem;
     }
 
     .expansion-shell .q-item__label--caption {
       color: var(--appa-muted);
       font-weight: 500;
+      font-size: 0.76rem;
     }
 
     .expansion-shell .q-expansion-item__content > div {
-      padding: 16px;
+      padding: 14px;
       background:
         linear-gradient(180deg, rgba(34, 211, 238, 0.035), transparent 180px),
         var(--appa-panel);
@@ -449,7 +451,7 @@ def _dashboard_css() -> str:
 
     .section-title {
       color: var(--appa-ink);
-      font-size: 0.98rem;
+      font-size: 0.92rem;
       font-weight: 800;
     }
 
@@ -605,22 +607,22 @@ def _dashboard_css() -> str:
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 7px;
+      gap: 5px;
     }
 
     .calendar-head {
-      padding: 0 4px 5px;
+      padding: 0 3px 4px;
       color: var(--appa-muted);
-      font-size: 0.71rem;
+      font-size: 0.66rem;
       font-weight: 800;
       text-transform: uppercase;
     }
 
     .calendar-cell {
-      min-height: 116px;
+      min-height: 90px;
       border: 1px solid var(--appa-line);
       border-radius: 8px;
-      padding: 8px;
+      padding: 6px;
       background: var(--appa-card-bg);
     }
 
@@ -630,32 +632,126 @@ def _dashboard_css() -> str:
     }
 
     .calendar-day {
-      margin-bottom: 8px;
+      margin-bottom: 5px;
       color: var(--appa-ink);
-      font-size: 0.82rem;
+      font-size: 0.74rem;
       font-weight: 800;
+    }
+
+    .calendar-events {
+      display: grid;
+      gap: 4px;
     }
 
     .calendar-event {
       display: block;
-      margin-bottom: 6px;
       border-radius: 6px;
-      padding: 5px 6px;
+      padding: 4px 5px;
       color: var(--appa-ink);
       background: rgba(34, 211, 238, 0.14);
       border: 1px solid rgba(34, 211, 238, 0.22);
       text-decoration: none;
-      font-size: 0.74rem;
+      font-size: 0.68rem;
+      line-height: 1.18;
+      overflow: hidden;
+    }
+
+    .calendar-event-time {
+      display: block;
+      margin-bottom: 2px;
+      color: color-mix(in srgb, var(--appa-accent) 72%, white);
+      font-size: 0.61rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .calendar-event-title {
+      display: -webkit-box;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .calendar-more {
+      color: var(--appa-muted);
+      font-size: 0.64rem;
+      font-weight: 700;
+      padding: 1px 2px 0;
+    }
+
+    .agenda-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.82fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .agenda-calendar-pane,
+    .agenda-side-pane,
+    .agenda-form-shell {
+      display: grid;
+      gap: 10px;
+    }
+
+    .agenda-side-pane,
+    .agenda-form-shell {
+      border: 1px solid var(--appa-line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--appa-card-subtle);
+    }
+
+    .agenda-lista {
+      display: grid;
+      gap: 8px;
+    }
+
+    .agenda-upcoming-item {
+      border: 1px solid var(--appa-line);
+      border-radius: 8px;
+      padding: 8px 9px;
+      background: var(--appa-card-bg);
+    }
+
+    .agenda-upcoming-title {
+      color: var(--appa-ink);
+      font-size: 0.82rem;
+      font-weight: 800;
       line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .agenda-upcoming-meta {
+      color: var(--appa-muted);
+      font-size: 0.71rem;
+      line-height: 1.3;
+    }
+
+    .agenda-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .agenda-form-shell .q-field__native,
+    .agenda-form-shell .q-field__input,
+    .agenda-form-shell .q-field__label {
+      font-size: 0.85rem;
+    }
+
+    .agenda-form-shell .q-field--outlined .q-field__control {
+      min-height: 42px;
     }
 
     .calendar-error {
       border: 1px solid #fecaca;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 11px;
       color: #fecdd3;
       background: rgba(127, 29, 29, 0.32);
-      font-size: 0.85rem;
+      font-size: 0.78rem;
     }
 
     .q-field--outlined .q-field__control {
@@ -873,7 +969,7 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="compact"] .dashboard-shell {
-      padding: 10px 14px 18px;
+      padding: 8px 12px 16px;
     }
 
     html[data-density="compact"] .appa-brand {
@@ -914,12 +1010,12 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="compact"] .expansion-shell .q-expansion-item__container > .q-item {
-      min-height: 44px;
-      padding: 8px 12px;
+      min-height: 40px;
+      padding: 7px 11px;
     }
 
     html[data-density="compact"] .expansion-shell .q-expansion-item__content > div {
-      padding: 10px 12px;
+      padding: 9px 11px;
     }
 
     html[data-density="compact"] .weather-temp {
@@ -932,7 +1028,8 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="compact"] .calendar-cell {
-      min-height: 96px;
+      min-height: 80px;
+      padding: 5px;
     }
 
     html[data-density="compact"] .news-stream {
@@ -964,6 +1061,10 @@ def _dashboard_css() -> str:
       .appa-summary {
         min-width: 0;
       }
+
+      .agenda-layout {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 780px) {
@@ -993,6 +1094,10 @@ def _dashboard_css() -> str:
       .calendar-grid {
         overflow-x: auto;
         grid-template-columns: repeat(7, minmax(120px, 1fr));
+      }
+
+      .agenda-form-grid {
+        grid-template-columns: 1fr;
       }
     }
     """
@@ -1374,30 +1479,32 @@ def construir_dashboard(
                         and atualizar(),
                     ).classes("w-full")
 
-                with ui.expansion(
-                    "Google Agenda",
-                    caption="Calendario mensal e criacao rapida de eventos.",
-                    value=True,
-                    icon="calendar_month",
-                ).classes("expansion-shell w-full"):
+        with ui.expansion(
+            "Google Agenda",
+            caption="Calendario mensal e criacao rapida de eventos.",
+            value=True,
+            icon="calendar_month",
+        ).classes("expansion-shell agenda-expansion w-full"):
+            with ui.element("div").classes("agenda-layout w-full"):
+                with ui.element("div").classes("agenda-calendar-pane"):
                     agenda_mes_titulo = ui.label("").classes("section-title")
                     agenda_erro = ui.html("").classes("w-full")
                     calendario_google = ui.column().classes("w-full gap-2")
-                    google_lista = ui.column().classes("gap-2")
-                    _popular_agenda_google(
-                        calendario_google,
-                        google_lista,
-                        agenda_erro,
-                        agenda_mes_titulo,
-                        snapshot_inicial.agenda_google_resultado if snapshot_inicial else None,
-                        servico.config.localizacao.timezone,
-                    )
-                    ui.separator()
-                    ui.label("Adicionar evento").classes("section-title")
-                    evento_titulo = ui.input("Titulo").classes("w-full")
-                    with ui.row().classes("w-full gap-3"):
-                        evento_data = ui.input("Data (AAAA-MM-DD)").classes("w-full")
-                        evento_hora = ui.input("Hora (HH:MM)").classes("w-full")
+                google_lista = ui.column().classes("agenda-side-pane")
+            _popular_agenda_google(
+                calendario_google,
+                google_lista,
+                agenda_erro,
+                agenda_mes_titulo,
+                snapshot_inicial.agenda_google_resultado if snapshot_inicial else None,
+                servico.config.localizacao.timezone,
+            )
+            with ui.element("div").classes("agenda-form-shell mt-3"):
+                ui.label("Adicionar evento").classes("section-title")
+                evento_titulo = ui.input("Titulo").classes("w-full")
+                with ui.element("div").classes("agenda-form-grid"):
+                    evento_data = ui.input("Data (AAAA-MM-DD)").classes("w-full")
+                    evento_hora = ui.input("Hora (HH:MM)").classes("w-full")
                     duracao_minutos = ui.number(
                         label="Duracao (minutos)",
                         value=60,
@@ -1407,27 +1514,27 @@ def construir_dashboard(
                         format="%.0f",
                     ).classes("w-full")
                     evento_local = ui.input("Local").classes("w-full")
-                    evento_descricao = ui.textarea("Descricao").classes("w-full")
-                    evento_descricao.props("rows=4")
-                    agenda_status = ui.label("").classes("text-sm text-slate-500")
-                    ui.button(
-                        "Criar evento no Google Agenda",
-                        on_click=lambda: _criar_evento_google(
-                            servico,
-                            evento_titulo.value,
-                            evento_data.value,
-                            evento_hora.value,
-                            duracao_minutos.value,
-                            evento_local.value,
-                            evento_descricao.value,
-                            agenda_status,
-                            status,
-                            calendario_google,
-                            google_lista,
-                            agenda_erro,
-                            agenda_mes_titulo,
-                        ),
-                    ).classes("w-full")
+                evento_descricao = ui.textarea("Descricao").classes("w-full")
+                evento_descricao.props("rows=3")
+                agenda_status = ui.label("").classes("text-sm text-slate-500")
+                ui.button(
+                    "Criar evento no Google Agenda",
+                    on_click=lambda: _criar_evento_google(
+                        servico,
+                        evento_titulo.value,
+                        evento_data.value,
+                        evento_hora.value,
+                        duracao_minutos.value,
+                        evento_local.value,
+                        evento_descricao.value,
+                        agenda_status,
+                        status,
+                        calendario_google,
+                        google_lista,
+                        agenda_erro,
+                        agenda_mes_titulo,
+                    ),
+                ).classes("w-full")
 
         def atualizar() -> None:
             """Recarrega os dados dinamicos sem reconstruir a pagina inteira."""
@@ -1487,7 +1594,11 @@ def construir_dashboard(
             with cliente_dashboard:
                 atualizar()
 
-        timer_atualizacao = app.timer(90.0, atualizar_automaticamente, immediate=False)
+        timer_atualizacao = app.timer(
+            float(servico.config.dashboard.intervalo_atualizacao_segundos),
+            atualizar_automaticamente,
+            immediate=False,
+        )
         cliente_dashboard.on_delete(
             lambda *_args: timer_atualizacao.cancel(with_current_invocation=True)
         )
@@ -2053,14 +2164,15 @@ def _popular_agenda_google(
         return
     with lista_container:
         ui.label("Proximos eventos do mes").classes("section-title")
-        for evento in eventos_lista[:10]:
-            with ui.element("div").classes("stat-box"):
-                ui.label(evento.titulo).classes("text-sm font-semibold text-slate-800")
-                ui.label(formatar_data_hora_google(evento.inicio, timezone)).classes(
-                    "text-xs text-slate-500"
-                )
-                if evento.local:
-                    ui.label(evento.local).classes("text-xs text-slate-500")
+        with ui.element("div").classes("agenda-lista"):
+            for evento in eventos_lista[:8]:
+                with ui.element("div").classes("agenda-upcoming-item"):
+                    ui.label(evento.titulo).classes("agenda-upcoming-title")
+                    ui.label(formatar_data_hora_google(evento.inicio, timezone)).classes(
+                        "agenda-upcoming-meta"
+                    )
+                    if evento.local:
+                        ui.label(evento.local).classes("agenda-upcoming-meta")
 
 
 def _renderizar_calendario_google(
@@ -2088,20 +2200,29 @@ def _renderizar_calendario_google(
                         classes += " calendar-muted"
                     with ui.element("div").classes(classes):
                         ui.label("" if dia == 0 else str(dia)).classes("calendar-day")
-                        for evento in eventos_por_dia.get(dia, [])[:3]:
-                            titulo = texto_terminal_seguro(evento.titulo)
-                            horario = formatar_data_hora_google(
-                                evento.inicio,
-                                timezone,
-                            ).split(" ", 1)
-                            prefixo = horario[1] if len(horario) > 1 else horario[0]
-                            link = escape(_link_seguro(evento.link), quote=True)
-                            ui.html(
-                                '<a class="calendar-event" '
-                                f'href="{link}" '
-                                'target="_blank" rel="noopener noreferrer">'
-                                f"{escape(prefixo)} | {escape(titulo)}</a>"
-                            )
+                        eventos_dia = eventos_por_dia.get(dia, [])
+                        if eventos_dia:
+                            with ui.element("div").classes("calendar-events"):
+                                for evento in eventos_dia[:3]:
+                                    titulo = texto_terminal_seguro(evento.titulo)
+                                    horario = formatar_data_hora_google(
+                                        evento.inicio,
+                                        timezone,
+                                    ).split(" ", 1)
+                                    prefixo = horario[1] if len(horario) > 1 else horario[0]
+                                    link = escape(_link_seguro(evento.link), quote=True)
+                                    ui.html(
+                                        '<a class="calendar-event" '
+                                        f'href="{link}" '
+                                        'target="_blank" rel="noopener noreferrer">'
+                                        f'<span class="calendar-event-time">{escape(prefixo)}</span>'
+                                        f'<span class="calendar-event-title">{escape(titulo)}</span>'
+                                        "</a>"
+                                    )
+                                if len(eventos_dia) > 3:
+                                    ui.label(f"+{len(eventos_dia) - 3} outros").classes(
+                                        "calendar-more"
+                                    )
 
 
 def _criar_evento_google(

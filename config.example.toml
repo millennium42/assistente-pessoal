@@ -28,6 +28,13 @@ calendar_id = "primary"
 max_eventos = 10
 janela_dias = 7
 
+[dashboard]
+intervalo_atualizacao_segundos = 15
+ttl_dolar_segundos = 15
+ttl_noticias_segundos = 60
+ttl_agenda_segundos = 1800
+ttl_clima_segundos = 3600
+
 [fontes.noticias]
 timezone = "America/Sao_Paulo"
 apenas_dia_atual = true

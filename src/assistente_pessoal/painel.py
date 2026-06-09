@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from assistente_pessoal.agenda_google import (
     ClienteGoogleAgenda,
@@ -64,6 +64,11 @@ class DashboardService:
         self.clima = ClienteClima()
         self.cambio = ClienteCambio()
         self.google_agenda = ClienteGoogleAgenda(config.google_agenda)
+        self._cache_clima: tuple[datetime, PrevisaoClima] | None = None
+        self._cache_resumo_semana: tuple[datetime, list[ResumoClimaDia]] | None = None
+        self._cache_cotacao_dolar: tuple[datetime, CotacaoMoeda] | None = None
+        self._cache_noticias: tuple[datetime, list[Noticia]] | None = None
+        self._cache_agenda_google: tuple[datetime, ResultadoGoogleAgenda] | None = None
 
     def carregar(
         self,
@@ -71,17 +76,17 @@ class DashboardService:
         limite_noticias: int = LIMITE_PADRAO_NOTICIAS,
     ) -> DashboardSnapshot:
         """Monta um snapshot unico para reduzir chamadas espalhadas na interface."""
-        previsao = self.clima.obter_previsao(self.config.localizacao, dia=dia_clima)
+        previsao = self._carregar_previsao(dia_clima)
         resumo_semana = self._carregar_resumo_semana()
         cotacao_dolar = self._carregar_cotacao_dolar()
-        noticias = self.noticias.listar(self.config.fontes.noticias, limite=limite_noticias)
+        noticias = self._carregar_noticias(limite_noticias)
         santa_maria_em_foco = self._carregar_santa_maria_em_foco(noticias)
         notas = [
             self.memoria.caminho_relativo(caminho) for caminho in self.memoria.listar_recentes()
         ]
         plano_estudos = self.memoria.ler_documento_fixo("60_planejamento", "plano-estudos.md")
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
-        agenda_google_resultado = self.google_agenda.obter_eventos_mes()
+        agenda_google_resultado = self._carregar_agenda_google()
         agenda_google = agenda_google_resultado.eventos
         agenda_google_futuros = [
             evento
@@ -111,19 +116,41 @@ class DashboardService:
             atualizado_em=datetime.now().strftime("%H:%M:%S"),
         )
 
+    def _carregar_previsao(self, dia_clima: str | None) -> PrevisaoClima:
+        """Mantem a previsao em cache para evitar chamadas repetidas a cada refresh da GUI."""
+        ttl = self.config.dashboard.ttl_clima_segundos
+        if (
+            dia_clima is None
+            and self._cache_clima
+            and self._cache_valido(self._cache_clima[0], ttl)
+        ):
+            return self._cache_clima[1]
+        previsao = self.clima.obter_previsao(self.config.localizacao, dia=dia_clima)
+        if dia_clima is None:
+            self._cache_clima = (datetime.now(), previsao)
+        return previsao
+
     def _carregar_resumo_semana(self) -> list[ResumoClimaDia]:
         """Busca a faixa semanal de clima sem derrubar o painel em falha secundaria."""
+        ttl = self.config.dashboard.ttl_clima_segundos
+        if self._cache_resumo_semana and self._cache_valido(self._cache_resumo_semana[0], ttl):
+            return self._cache_resumo_semana[1]
         try:
-            return self.clima.obter_resumo_semana(self.config.localizacao, dias=7)
+            resumo = self.clima.obter_resumo_semana(self.config.localizacao, dias=7)
         except Exception:
             return []
+        self._cache_resumo_semana = (datetime.now(), resumo)
+        return resumo
 
     def _carregar_cotacao_dolar(self) -> CotacaoMoeda:
         """Busca USD/BRL sem deixar uma falha externa derrubar o dashboard."""
+        ttl = self.config.dashboard.ttl_dolar_segundos
+        if self._cache_cotacao_dolar and self._cache_valido(self._cache_cotacao_dolar[0], ttl):
+            return self._cache_cotacao_dolar[1]
         try:
-            return self.cambio.obter_dolar_real(self.config.localizacao.timezone)
+            cotacao = self.cambio.obter_dolar_real(self.config.localizacao.timezone)
         except Exception as exc:
-            return CotacaoMoeda(
+            cotacao = CotacaoMoeda(
                 base="USD",
                 destino="BRL",
                 valor=None,
@@ -134,6 +161,30 @@ class DashboardService:
                 fonte="AwesomeAPI",
                 erro=str(exc),
             )
+        self._cache_cotacao_dolar = (datetime.now(), cotacao)
+        return cotacao
+
+    def _carregar_noticias(self, limite_noticias: int) -> list[Noticia]:
+        """Agrupa o feed em cache curto para nao reprocessar noticias a cada poucos segundos."""
+        ttl = self.config.dashboard.ttl_noticias_segundos
+        if self._cache_noticias and self._cache_valido(self._cache_noticias[0], ttl):
+            return self._cache_noticias[1][:limite_noticias]
+        noticias = self.noticias.listar(self.config.fontes.noticias, limite=limite_noticias)
+        self._cache_noticias = (datetime.now(), noticias)
+        return noticias
+
+    def _carregar_agenda_google(self) -> ResultadoGoogleAgenda:
+        """Mantem a agenda em cache mais longo porque o conteudo muda com menos frequencia."""
+        ttl = self.config.dashboard.ttl_agenda_segundos
+        if self._cache_agenda_google and self._cache_valido(self._cache_agenda_google[0], ttl):
+            return self._cache_agenda_google[1]
+        resultado = self.google_agenda.obter_eventos_mes()
+        self._cache_agenda_google = (datetime.now(), resultado)
+        return resultado
+
+    def _cache_valido(self, atualizado_em: datetime, ttl_segundos: int) -> bool:
+        """Indica se um bloco ainda pode ser reutilizado sem nova chamada externa."""
+        return datetime.now() - atualizado_em < timedelta(seconds=ttl_segundos)
 
     def _carregar_santa_maria_em_foco(self, noticias: list[Noticia]) -> list[Noticia]:
         """Mantem o bloco local restrito ao recorte atual de Santa Maria."""

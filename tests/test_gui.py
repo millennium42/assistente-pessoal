@@ -45,12 +45,39 @@ class ClimaFake:
         ]
 
 
+class ClimaContador(ClimaFake):
+    """Conta quantas vezes o clima foi consultado para validar o cache."""
+
+    def __init__(self) -> None:
+        self.previsao_chamadas = 0
+        self.resumo_chamadas = 0
+
+    def obter_previsao(self, *_args, **_kwargs) -> PrevisaoClima:
+        self.previsao_chamadas += 1
+        return super().obter_previsao(*_args, **_kwargs)
+
+    def obter_resumo_semana(self, *_args, **_kwargs) -> list[ResumoClimaDia]:
+        self.resumo_chamadas += 1
+        return super().obter_resumo_semana(*_args, **_kwargs)
+
+
 class NoticiasFake:
     """Substitui RSS e fontes externas no teste do dashboard service."""
 
     def listar(self, *_args, **_kwargs) -> list:
         """Mantem o teste focado no painel, nao em parsing de noticias."""
         return []
+
+
+class NoticiasContador(NoticiasFake):
+    """Conta consultas ao feed para validar o cache curto de noticias."""
+
+    def __init__(self) -> None:
+        self.chamadas = 0
+
+    def listar(self, *_args, **_kwargs) -> list:
+        self.chamadas += 1
+        return super().listar(*_args, **_kwargs)
 
 
 class CambioFake:
@@ -68,6 +95,17 @@ class CambioFake:
             horario=None,
             fonte="Teste",
         )
+
+
+class CambioContador(CambioFake):
+    """Conta leituras da cotacao para validar a janela curta do dolar."""
+
+    def __init__(self) -> None:
+        self.chamadas = 0
+
+    def obter_dolar_real(self, *_args, **_kwargs) -> CotacaoMoeda:
+        self.chamadas += 1
+        return super().obter_dolar_real(*_args, **_kwargs)
 
 
 class GoogleAgendaFake:
@@ -108,6 +146,18 @@ class GoogleAgendaFake:
         )
 
 
+class GoogleAgendaContador(GoogleAgendaFake):
+    """Conta leituras da agenda para validar o cache mais longo."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.chamadas = 0
+
+    def obter_eventos_mes(self, referencia=None, *_args, **_kwargs) -> ResultadoGoogleAgenda:
+        self.chamadas += 1
+        return super().obter_eventos_mes(referencia, *_args, **_kwargs)
+
+
 class LabelFake:
     """Objeto minimo com atributo text, como os labels da NiceGUI."""
 
@@ -138,6 +188,25 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
     assert snapshot.indicadores.eventos_google == 1
     assert len(snapshot.resumo_semana) == 7
     assert snapshot.cotacao_dolar.valor == 5.25
+
+
+def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: Path) -> None:
+    """Evita repetir chamadas externas quando a GUI refresca antes do TTL expirar."""
+    config = AppConfig(vault_path=tmp_path / "vault")
+    servico = DashboardService(config)
+    servico.clima = ClimaContador()
+    servico.noticias = NoticiasContador()
+    servico.cambio = CambioContador()
+    servico.google_agenda = GoogleAgendaContador()
+
+    servico.carregar()
+    servico.carregar()
+
+    assert servico.clima.previsao_chamadas == 1
+    assert servico.clima.resumo_chamadas == 1
+    assert servico.noticias.chamadas == 1
+    assert servico.cambio.chamadas == 1
+    assert servico.google_agenda.chamadas == 1
 
 
 def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:

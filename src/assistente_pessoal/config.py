@@ -66,6 +66,16 @@ class GoogleAgendaConfig(BaseModel):
     janela_dias: int = 7
 
 
+class DashboardConfig(BaseModel):
+    """Controla o ritmo da interface e o cache dos blocos externos."""
+
+    intervalo_atualizacao_segundos: int = Field(default=15, ge=5, le=3600)
+    ttl_dolar_segundos: int = Field(default=15, ge=5, le=3600)
+    ttl_noticias_segundos: int = Field(default=60, ge=15, le=7200)
+    ttl_agenda_segundos: int = Field(default=1800, ge=60, le=86400)
+    ttl_clima_segundos: int = Field(default=3600, ge=60, le=86400)
+
+
 class GrupoRssConfig(BaseModel):
     """Agrupa fontes RSS por tema e prioridade."""
 
@@ -192,6 +202,7 @@ class AppConfig(BaseModel):
     voz: VozConfig = Field(default_factory=VozConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     google_agenda: GoogleAgendaConfig = Field(default_factory=GoogleAgendaConfig)
+    dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     fontes: FontesConfig = Field(default_factory=FontesConfig)
     _config_path: Path | None = PrivateAttr(default=None)
 
@@ -310,6 +321,13 @@ token_path = "{_normalizar_path(config.google_agenda.token_path)}"
 calendar_id = "{_escapar(config.google_agenda.calendar_id)}"
 max_eventos = {config.google_agenda.max_eventos}
 janela_dias = {config.google_agenda.janela_dias}
+
+[dashboard]
+intervalo_atualizacao_segundos = {config.dashboard.intervalo_atualizacao_segundos}
+ttl_dolar_segundos = {config.dashboard.ttl_dolar_segundos}
+ttl_noticias_segundos = {config.dashboard.ttl_noticias_segundos}
+ttl_agenda_segundos = {config.dashboard.ttl_agenda_segundos}
+ttl_clima_segundos = {config.dashboard.ttl_clima_segundos}
 
 [fontes.noticias]
 timezone = "{_escapar(config.fontes.noticias.timezone)}"

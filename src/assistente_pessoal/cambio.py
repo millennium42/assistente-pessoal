@@ -32,17 +32,17 @@ class ClienteCambio:
 
     def obter_dolar_real(self, timezone: str = "America/Sao_Paulo") -> CotacaoMoeda:
         """Busca a cotacao USD/BRL mais recente disponivel."""
-        url = "https://economia.awesomeapi.com.br/json/last/USD-BRL"
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                resposta = client.get(url, headers={"User-Agent": "assistente-pessoal/0.1.0"})
-                resposta.raise_for_status()
-                dados = resposta.json()
+                candidatos = [
+                    _buscar_cotacao(client, "https://economia.awesomeapi.com.br/json/last/USD-BRL"),
+                    _buscar_cotacao(client, "https://economia.awesomeapi.com.br/json/USD-BRL"),
+                ]
         except (httpx.HTTPError, ValueError) as exc:
             return _cotacao_indisponivel(str(exc))
 
-        item = dados.get("USDBRL") if isinstance(dados, dict) else None
-        if not isinstance(item, dict):
+        item = _escolher_item_mais_recente(candidatos, timezone)
+        if item is None:
             return _cotacao_indisponivel("Resposta de cambio sem USDBRL.")
 
         horario = _extrair_horario(item, timezone)
@@ -56,6 +56,37 @@ class ClienteCambio:
             horario=horario,
             fonte="AwesomeAPI",
         )
+
+
+def _buscar_cotacao(client: httpx.Client, url: str) -> dict | None:
+    """Busca uma resposta de cotacao e normaliza os formatos conhecidos da AwesomeAPI."""
+    resposta = client.get(url, headers={"User-Agent": "assistente-pessoal/0.1.0"})
+    resposta.raise_for_status()
+    dados = resposta.json()
+    if isinstance(dados, dict):
+        item = dados.get("USDBRL")
+        return item if isinstance(item, dict) else None
+    if isinstance(dados, list) and dados and isinstance(dados[0], dict):
+        return dados[0]
+    return None
+
+
+def _escolher_item_mais_recente(candidatos: list[dict | None], timezone: str) -> dict | None:
+    """Escolhe a resposta com horario mais novo entre os endpoints consultados."""
+    melhor_item: dict | None = None
+    melhor_horario: datetime | None = None
+    for item in candidatos:
+        if not isinstance(item, dict):
+            continue
+        horario = _extrair_horario(item, timezone)
+        if melhor_item is None:
+            melhor_item = item
+            melhor_horario = horario
+            continue
+        if horario is not None and (melhor_horario is None or horario > melhor_horario):
+            melhor_item = item
+            melhor_horario = horario
+    return melhor_item
 
 
 def _cotacao_indisponivel(erro: str) -> CotacaoMoeda:
