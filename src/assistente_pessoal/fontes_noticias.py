@@ -47,6 +47,7 @@ class ItemFonteNoticia:
     publicado: str
     publicado_em: datetime | None
     grupo: str
+    interesse: str = ""
 
 
 class TheNewsSource:
@@ -220,6 +221,7 @@ class InterestNewsSource:
                         publicado=item.get("published") or item.get("updated") or "",
                         publicado_em=publicado_em,
                         grupo="interesses",
+                        interesse=termo,
                     )
                 )
                 if len(noticias) >= limite:

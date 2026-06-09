@@ -31,6 +31,7 @@ class Noticia:
     publicado: str
     publicado_em: datetime | None = None
     grupo: str = ""
+    interesse: str = ""
 
 
 class ClienteNoticias:
@@ -170,6 +171,7 @@ def normalizar_item(item: ItemFonteNoticia) -> Noticia:
         publicado=item.publicado,
         publicado_em=item.publicado_em,
         grupo=item.grupo,
+        interesse=item.interesse,
     )
 
 
@@ -287,7 +289,11 @@ def formatar_noticias(
         publicado = texto_terminal_seguro(
             rotulo_tempo_publicacao(noticia, timezone=timezone, agora=agora)
         )
-        linhas.append(f"{indice}. {titulo} ({fonte} | {grupo} | {publicado}) - {link}")
+        extras = [fonte, grupo, publicado]
+        if noticia.interesse:
+            interesse = texto_terminal_seguro(f"interesse: {noticia.interesse}")
+            extras.insert(2, interesse)
+        linhas.append(f"{indice}. {titulo} ({' | '.join(extras)}) - {link}")
     return "\n".join(linhas)
 
 
