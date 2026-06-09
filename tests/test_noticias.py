@@ -55,6 +55,32 @@ def test_listar_noticias_ignora_itens_de_outro_dia(monkeypatch) -> None:
     assert noticias == []
 
 
+def test_listar_noticias_pagina_com_offset(monkeypatch) -> None:
+    """Permite carregar blocos seguintes sem repetir o primeiro item."""
+    feed = SimpleNamespace(
+        feed={"title": "Fonte Teste"},
+        entries=[
+            {
+                "title": f"Titulo {indice}",
+                "link": f"https://exemplo.test/{indice}",
+                "published": "Mon, 08 Jun 2026 12:00:00 +0000",
+            }
+            for indice in range(3)
+        ],
+    )
+    monkeypatch.setattr("assistente_pessoal.noticias.feedparser.parse", lambda _url: feed)
+
+    noticias = ClienteNoticias().listar(
+        ["https://feed.test"],
+        limite=1,
+        offset=1,
+        incluir_the_news_tecnologia=False,
+        data_referencia=date(2026, 6, 8),
+    )
+
+    assert noticias[0].titulo == "Titulo 1"
+
+
 class RespostaTheNewsFake:
     """Resposta fake da API publica usada pelo portal The News."""
 

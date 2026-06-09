@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 jobs:
-  qualidade:
-    name: Testes e qualidade
-    runs-on: ubuntu-latest
+  backend:
+    name: Backend e API
+    runs-on: windows-latest
 
     steps:
       - name: Baixar codigo
@@ -37,3 +37,35 @@ jobs:
       - name: Conferir formatacao
         run: uv run ruff format --check .
 
+      - name: Rodar mypy
+        run: uv run mypy src
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend:
+    name: Frontend desktop
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v6
+
+      - name: Instalar Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Instalar dependencias
+        working-directory: apps/desktop
+        run: npm install
+
+      - name: Testar frontend
+        working-directory: apps/desktop
+        run: npm run test
+
+      - name: Build web
+        working-directory: apps/desktop
+        run: npm run build

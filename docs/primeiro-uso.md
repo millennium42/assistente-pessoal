@@ -1,10 +1,10 @@
 # Guia de primeiro uso
 
-Este guia leva voce do zero ate uma V1 funcionando no dia a dia: terminal preparado, ambiente instalado, vault do Obsidian criado, comandos basicos testados, voz validada e primeiras configuracoes pessoais feitas.
+Este guia leva voce do zero ate uma V1 funcionando no dia a dia: terminal preparado, ambiente instalado, vault do Obsidian criado, comandos basicos testados, voz validada, dashboard desktop conferido e primeiras configuracoes pessoais feitas.
 
 ## 0. O que esperar da V1
 
-A V1 e um assistente de linha de comando. Ele nao tenta parecer um app completo ainda. A ideia e validar as partes mais importantes:
+A V1 e um assistente local-first com CLI e dashboard desktop. A CLI continua sendo a forma mais direta de testar cada capacidade; a GUI coloca os cards principais em uma experiencia de aplicativo.
 
 - salvar e buscar memoria em Markdown no Obsidian;
 - ajudar nos estudos com notas, resumos simples e perguntas de revisao;
@@ -13,6 +13,7 @@ A V1 e um assistente de linha de comando. Ele nao tenta parecer um app completo 
 - procurar lancamentos musicais por artista;
 - aceitar comandos por texto e por voz push-to-talk;
 - funcionar mesmo sem LLM configurado.
+- abrir o dashboard local em uma GUI Windows.
 
 Critica honesta: nesta primeira versao, voz e IA sao ferramentas, nao magia. Se o microfone, a rede ou o modelo falharem, o assistente deve continuar util pelos comandos locais.
 
@@ -269,7 +270,7 @@ Para Ollama local:
 [llm]
 base_url = "http://localhost:11434/v1"
 modelo = "llama3.2:3b"
-api_key_env = "OPENAI_API_KEY"
+api_key_env = "OPENAI_API_KEY" # pragma: allowlist secret
 ```
 
 Para um provedor cloud compativel com OpenAI:
@@ -278,13 +279,13 @@ Para um provedor cloud compativel com OpenAI:
 [llm]
 base_url = "https://api.exemplo.com/v1"
 modelo = "modelo-escolhido"
-api_key_env = "OPENAI_API_KEY"
+api_key_env = "OPENAI_API_KEY" # pragma: allowlist secret
 ```
 
 Configure a variavel de ambiente:
 
 ```powershell
-$env:OPENAI_API_KEY="sua-chave"
+$env:OPENAI_API_KEY="sua-chave" # pragma: allowlist secret
 .\.venv\Scripts\assistente-pessoal.exe chat "resuma minhas memorias sobre calculo"
 ```
 
@@ -354,7 +355,41 @@ Um uso simples para faculdade:
 
 Depois, revise as notas no Obsidian.
 
-## 17. Validar antes de mexer no codigo
+## 17. Abrir a GUI em desenvolvimento
+
+Inicie a API local:
+
+```powershell
+uv run assistente-pessoal-api --host 127.0.0.1 --port 8777
+```
+
+Em outro terminal:
+
+```powershell
+cd apps\desktop
+npm install
+npm run dev
+```
+
+O dashboard mostra os cards da V1: memoria, estudo, clima, noticias, musica e chat. Google Agenda e privacidade local aparecem como controles essenciais do app.
+
+No painel de noticias, a GUI carrega 100 itens iniciais e salva materias clicadas no Obsidian, criando tags e links internos com materias relacionadas.
+
+## 18. Gerar o aplicativo `.exe`
+
+Rode na raiz do projeto:
+
+```powershell
+.\scripts\build_setup.ps1
+```
+
+O executavel final fica em:
+
+```text
+apps\desktop\src-tauri\target\release\bundle\nsis\
+```
+
+## 19. Validar antes de mexer no codigo
 
 Sempre que alterar o projeto:
 
@@ -364,7 +399,13 @@ Sempre que alterar o projeto:
 
 Se algo quebrar, corrija antes de publicar.
 
-## 18. Publicar alteracoes no GitHub
+Para validar backend e frontend juntos:
+
+```powershell
+.\scripts\verificar_app.ps1
+```
+
+## 20. Publicar alteracoes no GitHub
 
 O repo publico da V1 e:
 
@@ -390,7 +431,7 @@ Depois confira o CI:
 https://github.com/millennium42/assistente-pessoal/actions
 ```
 
-## 19. Problemas comuns
+## 21. Problemas comuns
 
 ### `assistente-pessoal` nao e reconhecido
 
@@ -438,12 +479,12 @@ Reconstrua o indice:
 .\.venv\Scripts\assistente-pessoal.exe memoria reindexar
 ```
 
-## 20. O que nao fazer na V1
+## 22. O que nao fazer na V1
 
 - Nao coloque suas notas pessoais inteiras no vault sem pensar: comece com um vault dedicado.
 - Nao dependa de LLM para tudo: os comandos locais precisam continuar uteis.
 - Nao aumente o modelo de voz antes de medir desempenho.
 - Nao adicione scraping de sites como primeira solucao para noticias.
-- Nao transforme a V1 em app desktop antes de validar o fluxo pelo terminal.
+- Nao coloque credenciais reais dentro do pacote do app.
 
 Essas restricoes nao sao falta de ambicao. Sao o que mantem a primeira versao simples o bastante para evoluir.

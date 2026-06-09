@@ -1,0 +1,16 @@
+site_name: Assistente Pessoal
+site_description: Documentacao tecnica do Assistente Pessoal local-first e LGPD-ready.
+theme:
+  name: material
+  language: pt-BR
+nav:
+  - Inicio: README.md
+  - Arquitetura: docs/arquitetura.md
+  - Uso: docs/uso.md
+  - Primeiro uso: docs/primeiro-uso.md
+  - Seguranca e LGPD: docs/seguranca-lgpd.md
+  - Mapa de dados: docs/mapa-de-dados.md
+  - Segredos: docs/segredos-e-credenciais.md
+  - API: docs/api.md
+  - Build desktop: docs/build-desktop.md
+  - IA assistida: docs/ia-assistida.md

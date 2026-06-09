@@ -33,6 +33,7 @@ class RoteadorComandos:
                 self.config.fontes.rss,
                 incluir_the_news_tecnologia=self.config.fontes.incluir_the_news_tecnologia,
                 timezone_local=self.config.localizacao.timezone,
+                assuntos_interesse=self.config.fontes.assuntos_interesse,
             )
             return formatar_noticias(noticias)
         if "musica" in comando_minusculo or "lancamento" in comando_minusculo:

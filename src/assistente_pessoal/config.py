@@ -40,11 +40,13 @@ class VozConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """Configuracao de um provedor compativel com a API de chat da OpenAI."""
+    """Configuracao de um provedor de LLM sem armazenar segredos."""
 
+    provedor: str = "openai-compatible"
     base_url: str = ""
     modelo: str = ""
     api_key_env: str = "OPENAI_API_KEY"
+    exigir_opt_in_externo: bool = True
 
     def habilitado(self) -> bool:
         """Indica se ha informacao suficiente para chamar um LLM externo ou local."""
@@ -54,6 +56,7 @@ class LLMConfig(BaseModel):
 class FontesConfig(BaseModel):
     """Fontes externas consultadas pelo assistente."""
 
+    assuntos_interesse: list[str] = Field(default_factory=list)
     rss: list[str] = Field(
         default_factory=lambda: [
             "https://tecnoblog.net/feed/",
@@ -124,6 +127,7 @@ def criar_config_inicial(
 
 def renderizar_toml(config: AppConfig) -> str:
     """Renderiza a configuracao em TOML simples, suficiente para a V1."""
+    assuntos = "\n".join(f'  "{assunto}",' for assunto in config.fontes.assuntos_interesse)
     rss = "\n".join(f'  "{url}",' for url in config.fontes.rss)
     artistas = "\n".join(f'  "{artista}",' for artista in config.fontes.artistas)
     return f"""vault_path = "{_normalizar_path(config.vault_path)}"
@@ -141,12 +145,17 @@ duracao_segundos = {config.voz.duracao_segundos}
 taxa_amostragem = {config.voz.taxa_amostragem}
 
 [llm]
+provedor = "{_escapar(config.llm.provedor)}"
 base_url = "{_escapar(config.llm.base_url)}"
 modelo = "{_escapar(config.llm.modelo)}"
 api_key_env = "{_escapar(config.llm.api_key_env)}"
+exigir_opt_in_externo = {_toml_bool(config.llm.exigir_opt_in_externo)}
 
 [fontes]
 incluir_the_news_tecnologia = {_toml_bool(config.fontes.incluir_the_news_tecnologia)}
+assuntos_interesse = [
+{assuntos}
+]
 rss = [
 {rss}
 ]
@@ -158,7 +167,7 @@ musicbrainz_user_agent = "{_escapar(config.fontes.musicbrainz_user_agent)}"
 
 
 def ler_api_key(nome_variavel: str) -> str:
-    """Le uma chave de API do ambiente sem expor o valor em logs ou arquivos."""
+    """Le uma chave de API por variavel de ambiente sem expor o valor."""
     return os.getenv(nome_variavel, "")
 
 

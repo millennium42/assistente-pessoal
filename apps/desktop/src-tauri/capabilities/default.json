@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissoes minimas do desktop do Assistente Pessoal.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "assistente-pessoal-api",
+          "sidecar": true,
+          "args": ["run", "--host", "127.0.0.1", "--port", "8777"]
+        }
+      ]
+    }
+  ]
+}

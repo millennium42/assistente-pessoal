@@ -84,6 +84,25 @@ Por padrao, as noticias priorizam The News tecnologia e complementam com RSS tec
 
 O filtro usa apenas noticias publicadas no dia atual do fuso `localizacao.timezone`.
 
+Para priorizar assuntos que voce considera relevantes, edite:
+
+```toml
+[fontes]
+assuntos_interesse = [
+  "inteligencia artificial",
+  "faculdade",
+  "mercado",
+]
+```
+
+Na GUI, o painel carrega 100 noticias inicialmente e permite carregar mais. Ao abrir ou salvar uma noticia, o app cria uma nota em `40_noticias` no Obsidian com trecho, categoria, tags e links internos para materias clicadas anteriormente com termos em comum.
+
+## Google Agenda
+
+Coloque `googleAgenda.json` na raiz do projeto ou configure `GOOGLE_CALENDAR_CREDENTIALS_FILE`.
+
+Na GUI, conecte a agenda pelo card `Google Agenda`. Depois disso, o dashboard lista eventos futuros e pode criar novos eventos pelo app usando a API oficial.
+
 ## Musica
 
 Edite `config.toml`:
@@ -116,7 +135,7 @@ Com Ollama, exemplo:
 [llm]
 base_url = "http://localhost:11434/v1"
 modelo = "llama3.2:3b"
-api_key_env = "OPENAI_API_KEY"
+api_key_env = "OPENAI_API_KEY" # pragma: allowlist secret
 ```
 
 O valor da chave pode ficar vazio para Ollama; o cliente envia um placeholder quando necessario.

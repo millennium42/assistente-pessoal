@@ -80,6 +80,18 @@ $Ferramentas = @(
         Fallbacks = @("C:\Program Files\Git\cmd\git.exe")
     },
     @{
+        Nome = "Node.js LTS"
+        Id = "OpenJS.NodeJS.LTS"
+        Comando = "npm"
+        Fallbacks = @("C:\Program Files\nodejs\npm.cmd")
+    },
+    @{
+        Nome = "Rust/Cargo"
+        Id = "Rustlang.Rustup"
+        Comando = "cargo"
+        Fallbacks = @("$env:USERPROFILE\.cargo\bin\cargo.exe")
+    },
+    @{
         Nome = "FFmpeg"
         Id = "Gyan.FFmpeg"
         Comando = "ffmpeg"
@@ -126,4 +138,3 @@ if ($InstalarDependenciasProjeto) {
 
 Write-Host ""
 Write-Host "Bootstrap concluido. Se algum comando nao aparecer no PATH, reinicie o terminal." -ForegroundColor Green
-

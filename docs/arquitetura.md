@@ -16,11 +16,14 @@ Este documento explica como a V1 foi desenhada e por que algumas escolhas foram 
 - `memoria`: escrita de Markdown e indice SQLite FTS5.
 - `estudos`: resumo local ou via LLM e perguntas de revisao.
 - `noticias`: agregacao do The News tecnologia e RSS/Atom tech com `feedparser`.
+- `adapters.google_calendar`: OAuth local e eventos pela API oficial do Google Agenda.
 - `clima`: consulta Open-Meteo.
 - `musica`: consulta MusicBrainz respeitando identificacao por User-Agent.
 - `llm`: adaptador pequeno para endpoints compativeis com OpenAI.
 - `voz`: gravacao push-to-talk e transcricao com `faster-whisper`.
 - `roteador`: interpretacao simples de texto livre para comandos da V1.
+- `api`: servidor local FastAPI usado pela GUI.
+- `apps/desktop`: dashboard Tauri + React empacotado como aplicativo Windows.
 
 ## Fluxo de voz
 
@@ -56,11 +59,37 @@ O adaptador usa o formato `/chat/completions`, o que permite:
 - Ollama em `http://localhost:11434/v1`;
 - outros servidores locais no futuro.
 
-## Pontos que ficam para V2
+## GUI desktop
 
-- Interface web ou desktop.
+O dashboard da V1 fica em `apps/desktop`. Ele conversa com a API local em `127.0.0.1:8777` e expõe os cards centrais do assistente:
+
+- memoria;
+- estudo;
+- clima atual e previsao futura;
+- noticias;
+- musica;
+- chat;
+- Google Agenda;
+- privacidade.
+
+No build final, o Tauri empacota a GUI e inicia a API como sidecar. Isso permite abrir o assistente como aplicativo, mantendo as regras de negocio nos modulos Python ja testados.
+
+## Noticias e interesses
+
+O dashboard carrega noticias em blocos de 100 itens. Quando uma materia e clicada ou salva, o backend cria uma nota em `40_noticias` com:
+
+- trecho vindo da fonte RSS/API;
+- link original;
+- categoria;
+- tags derivadas dos assuntos de interesse configurados;
+- links internos do Obsidian para materias ja clicadas com termos em comum.
+
+Isso cria um historico local de comportamento e interesses sem rastreamento externo.
+
+## Fora do escopo atual
+
 - Wake word.
-- TTS neural com Piper.
+- TTS neural.
 - Busca vetorial/RAG.
-- Agenda e automacoes recorrentes.
-- Preferencias musicais vindas de Spotify/ListenBrainz.
+- Automacoes recorrentes.
+- Preferencias musicais vindas de servicos autenticados.

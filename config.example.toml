@@ -16,12 +16,15 @@ duracao_segundos = 6
 taxa_amostragem = 16000
 
 [llm]
+provedor = "openai-compatible"
 base_url = ""
 modelo = ""
-api_key_env = "OPENAI_API_KEY"
+api_key_env = "OPENAI_API_KEY" # pragma: allowlist secret
+exigir_opt_in_externo = true
 
 [fontes]
 incluir_the_news_tecnologia = true
+assuntos_interesse = []
 rss = [
   "https://tecnoblog.net/feed/",
   "https://www.canaltech.com.br/rss/",

@@ -1,150 +1,87 @@
-# Assistente Pessoal
+# Assistente Pessoal V1 com GUI
 
-Assistente pessoal modular, open source, em Python e em pt-BR. A V1 foi pensada para ser util agora, mesmo em uma maquina simples: comandos por texto, voz push-to-talk, memoria em um vault dedicado do Obsidian, clima, noticias, lancamentos musicais e IA opcional via endpoint compativel com OpenAI.
+Assistente pessoal local-first em pt-BR, com o dashboard da V1 dentro de um aplicativo Windows.
 
-## Decisoes da V1
+O alvo do projeto e simples: manter as capacidades ja validadas da V1 e entrega-las em uma GUI desktop empacotada como `.exe`.
 
-- **CLI antes de interface grafica:** reduz bugs e deixa os comandos testaveis.
-- **Voz push-to-talk:** evita wake word instavel e consumo constante de CPU.
-- **Obsidian como memoria:** o assistente grava Markdown comum, entao voce pode ler, editar e versionar tudo.
-- **SQLite FTS5 para busca:** simples, local e rebuildavel; vector DB fica para uma versao futura.
-- **LLM opcional:** sem provedor configurado, o assistente ainda executa clima, noticias, musica e memoria.
-- **Sem LiteLLM por enquanto:** a V1 usa um adaptador proprio pequeno para reduzir dependencia de cadeia de suprimentos.
+## O que entra no app
 
-## Requisitos
+- Dashboard React dinamico, responsivo e minimalista, com dark/light mode e leitura visual estilo painel analitico.
+- Cards de memoria, estudo, clima, noticias, musica, chat, Google Agenda e privacidade local.
+- Backend FastAPI local iniciado como sidecar do Tauri.
+- Modulos da V1 preservados: `memoria`, `estudos`, `clima`, `noticias`, `musica`, `voz`, `roteador` e `llm`.
+- Configuracao local em `config.toml`.
+- Vault Markdown legivel no Obsidian, com tags, assuntos e links internos.
+- Google Agenda via API oficial, com leitura e criacao de eventos.
+- Noticias carregadas em blocos de 100; ao clicar/salvar, a noticia vira nota no Obsidian com trecho, categoria, tags e links para materias relacionadas.
 
-- Windows 10 ou superior.
-- Python 3.12.
-- `uv`.
-- Git.
-- FFmpeg.
+## O que fica fora do app
 
-Depois de instalar as ferramentas, reinicie o terminal se os comandos nao forem reconhecidos no PATH.
+- `config.toml`, `.env`, tokens, credenciais e `googleAgenda.json`.
+- Vault do usuario e indices locais.
+- Qualquer chave de API real.
 
-## Instalacao
+`googleAgenda.json` e uma credencial opcional do backend. Ele deve ficar local, fora de artefatos publicos e fora do frontend.
 
-Para preparar uma maquina Windows com as ferramentas base:
+## Desenvolvimento
+
+Prepare o ambiente:
 
 ```powershell
 .\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
 ```
 
-Para apenas conferir o que ja existe:
+Esse bootstrap verifica Python, uv, Node.js, Rust/Cargo, Git, FFmpeg e GitHub CLI.
+
+Rode a API local:
 
 ```powershell
-.\scripts\bootstrap_windows.ps1 -SomenteVerificar
+uv run assistente-pessoal-api --host 127.0.0.1 --port 8777
 ```
 
-Instalacao manual equivalente:
+Em outro terminal, rode a GUI web de desenvolvimento:
 
 ```powershell
-uv venv
-uv pip install -e ".[dev]"
+cd apps\desktop
+npm install
+npm run dev
 ```
 
-## Como executar
-
-Depois da instalacao, o comando fica dentro da `.venv`. Escolha uma das formas:
+## Gerar o `.exe`
 
 ```powershell
-.\.venv\Scripts\assistente-pessoal.exe --help
+.\scripts\build_setup.ps1
 ```
 
-Ou ative o ambiente virtual uma vez por terminal:
+O script gera o sidecar Python com PyInstaller e chama o build do Tauri. O instalador final fica em:
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-assistente-pessoal --help
+```text
+apps\desktop\src-tauri\target\release\bundle\nsis\
 ```
-
-Se o PowerShell bloquear a ativacao, use o executavel direto em `.venv\Scripts`.
-
-## Primeiro uso
-
-Para um passo a passo completo, veja [Guia de primeiro uso](docs/primeiro-uso.md).
-
-```powershell
-.\.venv\Scripts\assistente-pessoal.exe init
-.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Quero estudar com revisoes curtas e frequentes."
-.\.venv\Scripts\assistente-pessoal.exe memoria buscar "revisoes"
-.\.venv\Scripts\assistente-pessoal.exe clima
-.\.venv\Scripts\assistente-pessoal.exe noticias
-.\.venv\Scripts\assistente-pessoal.exe musica
-.\.venv\Scripts\assistente-pessoal.exe chat "o que voce consegue fazer?"
-```
-
-Para voz:
-
-```powershell
-.\.venv\Scripts\assistente-pessoal.exe ouvir
-```
-
-O comando `ouvir` grava por alguns segundos, transcreve com `faster-whisper` e manda o texto para o roteador de comandos.
-
-## Configuracao
-
-Rode `assistente-pessoal init` para criar `config.toml` e um vault dedicado em `vault/AssistentePessoal`.
-
-Exemplo minimo:
-
-```toml
-vault_path = "vault/AssistentePessoal"
-
-[localizacao]
-cidade = "Santa Maria, RS"
-latitude = -29.6868
-longitude = -53.8149
-timezone = "America/Sao_Paulo"
-
-[llm]
-base_url = ""
-modelo = ""
-api_key_env = "OPENAI_API_KEY"
-```
-
-Para usar Ollama futuramente:
-
-```toml
-[llm]
-base_url = "http://localhost:11434/v1"
-modelo = "llama3.2:3b"
-api_key_env = "OPENAI_API_KEY"
-```
-
-## Arquitetura
-
-- `config`: leitura e criacao da configuracao.
-- `cli`: interface Typer.
-- `memoria`: vault Obsidian, Markdown e indice SQLite FTS5.
-- `estudos`: notas de estudo, resumos simples e perguntas de revisao.
-- `noticias`: The News tecnologia e RSS/Atom de tecnologia.
-- `clima`: Open-Meteo.
-- `musica`: MusicBrainz.
-- `llm`: cliente pequeno para APIs compativeis com OpenAI.
-- `voz`: gravacao push-to-talk e transcricao local.
-- `roteador`: decide qual modulo chamar a partir de texto livre.
-
-Leia tambem:
-
-- [Guia de primeiro uso](docs/primeiro-uso.md)
-- [Arquitetura da V1](docs/arquitetura.md)
-- [Decisoes tecnicas e criticas](docs/decisoes-tecnicas.md)
-- [Guia de uso](docs/uso.md)
-- [Publicacao no GitHub](docs/publicacao-github.md)
-- [Guia de contribuicao](CONTRIBUTING.md)
 
 ## Qualidade
+
+```powershell
+.\scripts\verificar_app.ps1
+```
+
+Ou, separadamente:
 
 ```powershell
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv run mypy src
 ```
 
-Ou use o script:
+## Seguranca e LGPD
 
-```powershell
-.\scripts\verificar.ps1
-```
+O assistente segue local-first, redacao de segredos em logs, opt-in para LLM externo e exportacao/purge local de dados. Esta documentacao tecnica nao substitui revisao juridica.
 
-Todas as funcoes, classes e metodos publicos devem ter docstrings em pt-BR. Comentarios devem explicar decisoes relevantes, nao repetir mecanicamente o que cada linha faz.
+Leituras principais:
+
+- [Arquitetura da V1](docs/arquitetura.md)
+- [Guia de uso](docs/uso.md)
+- [Build desktop](docs/build-desktop.md)
+- [Seguranca e LGPD](docs/seguranca-lgpd.md)
+- [Mapa de dados](docs/mapa-de-dados.md)

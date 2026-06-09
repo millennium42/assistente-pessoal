@@ -22,7 +22,18 @@ class Noticia:
     link: str
     fonte: str
     publicado: str
+    resumo: str = ""
     publicado_em: datetime | None = None
+
+    def to_dict(self) -> dict[str, str]:
+        """Serializa noticia para API e GUI."""
+        return {
+            "titulo": self.titulo,
+            "link": self.link,
+            "fonte": self.fonte,
+            "publicado": self.publicado,
+            "resumo": self.resumo,
+        }
 
 
 class ClienteNoticias:
@@ -36,17 +47,20 @@ class ClienteNoticias:
         self,
         urls: list[str],
         limite: int = 8,
+        offset: int = 0,
         incluir_the_news_tecnologia: bool = True,
         timezone_local: str = "America/Sao_Paulo",
         data_referencia: date | None = None,
+        assuntos_interesse: list[str] | None = None,
     ) -> list[Noticia]:
         """Coleta apenas noticias publicadas no dia local de referencia."""
         data_alvo = data_referencia or datetime.now(ZoneInfo(timezone_local)).date()
+        quantidade_alvo = limite + offset
         noticias: list[Noticia] = []
         if incluir_the_news_tecnologia:
             noticias.extend(
                 self._listar_the_news_tecnologia(
-                    limite=limite,
+                    limite=quantidade_alvo,
                     timezone_local=timezone_local,
                     data_referencia=data_alvo,
                 )
@@ -54,7 +68,7 @@ class ClienteNoticias:
         for url in urls:
             feed = feedparser.parse(url)
             fonte = feed.feed.get("title", url)
-            for item in feed.entries[: max(limite * 3, 20)]:
+            for item in feed.entries[: max(quantidade_alvo * 3, 20)]:
                 publicado_em = extrair_data_rss(item)
                 if not publicado_no_dia(publicado_em, data_alvo, timezone_local):
                     continue
@@ -64,14 +78,16 @@ class ClienteNoticias:
                         link=item.get("link", ""),
                         fonte=fonte,
                         publicado=_publicado(item),
+                        resumo=_resumo(item),
                         publicado_em=publicado_em,
                     )
                 )
-                if len(noticias) >= limite:
+                if len(noticias) >= quantidade_alvo:
                     break
-            if len(noticias) >= limite:
+            if len(noticias) >= quantidade_alvo:
                 break
-        return noticias[:limite]
+        ordenadas = priorizar_por_assuntos(noticias, assuntos_interesse or [])
+        return ordenadas[offset : offset + limite]
 
     def _listar_the_news_tecnologia(
         self,
@@ -124,6 +140,7 @@ def normalizar_the_news_artigo(artigo: dict, publicado_em: datetime | None = Non
         link=link or "https://www.thenews.com.br/pt-BR/portal/categories/tecnologia",
         fonte="the news - tecnologia",
         publicado=artigo.get("publishedTimeAgo") or artigo.get("publishedAt") or _publicado({}),
+        resumo=artigo.get("excerpt") or artigo.get("description") or artigo.get("subtitle") or "",
         publicado_em=publicado_em,
     )
 
@@ -141,6 +158,20 @@ def formatar_noticias(noticias: list[Noticia]) -> str:
         link = texto_terminal_seguro(noticia.link)
         linhas.append(f"{indice}. {titulo} ({fonte}) - {link}")
     return "\n".join(linhas)
+
+
+def priorizar_por_assuntos(noticias: list[Noticia], assuntos: list[str]) -> list[Noticia]:
+    """Ordena noticias por aderencia aos assuntos configurados, preservando fallback."""
+    termos = [assunto.strip().lower() for assunto in assuntos if assunto.strip()]
+    if not termos:
+        return noticias
+
+    def pontuar(noticia: Noticia) -> int:
+        texto = f"{noticia.titulo} {noticia.fonte} {noticia.link}".lower()
+        return sum(1 for termo in termos if termo in texto)
+
+    ordenadas = sorted(enumerate(noticias), key=lambda item: (-pontuar(item[1]), item[0]))
+    return [noticia for _indice, noticia in ordenadas]
 
 
 def texto_terminal_seguro(texto: str) -> str:
@@ -194,3 +225,9 @@ def _publicado(item: dict) -> str:
     """Extrai a data publicada de um item RSS com fallback previsivel."""
     valor = item.get("published") or item.get("updated")
     return valor or datetime.now().isoformat(timespec="seconds")
+
+
+def _resumo(item: dict) -> str:
+    """Extrai um trecho curto de RSS/Atom sem depender de scraping."""
+    valor = item.get("summary") or item.get("description") or ""
+    return texto_terminal_seguro(str(valor)).strip()

@@ -8,19 +8,15 @@ from typing import Annotated
 import typer
 from rich.table import Table
 
-from assistente_pessoal.clima import ClienteClima, formatar_previsao
+from assistente_pessoal.application.services import AssistenteService
 from assistente_pessoal.config import (
     caminho_config_padrao,
     carregar_config,
     criar_config_inicial,
     criar_pastas_vault,
 )
-from assistente_pessoal.estudos import criar_nota_estudo
-from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import console, erro, sucesso
 from assistente_pessoal.memoria import MemoriaObsidian
-from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
-from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
 from assistente_pessoal.roteador import RoteadorComandos
 from assistente_pessoal.voz import ouvir_e_transcrever
 
@@ -87,16 +83,17 @@ def inicializar(
 def conversar(
     ctx: typer.Context,
     mensagem: Annotated[str, typer.Argument(help="Mensagem livre para o assistente.")],
+    permitir_llm_externo: Annotated[
+        bool,
+        typer.Option(
+            "--permitir-llm-externo",
+            help="Permite enviar mensagem e contexto local ao provedor de LLM configurado.",
+        ),
+    ] = False,
 ) -> None:
     """Conversa com o LLM configurado ou mostra o fallback local."""
-    config = _carregar(ctx)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
-    llm = ClienteLLM(config.llm)
-    contexto = "\n".join(
-        f"{item.titulo}: {item.trecho}" for item in memoria.buscar(mensagem, limite=3)
-    )
-    resposta = llm.gerar(mensagem, contexto=contexto)
-    console.print(resposta.texto if resposta else resposta_fallback())
+    resposta = _service(ctx).chat(mensagem, permitir_llm_externo=permitir_llm_externo)
+    console.print(resposta["texto"])
 
 
 @app.command("ouvir")
@@ -127,11 +124,9 @@ def estudar(
     ] = 5,
 ) -> None:
     """Cria uma nota de estudo no vault com resumo e perguntas."""
-    config = _carregar(ctx)
     material = _ler_material(conteudo, arquivo)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
-    caminho = criar_nota_estudo(memoria, tema, material, ClienteLLM(config.llm), perguntas)
-    sucesso(f"Nota de estudo criada em {caminho}.")
+    resposta = _service(ctx).criar_estudo(tema, material, perguntas)
+    sucesso(f"Nota de estudo criada em {resposta['caminho']}.")
 
 
 @app.command("noticias")
@@ -140,22 +135,13 @@ def noticias(
     limite: Annotated[int, typer.Option("--limite", help="Quantidade maxima de noticias.")] = 8,
 ) -> None:
     """Lista noticias recentes do The News tecnologia e das fontes RSS tech."""
-    config = _carregar(ctx)
-    itens = ClienteNoticias().listar(
-        config.fontes.rss,
-        limite=limite,
-        incluir_the_news_tecnologia=config.fontes.incluir_the_news_tecnologia,
-        timezone_local=config.localizacao.timezone,
-    )
-    console.print(formatar_noticias(itens))
+    console.print(_service(ctx).noticias(limite=limite)["texto"])
 
 
 @app.command("clima")
 def clima(ctx: typer.Context) -> None:
     """Mostra previsao do tempo da localizacao configurada."""
-    config = _carregar(ctx)
-    previsao = ClienteClima().obter_previsao(config.localizacao)
-    console.print(formatar_previsao(previsao))
+    console.print(_service(ctx).clima()["texto"])
 
 
 @app.command("musica")
@@ -164,11 +150,7 @@ def musica(
     dias: Annotated[int, typer.Option("--dias", help="Janela de busca em dias.")] = 45,
 ) -> None:
     """Lista lancamentos recentes dos artistas configurados."""
-    config = _carregar(ctx)
-    cliente = ClienteMusica(config.fontes.musicbrainz_user_agent)
-    console.print(
-        formatar_lancamentos(cliente.listar_lancamentos(config.fontes.artistas, dias=dias))
-    )
+    console.print(_service(ctx).musica(dias=dias)["texto"])
 
 
 @memoria_app.command("salvar")
@@ -219,6 +201,11 @@ def _carregar(ctx: typer.Context):
     config = carregar_config(_caminho_config(ctx))
     criar_pastas_vault(config.vault_path)
     return config
+
+
+def _service(ctx: typer.Context) -> AssistenteService:
+    """Cria o servico de aplicacao compartilhado pela CLI e API."""
+    return AssistenteService(_carregar(ctx))
 
 
 def _caminho_config(ctx: typer.Context) -> Path:

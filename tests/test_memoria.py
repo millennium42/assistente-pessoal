@@ -28,9 +28,22 @@ def test_reindexar_memorias(tmp_path: Path) -> None:
     assert memoria.buscar("energia")
 
 
+def test_listar_e_apagar_memoria(tmp_path: Path) -> None:
+    """Lista notas recentes e apaga apenas arquivos dentro do vault."""
+    memoria = MemoriaObsidian(tmp_path / "vault")
+    caminho = memoria.salvar_nota("Nota local", "Conteudo local.")
+
+    notas = memoria.listar_notas()
+    apagado = memoria.apagar_nota(caminho)
+
+    assert notas[0].titulo == "Nota local"
+    assert apagado is True
+    assert not caminho.exists()
+
+
 def test_slugificar_em_pt_br() -> None:
-    """Remove acentos e caracteres problemáticos de nomes de arquivo."""
-    assert slugificar("Olá, Cálculo 1!") == "ola-calculo-1"
+    """Remove acentos e caracteres problematicos de nomes de arquivo."""
+    assert slugificar("Ol\u00e1, C\u00e1lculo 1!") == "ola-calculo-1"
 
 
 def test_normalizar_consulta_fts() -> None:

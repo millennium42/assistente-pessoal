@@ -1,8 +1,9 @@
-"""Cliente pequeno para provedores compativeis com Chat Completions."""
+"""Provedores plugaveis de LLM com opt-in para envio externo."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 import httpx
 
@@ -17,8 +18,38 @@ class RespostaLLM:
     modelo: str
 
 
+class LLMProvider(Protocol):
+    """Contrato para provedores de linguagem usados pelo assistente."""
+
+    def gerar(self, mensagens: list[dict[str, str]]) -> str:
+        """Gera texto a partir de mensagens normalizadas."""
+
+
+@dataclass
+class OpenAICompatibleProvider:
+    """Adaptador para endpoints compativeis com Chat Completions."""
+
+    config: LLMConfig
+    timeout: float = 45.0
+
+    def gerar(self, mensagens: list[dict[str, str]]) -> str:
+        """Executa requisicao HTTP e extrai o texto principal."""
+        base_url = self.config.base_url.rstrip("/")
+        url = f"{base_url}/chat/completions"
+        api_key = ler_api_key(self.config.api_key_env) or "ollama"
+        with httpx.Client(timeout=self.timeout) as client:
+            resposta = client.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": self.config.modelo, "messages": mensagens, "temperature": 0.3},
+            )
+            resposta.raise_for_status()
+            dados = resposta.json()
+        return dados["choices"][0]["message"]["content"].strip()
+
+
 class ClienteLLM:
-    """Encapsula chamadas HTTP para um endpoint compativel com OpenAI."""
+    """Encapsula provedores de LLM sem armazenar chaves no projeto."""
 
     def __init__(self, config: LLMConfig, timeout: float = 45.0) -> None:
         """Guarda a configuracao do provedor sem abrir conexoes antecipadamente."""
@@ -26,7 +57,7 @@ class ClienteLLM:
         self.timeout = timeout
 
     def disponivel(self) -> bool:
-        """Indica se o cliente tem base URL e modelo configurados."""
+        """Indica se o cliente tem configuracao minima."""
         return self.config.habilitado()
 
     def gerar(self, mensagem: str, contexto: str | None = None) -> RespostaLLM | None:
@@ -45,23 +76,12 @@ class ClienteLLM:
         if contexto:
             mensagens.append({"role": "system", "content": f"Contexto local:\n{contexto}"})
         mensagens.append({"role": "user", "content": mensagem})
-        resposta = self._post_chat(mensagens)
+        resposta = self._provider().gerar(mensagens)
         return RespostaLLM(texto=resposta, modelo=self.config.modelo)
 
-    def _post_chat(self, mensagens: list[dict[str, str]]) -> str:
-        """Executa a requisicao HTTP de chat e extrai o texto principal."""
-        base_url = self.config.base_url.rstrip("/")
-        url = f"{base_url}/chat/completions"
-        api_key = ler_api_key(self.config.api_key_env) or "ollama"
-        with httpx.Client(timeout=self.timeout) as client:
-            resposta = client.post(
-                url,
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": self.config.modelo, "messages": mensagens, "temperature": 0.3},
-            )
-            resposta.raise_for_status()
-            dados = resposta.json()
-        return dados["choices"][0]["message"]["content"].strip()
+    def _provider(self) -> LLMProvider:
+        """Seleciona o adaptador HTTP configurado."""
+        return OpenAICompatibleProvider(self.config, timeout=self.timeout)
 
 
 def resposta_fallback() -> str:

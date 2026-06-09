@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
+from heapq import nlargest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -20,6 +22,29 @@ class ResultadoMemoria:
     caminho: Path
     trecho: str
 
+    def to_dict(self) -> dict[str, str]:
+        """Serializa resultado para API sem carregar conteudo completo."""
+        return {"titulo": self.titulo, "caminho": str(self.caminho), "trecho": self.trecho}
+
+
+@dataclass(frozen=True)
+class NotaResumo:
+    """Resumo seguro de uma nota local do vault."""
+
+    titulo: str
+    caminho: Path
+    criado_em: str
+    trecho: str
+
+    def to_dict(self) -> dict[str, str]:
+        """Serializa a nota para interfaces externas."""
+        return {
+            "titulo": self.titulo,
+            "caminho": str(self.caminho),
+            "criado_em": self.criado_em,
+            "trecho": self.trecho,
+        }
+
 
 class MemoriaObsidian:
     """Gerencia notas Markdown e indice SQLite FTS5 dentro de um vault."""
@@ -29,11 +54,15 @@ class MemoriaObsidian:
         self.vault_path = vault_path
         self.timezone = timezone
         self.indice_path = vault_path / ".assistente" / "index.sqlite3"
+        self._prepared = False
 
     def preparar(self) -> None:
         """Cria as pastas e o banco de indice caso ainda nao existam."""
+        if self._prepared:
+            return
         criar_pastas_vault(self.vault_path)
         self._criar_schema()
+        self._prepared = True
 
     def salvar_nota(
         self,
@@ -49,7 +78,10 @@ class MemoriaObsidian:
         pasta_destino.mkdir(parents=True, exist_ok=True)
         caminho = pasta_destino / f"{_timestamp_slug(self.timezone)}-{slugificar(titulo)}.md"
         texto = renderizar_markdown(
-            titulo=titulo, conteudo=conteudo, tags=tags_reais, timezone=self.timezone
+            titulo=titulo,
+            conteudo=conteudo,
+            tags=tags_reais,
+            timezone=self.timezone,
         )
         caminho.write_text(texto, encoding="utf-8")
         self.indexar_nota(caminho)
@@ -91,40 +123,99 @@ class MemoriaObsidian:
     def reindexar(self) -> int:
         """Reconstrui o indice a partir de todos os Markdown existentes no vault."""
         self.preparar()
-        arquivos = [
-            caminho
-            for caminho in self.vault_path.rglob("*.md")
-            if ".assistente" not in caminho.parts
-        ]
-        with sqlite3.connect(self.indice_path) as conexao:
+        arquivos = list(self._listar_arquivos_markdown())
+        with self._connect() as conexao:
             conexao.execute("DELETE FROM notas")
-        for caminho in arquivos:
-            self.indexar_nota(caminho)
+            for caminho in arquivos:
+                self._upsert_nota(conexao, caminho)
         return len(arquivos)
+
+    def listar_notas(self, limite: int = 20) -> list[NotaResumo]:
+        """Lista notas recentes sem expor metadados tecnicos do indice."""
+        self.preparar()
+        arquivos = nlargest(
+            limite,
+            self._listar_arquivos_markdown(),
+            key=lambda caminho: caminho.stat().st_mtime,
+        )
+        notas: list[NotaResumo] = []
+        for caminho in arquivos:
+            stat = caminho.stat()
+            titulo, conteudo = extrair_titulo_e_conteudo(caminho)
+            trecho = " ".join(conteudo.split())[:240]
+            criado_em = datetime.fromtimestamp(
+                stat.st_mtime,
+                tz=ZoneInfo(self.timezone),
+            ).isoformat(timespec="seconds")
+            notas.append(
+                NotaResumo(
+                    titulo=titulo,
+                    caminho=caminho,
+                    criado_em=criado_em,
+                    trecho=trecho,
+                )
+            )
+        return notas
+
+    def apagar_nota(self, caminho: Path) -> bool:
+        """Apaga uma nota Markdown dentro do vault e atualiza o indice."""
+        self.preparar()
+        caminho_real = caminho.resolve()
+        vault_real = self.vault_path.resolve()
+        if not caminho_real.is_relative_to(vault_real):
+            raise ValueError("A nota informada esta fora do vault configurado.")
+        if caminho_real.suffix.lower() != ".md":
+            raise ValueError("Somente notas Markdown podem ser apagadas por esta rotina.")
+        if not caminho_real.exists():
+            return False
+        caminho_real.unlink()
+        with self._connect() as conexao:
+            conexao.execute("DELETE FROM notas WHERE caminho = ?", (str(caminho_real),))
+        return True
 
     def indexar_nota(self, caminho: Path) -> None:
         """Insere ou atualiza uma nota no indice SQLite FTS5."""
-        titulo, conteudo = extrair_titulo_e_conteudo(caminho)
-        with sqlite3.connect(self.indice_path) as conexao:
-            conexao.execute("DELETE FROM notas WHERE caminho = ?", (str(caminho),))
-            conexao.execute(
-                """
-                INSERT INTO notas(titulo, caminho, conteudo)
-                VALUES (?, ?, ?)
-                """,
-                (titulo, str(caminho), conteudo),
-            )
+        with self._connect() as conexao:
+            self._upsert_nota(conexao, caminho)
 
     def _criar_schema(self) -> None:
         """Cria a tabela FTS5 usada como indice de busca local."""
         self.indice_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.indice_path) as conexao:
+        with self._connect() as conexao:
             conexao.execute(
                 """
                 CREATE VIRTUAL TABLE IF NOT EXISTS notas
                 USING fts5(titulo, caminho UNINDEXED, conteudo, tokenize='unicode61')
                 """
             )
+
+    def _connect(self) -> sqlite3.Connection:
+        """Abre conexao SQLite com pragmas leves para desktop local."""
+        conexao = sqlite3.connect(self.indice_path)
+        conexao.execute("PRAGMA journal_mode=WAL")
+        conexao.execute("PRAGMA synchronous=NORMAL")
+        conexao.execute("PRAGMA temp_store=MEMORY")
+        return conexao
+
+    def _listar_arquivos_markdown(self):
+        """Itera pelas notas Markdown visiveis sem incluir area tecnica."""
+        yield from (
+            caminho
+            for caminho in self.vault_path.rglob("*.md")
+            if ".assistente" not in caminho.parts
+        )
+
+    def _upsert_nota(self, conexao: sqlite3.Connection, caminho: Path) -> None:
+        """Atualiza uma unica nota usando a mesma transacao ativa."""
+        titulo, conteudo = extrair_titulo_e_conteudo(caminho)
+        conexao.execute("DELETE FROM notas WHERE caminho = ?", (str(caminho),))
+        conexao.execute(
+            """
+            INSERT INTO notas(titulo, caminho, conteudo)
+            VALUES (?, ?, ?)
+            """,
+            (titulo, str(caminho), conteudo),
+        )
 
 
 def renderizar_markdown(
@@ -162,18 +253,9 @@ def slugificar(texto: str) -> str:
     """Transforma texto livre em um nome de arquivo estavel e legivel."""
     texto_minusculo = texto.lower().strip()
     texto_sem_acento = (
-        texto_minusculo.replace("á", "a")
-        .replace("à", "a")
-        .replace("ã", "a")
-        .replace("â", "a")
-        .replace("é", "e")
-        .replace("ê", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ô", "o")
-        .replace("õ", "o")
-        .replace("ú", "u")
-        .replace("ç", "c")
+        unicodedata.normalize("NFKD", texto_minusculo)
+        .encode("ascii", errors="ignore")
+        .decode("ascii")
     )
     slug = re.sub(r"[^a-z0-9]+", "-", texto_sem_acento).strip("-")
     return slug or "nota"
@@ -181,7 +263,7 @@ def slugificar(texto: str) -> str:
 
 def normalizar_consulta_fts(consulta: str) -> str:
     """Remove caracteres que quebram a sintaxe FTS5 e preserva termos uteis."""
-    termos = re.findall(r"[\wÀ-ÿ]+", consulta, flags=re.UNICODE)
+    termos = re.findall(r"[\w\u00c0-\u00ff]+", consulta, flags=re.UNICODE)
     return " ".join(termos) or consulta
 
 

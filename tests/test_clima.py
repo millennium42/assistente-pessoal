@@ -19,6 +19,7 @@ class RespostaFake:
                 "wind_speed_10m": 12.0,
             },
             "daily": {
+                "time": ["2026-06-09", "2026-06-10", "2026-06-11"],
                 "temperature_2m_max": [25.0],
                 "temperature_2m_min": [14.0],
                 "precipitation_probability_max": [30],
@@ -52,3 +53,4 @@ def test_cliente_clima_formata_previsao(monkeypatch) -> None:
 
     assert "Teste" in formatar_previsao(previsao)
     assert previsao.temperatura == 20.0
+    assert previsao.proximos_dias[0].data == "2026-06-09"
