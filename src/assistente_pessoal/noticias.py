@@ -18,6 +18,7 @@ from assistente_pessoal.fontes_noticias import (
 )
 
 LIMITE_PADRAO_NOTICIAS = 100
+LIMITE_INTERESSES_NOTICIAS = 50
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class Noticia:
     publicado: str
     publicado_em: datetime | None = None
     grupo: str = ""
+    interesse: str = ""
 
 
 class ClienteNoticias:
@@ -149,14 +151,15 @@ class ClienteNoticias:
         data_referencia: date,
     ) -> list[Noticia]:
         """Busca noticias em portais indexados usando as tags de interesse."""
+        limite_interesses = min(limite, LIMITE_INTERESSES_NOTICIAS)
         itens = self.interest_source.listar(
             interesses=config.interesses_busca,
-            limite=limite,
+            limite=limite_interesses,
             timezone=config.timezone,
             data_referencia=data_referencia,
             apenas_dia_atual=config.apenas_dia_atual,
         )
-        return [normalizar_item(item) for item in itens[:limite]]
+        return [normalizar_item(item) for item in itens[:limite_interesses]]
 
 
 def normalizar_item(item: ItemFonteNoticia) -> Noticia:
@@ -168,6 +171,7 @@ def normalizar_item(item: ItemFonteNoticia) -> Noticia:
         publicado=item.publicado,
         publicado_em=item.publicado_em,
         grupo=item.grupo,
+        interesse=item.interesse,
     )
 
 
@@ -285,7 +289,11 @@ def formatar_noticias(
         publicado = texto_terminal_seguro(
             rotulo_tempo_publicacao(noticia, timezone=timezone, agora=agora)
         )
-        linhas.append(f"{indice}. {titulo} ({fonte} | {grupo} | {publicado}) - {link}")
+        extras = [fonte, grupo, publicado]
+        if noticia.interesse:
+            interesse = texto_terminal_seguro(f"interesse: {noticia.interesse}")
+            extras.insert(2, interesse)
+        linhas.append(f"{indice}. {titulo} ({' | '.join(extras)}) - {link}")
     return "\n".join(linhas)
 
 

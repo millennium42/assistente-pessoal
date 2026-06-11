@@ -168,6 +168,7 @@ class InterestFake:
                 publicado="2026-06-08",
                 publicado_em=datetime(2026, 6, 8, 11, 0),
                 grupo="interesses",
+                interesse="ia educacao",
             )
         ]
 
@@ -490,6 +491,32 @@ def test_formatar_noticias_tambem_ordena_por_publicacao() -> None:
     assert texto.index("Nova") < texto.index("Antiga")
 
 
+def test_formatar_noticias_exibe_interesse_quando_presente() -> None:
+    """Exibe o interesse associado a uma noticia de interesse."""
+    noticia_interesse = Noticia(
+        titulo="IA na educacao",
+        link="https://noticias.test/ia-educacao",
+        fonte="Fonte",
+        publicado="2026-06-08T12:00:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 12, 0),
+        grupo="interesses",
+        interesse="ia educacao",
+    )
+    noticia_normal = Noticia(
+        titulo="Noticia normal",
+        link="https://noticias.test/normal",
+        fonte="Fonte",
+        publicado="2026-06-08T11:00:00-03:00",
+        publicado_em=datetime(2026, 6, 8, 11, 0),
+        grupo="tech",
+    )
+
+    texto = formatar_noticias([noticia_interesse, noticia_normal], agora=datetime(2026, 6, 8, 13, 0))
+
+    assert "interesse: ia educacao" in texto
+    assert texto.count("interesse:") == 1
+
+
 def test_interesses_priorizam_noticias_relacionadas() -> None:
     """Tags de interesse sobem no feed sem apagar noticias fora do perfil."""
     generica = Noticia(
@@ -576,3 +603,48 @@ def test_noticia_parece_local() -> None:
         "https://x.test",
         ["regiao central"],
     )
+
+
+def test_limita_noticias_interesses_ao_maximo_de_50() -> None:
+    """Garante que noticias de interesse nao excedem 50 mesmo com limite alto."""
+    from assistente_pessoal.noticias import LIMITE_INTERESSES_NOTICIAS
+
+    class InteressesMuitosItens:
+        def listar(
+            self,
+            interesses: list[str],
+            limite: int,
+            timezone: str,
+            data_referencia: date,
+            apenas_dia_atual: bool,
+        ):
+            return [
+                ItemFonteNoticia(
+                    titulo=f"Interesse {i}",
+                    link=f"https://interesses.test/{i}",
+                    fonte="Portal Interesse",
+                    publicado="2026-06-08",
+                    publicado_em=datetime(2026, 6, 8, 12, 0),
+                    grupo="interesses",
+                    interesse="ia",
+                )
+                for i in range(limite)
+            ]
+
+    config = NoticiasConfig(
+        interesses_busca=["ia"],
+        prioridades=[],
+        the_news=TheNewsConfig(habilitado=False),
+        santa_maria=GrupoRssConfig(habilitado=False),
+        tech=GrupoRssConfig(habilitado=False),
+        economia_global=GrupoRssConfig(habilitado=False),
+    )
+    cliente = ClienteNoticias(
+        interest_source=InteressesMuitosItens(),
+    )
+
+    noticias = cliente.listar(config, limite=200, data_referencia=date(2026, 6, 8))
+
+    assert len(noticias) == LIMITE_INTERESSES_NOTICIAS
+    assert all(noticia.grupo == "interesses" for noticia in noticias)
+    assert all(noticia.interesse == "ia" for noticia in noticias)
