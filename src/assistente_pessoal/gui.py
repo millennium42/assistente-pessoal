@@ -178,8 +178,8 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="comfortable"] {
-      --appa-card-pad: 16px;
-      --appa-row-gap: 14px;
+      --appa-card-pad: 10px;
+      --appa-row-gap: 10px;
     }
 
     body.appa-dashboard {
@@ -217,7 +217,7 @@ def _dashboard_css() -> str:
     .dashboard-shell {
       max-width: 1380px;
       margin: 0 auto;
-      padding: 14px 18px 22px;
+      padding: 8px 12px 14px;
     }
 
     .appa-top {
@@ -262,7 +262,7 @@ def _dashboard_css() -> str:
 
     .appa-title {
       margin: 0;
-      font-size: 1.65rem;
+      font-size: 1.25rem;
       line-height: 1.1;
       font-weight: 800;
       color: var(--appa-ink);
@@ -271,7 +271,7 @@ def _dashboard_css() -> str:
     .appa-subtitle {
       margin: 5px 0 0;
       color: var(--appa-muted);
-      font-size: 0.92rem;
+      font-size: 0.8rem;
     }
 
     .appa-summary {
@@ -373,7 +373,7 @@ def _dashboard_css() -> str:
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: var(--appa-card-pad, 16px);
-      min-height: 104px;
+      min-height: 80px;
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
       overflow: hidden;
     }
@@ -404,7 +404,7 @@ def _dashboard_css() -> str:
     .kpi-value {
       margin-top: 9px;
       color: var(--appa-ink);
-      font-size: 2rem;
+      font-size: 1.5rem;
       font-weight: 800;
       line-height: 1;
     }
@@ -451,7 +451,7 @@ def _dashboard_css() -> str:
 
     .section-title {
       color: var(--appa-ink);
-      font-size: 0.92rem;
+      font-size: 0.8rem;
       font-weight: 800;
     }
 
@@ -491,7 +491,7 @@ def _dashboard_css() -> str:
 
     .weather-temp {
       color: var(--appa-ink);
-      font-size: 3.4rem;
+      font-size: 2.4rem;
       font-weight: 850;
       line-height: 1;
     }
@@ -1315,13 +1315,77 @@ def _dashboard_js() -> str:
     """
 
 
+
+def _criar_grafico_clima(resumo: list[ResumoClimaDia]):
+    dias = [_rotulo_dia_curto(d) for d in resumo]
+    maximas = [d.maxima for d in resumo]
+    minimas = [d.minima for d in resumo]
+    return ui.echart({
+        'tooltip': {'trigger': 'axis'},
+        'legend': {'data': ['Max', 'Min'], 'textStyle': {'color': '#9fb2c7'}},
+        'grid': {'left': '3%', 'right': '4%', 'bottom': '3%', 'containLabel': True},
+        'xAxis': {'type': 'category', 'data': dias, 'axisLabel': {'color': '#9fb2c7'}},
+        'yAxis': {'type': 'value', 'axisLabel': {'color': '#9fb2c7'}, 'splitLine': {'lineStyle': {'color': '#1e293b'}}},
+        'series': [
+            {'name': 'Max', 'type': 'line', 'data': maximas, 'itemStyle': {'color': '#fbbf24'}, 'smooth': True},
+            {'name': 'Min', 'type': 'line', 'data': minimas, 'itemStyle': {'color': '#60a5fa'}, 'smooth': True},
+        ]
+    }).classes('w-full h-64')
+
+def _atualizar_grafico_clima(chart, resumo: list[ResumoClimaDia]):
+    dias = [_rotulo_dia_curto(d) for d in resumo]
+    maximas = [d.maxima for d in resumo]
+    minimas = [d.minima for d in resumo]
+    chart.options['xAxis']['data'] = dias
+    chart.options['series'][0]['data'] = maximas
+    chart.options['series'][1]['data'] = minimas
+    chart.update()
+
+def _criar_grafico_noticias(grupos: dict[str, int]):
+    data = [{'value': v, 'name': GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
+    return ui.echart({
+        'tooltip': {'trigger': 'item'},
+        'legend': {'top': '5%', 'left': 'center', 'textStyle': {'color': '#9fb2c7'}},
+        'series': [
+            {
+                'name': 'Notícias',
+                'type': 'pie',
+                'radius': ['40%', '70%'],
+                'avoidLabelOverlap': False,
+                'itemStyle': {'borderRadius': 5, 'borderColor': '#060914', 'borderWidth': 2},
+                'label': {'show': False, 'position': 'center'},
+                'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold'}},
+                'labelLine': {'show': False},
+                'data': data
+            }
+        ]
+    }).classes('w-full h-64')
+
+def _atualizar_grafico_noticias(chart, grupos: dict[str, int]):
+    data = [{'value': v, 'name': GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
+    chart.options['series'][0]['data'] = data
+    chart.update()
+
+def _linhas_noticias_aggrid(noticias: list[Noticia], timezone: str) -> list[dict]:
+    return [
+        {
+            "grupo": GRUPOS_LABEL.get(n.grupo, n.grupo.title()),
+            "fonte": texto_terminal_seguro(n.fonte),
+            "titulo": texto_terminal_seguro(n.titulo),
+            "publicado": texto_terminal_seguro(rotulo_tempo_publicacao(n, timezone=timezone)),
+            "link": _link_seguro(n.link),
+        }
+        for n in noticias
+    ]
+
 def construir_dashboard(
     servico: DashboardService,
     snapshot_inicial: DashboardSnapshot | None = None,
 ) -> None:
     """Constroi um dashboard denso, visual e voltado a acompanhamento diario."""
     _registrar_assets_dashboard()
-    with ui.column().classes("dashboard-shell gap-4"):
+    ui.run_javascript("document.documentElement.dataset.density = 'compact';")
+    with ui.column().classes("dashboard-shell gap-3 w-full max-w-[1600px]"):
         _cabecalho(snapshot_inicial)
         with ui.row().classes("commandbar items-end gap-3 w-full"):
             limite_noticias = ui.number(
@@ -1336,48 +1400,20 @@ def construir_dashboard(
                 "control-switch"
             )
             ui.html(
-                """
-                <div class="density-toggle" aria-label="Densidade do painel">
-                  <button
-                    type="button"
-                    data-density-choice="comfortable"
-                  >
-                    Conforto
-                  </button>
-                  <button
-                    type="button"
-                    data-density-choice="compact"
-                  >
-                    Compacto
-                  </button>
-                </div>
-                """
-            )
-            ui.html(
-                """
+                '''
                 <div class="theme-toggle" aria-label="Tema do painel">
-                  <button
-                    type="button"
-                    data-theme-choice="dark"
-                  >
-                    Dark
-                  </button>
-                  <button
-                    type="button"
-                    data-theme-choice="light"
-                  >
-                    Light
-                  </button>
+                  <button type="button" data-theme-choice="dark">Dark</button>
+                  <button type="button" data-theme-choice="light">Light</button>
                 </div>
-                """
+                '''
             )
             ui.html(
-                """
+                '''
                 <div class="commandbar-note">
                   <span class="status-dot"></span>
                   <span>Atualizacao local ativa</span>
                 </div>
-                """
+                '''
             )
             ui.button(
                 "Atualizar",
@@ -1386,84 +1422,128 @@ def construir_dashboard(
             ).classes("refresh-button")
             status = ui.label("Painel pronto.").classes("dashboard-status ml-auto")
 
-        kpi_cards = _criar_kpis(snapshot_inicial)
-        with ui.grid(columns=6).classes("kpi-grid w-full gap-3"):
-            for card in kpi_cards:
-                with ui.element("div").classes("kpi"):
-                    ui.label(card["label"]).classes("kpi-label")
-                    valor = ui.label(card["value"]).classes("kpi-value")
-                    detalhe = ui.label(card["detail"]).classes("text-sm text-slate-500")
-                    card["widgets"] = (valor, detalhe)
+        with ui.tabs().classes('w-full') as tabs:
+            tab_visao_geral = ui.tab('Visão Geral', icon='dashboard')
+            tab_noticias = ui.tab('Explorador de Notícias', icon='analytics')
+            tab_agenda = ui.tab('Agenda e Eventos', icon='calendar_month')
+            tab_interesses = ui.tab('Configurações', icon='settings')
+            
+        with ui.tab_panels(tabs, value=tab_visao_geral).classes('w-full bg-transparent p-0'):
+            with ui.tab_panel(tab_visao_geral).classes('p-0 gap-3 flex flex-col'):
+                kpi_cards = _criar_kpis(snapshot_inicial)
+                with ui.grid(columns=6).classes("kpi-grid w-full gap-3"):
+                    for card in kpi_cards:
+                        with ui.element("div").classes("kpi"):
+                            ui.label(card["label"]).classes("kpi-label")
+                            valor = ui.label(card["value"]).classes("kpi-value")
+                            detalhe = ui.label(card["detail"]).classes("text-xs text-slate-500")
+                            card["widgets"] = (valor, detalhe)
 
-        with ui.grid(columns=3).classes("w-full gap-4"):
-            with ui.column().classes("col-span-2 gap-4"):
-                with ui.expansion(
-                    "Radar do Dia",
-                    caption="Clima de hoje e tendencia dos proximos sete dias.",
-                    value=True,
-                    icon="insights",
-                ).classes("expansion-shell w-full"):
-                    clima_resumo = _render_clima_resumo(snapshot_inicial)
+                with ui.grid(columns=2).classes('w-full gap-3'):
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Previsão da Semana').classes('section-title mb-2')
+                        grafico_clima = _criar_grafico_clima(snapshot_inicial.resumo_semana if snapshot_inicial else [])
+                    
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Distribuição de Notícias').classes('section-title mb-2')
+                        grafico_noticias = _criar_grafico_noticias(snapshot_inicial.noticias_por_grupo if snapshot_inicial else {})
 
-                with ui.expansion(
-                    "Santa Maria em Foco",
-                    caption="Cobertura local validada para o dia atual.",
-                    value=True,
-                    icon="location_city",
-                ).classes("expansion-shell w-full"):
-                    santa_maria_cards = ui.column().classes("w-full gap-3")
-                    _popular_santa_maria_em_foco(
-                        santa_maria_cards,
-                        snapshot_inicial.santa_maria_em_foco if snapshot_inicial else [],
-                        servico.config.localizacao.timezone,
-                        servico,
-                        status,
-                    )
+                with ui.grid(columns=2).classes('w-full gap-3'):
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Santa Maria em Foco').classes('section-title mb-2')
+                        santa_maria_cards = ui.column().classes("w-full gap-2")
+                        _popular_santa_maria_em_foco(
+                            santa_maria_cards,
+                            snapshot_inicial.santa_maria_em_foco if snapshot_inicial else [],
+                            servico.config.localizacao.timezone,
+                            servico,
+                            status,
+                        )
+                    
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Clima Atual').classes('section-title mb-2')
+                        clima_resumo = _render_clima_resumo(snapshot_inicial)
 
-                with ui.expansion(
-                    "Feed Priorizado",
-                    caption=(
-                        "The News, interesses, tecnologia e economia global "
-                        "do mais recente ao mais antigo."
-                    ),
-                    value=True,
-                    icon="newspaper",
-                ).classes("expansion-shell w-full"):
-                    with ui.row().classes("w-full items-center justify-between"):
-                        noticias_total = ui.label("").classes("news-live-count")
-                        ui.button(
-                            "Reexibir lidas",
-                            icon="restart_alt",
-                            on_click=lambda: ui.run_javascript(
-                                "window.APPA_DASHBOARD && "
-                                "window.APPA_DASHBOARD.clearReadNews()"
-                            ),
-                        ).classes("ghost-button")
+            with ui.tab_panel(tab_noticias).classes('p-0 gap-3 flex flex-col'):
+                with ui.element('div').classes('expansion-shell p-3 w-full h-[600px] flex flex-col'):
+                    with ui.row().classes("w-full items-center justify-between mb-2"):
+                        ui.label('Explorador de Notícias').classes('section-title')
+                        noticias_total = ui.label("").classes("news-live-count text-sm")
+                    
+                    tabela_noticias = ui.aggrid({
+                        'columnDefs': [
+                            {'headerName': 'Grupo', 'field': 'grupo', 'sortable': True, 'filter': True, 'width': 130},
+                            {'headerName': 'Fonte', 'field': 'fonte', 'sortable': True, 'filter': True, 'width': 130},
+                            {'headerName': 'Título', 'field': 'titulo', 'sortable': True, 'filter': True, 'flex': 1},
+                            {'headerName': 'Publicado', 'field': 'publicado', 'sortable': True, 'filter': True, 'width': 150},
+                            {'headerName': 'Link', 'field': 'link', 'cellRenderer': '''(params) => `<a href="${params.value}" target="_blank" style="color: #22d3ee; text-decoration: underline;">Abrir</a>`''', 'width': 90}
+                        ],
+                        'rowData': _linhas_noticias_aggrid(_noticias_sem_santa_maria(snapshot_inicial.noticias) if snapshot_inicial else [], servico.config.localizacao.timezone),
+                        'rowSelection': 'single',
+                        'defaultColDef': {'resizable': True},
+                    }).classes('w-full flex-grow ag-theme-balham-dark')
 
-                    feed_noticias = ui.element("div").classes("news-stream-shell")
-                    _popular_feed_dinamico(
-                        feed_noticias,
-                        _noticias_sem_santa_maria(
-                            snapshot_inicial.noticias if snapshot_inicial else []
+            with ui.tab_panel(tab_agenda).classes('p-0 gap-3 flex flex-col'):
+                with ui.element("div").classes("agenda-layout w-full"):
+                    with ui.element("div").classes("agenda-calendar-pane"):
+                        agenda_mes_titulo = ui.label("").classes("section-title")
+                        agenda_erro = ui.html("").classes("w-full")
+                        calendario_google = ui.column().classes("w-full gap-2")
+                    google_lista = ui.column().classes("agenda-side-pane")
+                _popular_agenda_google(
+                    calendario_google,
+                    google_lista,
+                    agenda_erro,
+                    agenda_mes_titulo,
+                    snapshot_inicial.agenda_google_resultado if snapshot_inicial else None,
+                    servico.config.localizacao.timezone,
+                )
+                with ui.element("div").classes("agenda-form-shell mt-3"):
+                    ui.label("Adicionar evento").classes("section-title")
+                    evento_titulo = ui.input("Titulo").classes("w-full")
+                    with ui.element("div").classes("agenda-form-grid"):
+                        evento_data = ui.input("Data (AAAA-MM-DD)").classes("w-full")
+                        evento_hora = ui.input("Hora (HH:MM)").classes("w-full")
+                        duracao_minutos = ui.number(
+                            label="Duracao (minutos)",
+                            value=60,
+                            min=15,
+                            max=720,
+                            step=15,
+                            format="%.0f",
+                        ).classes("w-full")
+                        evento_local = ui.input("Local").classes("w-full")
+                    evento_descricao = ui.textarea("Descricao").classes("w-full")
+                    evento_descricao.props("rows=3")
+                    agenda_status = ui.label("").classes("text-sm text-slate-500")
+                    ui.button(
+                        "Criar evento no Google Agenda",
+                        on_click=lambda: _criar_evento_google(
+                            servico,
+                            evento_titulo.value,
+                            evento_data.value,
+                            evento_hora.value,
+                            duracao_minutos.value,
+                            evento_local.value,
+                            evento_descricao.value,
+                            agenda_status,
+                            status,
+                            calendario_google,
+                            google_lista,
+                            agenda_erro,
+                            agenda_mes_titulo,
                         ),
-                        servico.config.localizacao.timezone,
-                        servico,
-                        status,
-                    )
+                    ).classes("w-full")
 
-            with ui.column().classes("gap-4"):
-                with ui.expansion(
-                    "Interesses de Pesquisa",
-                    caption="Tags usadas para priorizar o feed e organizar seu perfil.",
-                    value=True,
-                    icon="sell",
-                ).classes("expansion-shell w-full"):
+            with ui.tab_panel(tab_interesses).classes('p-0 gap-3 flex flex-col'):
+                with ui.element('div').classes('expansion-shell p-3'):
+                    ui.label('Interesses de Pesquisa').classes('section-title mb-2')
                     interesses_container = ui.element("div").classes("interest-list")
                     _popular_interesses(
                         interesses_container,
                         servico.config.fontes.noticias.interesses_busca,
                     )
-                    interesse_texto = ui.textarea("Adicionar interesses").classes("w-full")
+                    interesse_texto = ui.textarea("Adicionar interesses").classes("w-full mt-3")
                     interesse_texto.props("rows=3")
                     interesses_status = ui.label("").classes("text-sm text-slate-500")
                     ui.button(
@@ -1477,78 +1557,22 @@ def construir_dashboard(
                             status,
                         )
                         and atualizar(),
-                    ).classes("w-full")
-
-        with ui.expansion(
-            "Google Agenda",
-            caption="Calendario mensal e criacao rapida de eventos.",
-            value=True,
-            icon="calendar_month",
-        ).classes("expansion-shell agenda-expansion w-full"):
-            with ui.element("div").classes("agenda-layout w-full"):
-                with ui.element("div").classes("agenda-calendar-pane"):
-                    agenda_mes_titulo = ui.label("").classes("section-title")
-                    agenda_erro = ui.html("").classes("w-full")
-                    calendario_google = ui.column().classes("w-full gap-2")
-                google_lista = ui.column().classes("agenda-side-pane")
-            _popular_agenda_google(
-                calendario_google,
-                google_lista,
-                agenda_erro,
-                agenda_mes_titulo,
-                snapshot_inicial.agenda_google_resultado if snapshot_inicial else None,
-                servico.config.localizacao.timezone,
-            )
-            with ui.element("div").classes("agenda-form-shell mt-3"):
-                ui.label("Adicionar evento").classes("section-title")
-                evento_titulo = ui.input("Titulo").classes("w-full")
-                with ui.element("div").classes("agenda-form-grid"):
-                    evento_data = ui.input("Data (AAAA-MM-DD)").classes("w-full")
-                    evento_hora = ui.input("Hora (HH:MM)").classes("w-full")
-                    duracao_minutos = ui.number(
-                        label="Duracao (minutos)",
-                        value=60,
-                        min=15,
-                        max=720,
-                        step=15,
-                        format="%.0f",
-                    ).classes("w-full")
-                    evento_local = ui.input("Local").classes("w-full")
-                evento_descricao = ui.textarea("Descricao").classes("w-full")
-                evento_descricao.props("rows=3")
-                agenda_status = ui.label("").classes("text-sm text-slate-500")
-                ui.button(
-                    "Criar evento no Google Agenda",
-                    on_click=lambda: _criar_evento_google(
-                        servico,
-                        evento_titulo.value,
-                        evento_data.value,
-                        evento_hora.value,
-                        duracao_minutos.value,
-                        evento_local.value,
-                        evento_descricao.value,
-                        agenda_status,
-                        status,
-                        calendario_google,
-                        google_lista,
-                        agenda_erro,
-                        agenda_mes_titulo,
-                    ),
-                ).classes("w-full")
+                    ).classes("w-full mt-2")
 
         def atualizar() -> None:
-            """Recarrega os dados dinamicos sem reconstruir a pagina inteira."""
             try:
                 snapshot = servico.carregar(
                     limite_noticias=int(limite_noticias.value or LIMITE_PADRAO_NOTICIAS),
                 )
-            except Exception as exc:  # pragma: no cover
-                avisar(str(exc))
+            except Exception as exc:
                 status.text = f"Falha ao carregar painel: {exc}"
                 return
 
             _atualizar_kpis(kpi_cards, snapshot)
             _atualizar_clima_resumo(clima_resumo, snapshot)
+            _atualizar_grafico_clima(grafico_clima, snapshot.resumo_semana)
+            _atualizar_grafico_noticias(grafico_noticias, snapshot.noticias_por_grupo)
+            
             _popular_santa_maria_em_foco(
                 santa_maria_cards,
                 snapshot.santa_maria_em_foco,
@@ -1556,15 +1580,13 @@ def construir_dashboard(
                 servico,
                 status,
             )
-            _popular_feed_dinamico(
-                feed_noticias,
-                _noticias_sem_santa_maria(snapshot.noticias),
-                servico.config.localizacao.timezone,
-                servico,
-                status,
-            )
+            
+            novas_noticias = _noticias_sem_santa_maria(snapshot.noticias)
+            tabela_noticias.options['rowData'] = _linhas_noticias_aggrid(novas_noticias, servico.config.localizacao.timezone)
+            tabela_noticias.update()
+            
             noticias_total.text = (
-                f"{_resumo_feed_noticias(_noticias_sem_santa_maria(snapshot.noticias))} "
+                f"{_resumo_feed_noticias(novas_noticias)} "
                 f"| atualizado "
                 f"{snapshot.atualizado_em}"
             )
@@ -1588,7 +1610,6 @@ def construir_dashboard(
         cliente_dashboard = ui.context.client
 
         def atualizar_automaticamente() -> None:
-            """Executa o refresh automatico apenas enquanto o cliente esta conectado."""
             if not atualizacao_auto.value or not cliente_dashboard.has_socket_connection:
                 return
             with cliente_dashboard:
@@ -1602,7 +1623,6 @@ def construir_dashboard(
         cliente_dashboard.on_delete(
             lambda *_args: timer_atualizacao.cancel(with_current_invocation=True)
         )
-
 
 def _cabecalho(snapshot: DashboardSnapshot | None) -> None:
     """Renderiza a faixa superior com contexto operacional do painel."""
@@ -1722,40 +1742,38 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
 
 def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
     """Constroi o resumo visual de clima em estilo dashboard."""
-    with ui.element("div").classes("weather-panel w-full"):
-        with ui.element("div").classes("weather-now"):
-            cidade = ui.label(snapshot.previsao.cidade if snapshot else "Sem dados").classes(
-                "text-lg font-semibold"
+    with ui.element("div").classes("weather-now w-full h-full flex flex-col justify-center"):
+        cidade = ui.label(snapshot.previsao.cidade if snapshot else "Sem dados").classes(
+            "text-lg font-semibold"
+        )
+        data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
+            "text-sm text-slate-500"
+        )
+        referencia = ui.label(
+            _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
+        ).classes("text-xs uppercase text-slate-400")
+        temperatura = ui.label(
+            _formatar_grau(snapshot.previsao.temperatura_referencia) if snapshot else "--"
+        ).classes("weather-temp")
+        with ui.element("div").classes("stat-grid mt-4"):
+            maxima = _stat_box(
+                "Maxima",
+                _formatar_grau(snapshot.previsao.maxima) if snapshot else "--",
             )
-            data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
-                "text-sm text-slate-500"
+            minima = _stat_box(
+                "Minima",
+                _formatar_grau(snapshot.previsao.minima) if snapshot else "--",
             )
-            referencia = ui.label(
-                _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
-            ).classes("text-xs uppercase text-slate-400")
-            temperatura = ui.label(
-                _formatar_grau(snapshot.previsao.temperatura_referencia) if snapshot else "--"
-            ).classes("weather-temp")
-            with ui.element("div").classes("stat-grid mt-4"):
-                maxima = _stat_box(
-                    "Maxima",
-                    _formatar_grau(snapshot.previsao.maxima) if snapshot else "--",
-                )
-                minima = _stat_box(
-                    "Minima",
-                    _formatar_grau(snapshot.previsao.minima) if snapshot else "--",
-                )
-                chuva = _stat_box(
-                    "Chuva",
-                    _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--",
-                )
-            contexto = ui.label(
-                _texto_contexto_clima(snapshot.previsao)
-                if snapshot
-                else "Sem leitura de clima ainda."
-            ).classes("text-sm text-slate-500 mt-3")
-        semana = ui.element("div").classes("weather-week")
-        _popular_semana_clima(semana, snapshot.resumo_semana if snapshot else [])
+            chuva = _stat_box(
+                "Chuva",
+                _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--",
+            )
+        contexto = ui.label(
+            _texto_contexto_clima(snapshot.previsao)
+            if snapshot
+            else "Sem leitura de clima ainda."
+        ).classes("text-sm text-slate-500 mt-3")
+        
     return {
         "cidade": cidade,
         "data": data,
@@ -1765,7 +1783,6 @@ def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.ele
         "minima": minima,
         "chuva": chuva,
         "contexto": contexto,
-        "semana": semana,
     }
 
 
@@ -1780,7 +1797,6 @@ def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardS
     widgets["minima"].text = _formatar_grau(previsao.minima)
     widgets["chuva"].text = _formatar_chuva(previsao.chuva)
     widgets["contexto"].text = _texto_contexto_clima(previsao)
-    _popular_semana_clima(widgets["semana"], snapshot.resumo_semana)
 
 
 def _stat_box(rotulo: str, valor: str) -> ui.label:
