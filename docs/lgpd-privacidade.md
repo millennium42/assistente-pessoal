@@ -4,9 +4,8 @@ Este projeto e local por padrao, mas nao e "offline por definicao". Algumas func
 
 ## O que fica local
 
-- notas em Markdown no vault do Obsidian
-- indice SQLite FTS5 em `.assistente/index.sqlite3`
-- plano de estudos e agenda local
+- banco de dados relacional (SQLite) centralizando as informacoes
+- plano de estudos e agenda local armazenados no banco
 - configuracao estrutural do `config.toml`
 
 ## O que pode sair da maquina
@@ -21,15 +20,15 @@ Este projeto e local por padrao, mas nao e "offline por definicao". Algumas func
 
 - minimizacao: nao salvamos chaves de API em arquivo
 - transparencia: o README explica quais modulos usam rede
-- controle do titular: o vault e legivel, editavel e apagavel
-- segregacao: agenda local e planejamento ficam em arquivos dedicados
+- controle do titular: o banco de dados e local e pode ser completamente inspecionado e apagado
+- segregacao: agenda local e planejamento ficam isolados na estrutura do banco
 - reducao de privilegio: Google Agenda usa escopo restrito a eventos
 
 ## Recomendacoes de uso
 
 - nao comite `config.toml` com informacoes privadas
 - nao comite o arquivo de credenciais OAuth do Google nem o token local
-- prefira um vault dedicado ao inves de misturar tudo com notas antigas
+- prefira um banco de dados local isolado no ambiente do projeto ao inves de mesclar com bancos de dados de producao
 - revise o conteudo enviado a provedores LLM externos
 - nao use logs verbosos em producao com conteudo de notas pessoais
 

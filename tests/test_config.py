@@ -8,11 +8,11 @@ from assistente_pessoal.config import carregar_config, criar_config_inicial
 def test_criar_e_carregar_config_inicial(tmp_path: Path) -> None:
     """Garante que o config.toml inicial pode ser lido de volta."""
     config_path = tmp_path / "config" / "config.toml"
-    vault_relativo = Path("vault")
+    banco_relativo = Path("banco")
 
     criar_config_inicial(
         caminho=config_path,
-        vault_path=vault_relativo,
+        db_path=banco_relativo,
         cidade="Santa Maria, RS",
         latitude=-29.68,
         longitude=-53.81,
@@ -20,7 +20,7 @@ def test_criar_e_carregar_config_inicial(tmp_path: Path) -> None:
     )
     config = carregar_config(config_path)
 
-    assert config.vault_path == (config_path.parent / "vault").resolve()
+    assert config.db_path == (config_path.parent / "banco").resolve()
     assert config.localizacao.cidade == "Santa Maria, RS"
     assert config.localizacao.latitude == -29.68
     assert config.fontes.noticias.the_news.habilitado is True
@@ -38,4 +38,4 @@ def test_carregar_config_inexistente_retorna_padrao(tmp_path: Path) -> None:
     config = carregar_config(caminho)
 
     assert config.localizacao.timezone == "America/Sao_Paulo"
-    assert config.vault_path == (tmp_path / "vault" / "AssistentePessoal").resolve()
+    assert config.db_path == (tmp_path / "banco" / "AssistentePessoal").resolve()

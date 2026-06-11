@@ -8,7 +8,7 @@ from assistente_pessoal.cambio import CotacaoMoeda
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
 from assistente_pessoal.gui import _criar_evento_google, construir_dashboard
-from assistente_pessoal.memoria import MemoriaObsidian
+from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import Noticia
 from assistente_pessoal.painel import DashboardService
 
@@ -175,8 +175,8 @@ def _servico_sem_rede(config: AppConfig) -> DashboardService:
 
 
 def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
-    """Permite que GUI grave plano e agenda nos caminhos esperados do vault."""
-    config = AppConfig(vault_path=tmp_path / "vault")
+    """Permite que GUI grave plano e agenda nos caminhos esperados do banco."""
+    config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
 
     caminho_agenda = servico.salvar_agenda_local("10h - monitoria")
@@ -190,7 +190,7 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
 
 def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: Path) -> None:
     """Evita repetir chamadas externas quando a GUI refresca antes do TTL expirar."""
-    config = AppConfig(vault_path=tmp_path / "vault")
+    config = AppConfig(db_path=tmp_path / "banco")
     servico = DashboardService(config)
     servico.clima = ClimaContador()
     servico.noticias = NoticiasContador()
@@ -208,8 +208,8 @@ def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: P
 
 
 def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
-    """Organiza interesses e noticias relevantes no vault Obsidian."""
-    config = AppConfig(vault_path=tmp_path / "vault")
+    """Organiza interesses e noticias relevantes no banco Obsidian."""
+    config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
 
     interesses = servico.adicionar_interesses("ia, economia; IA")
@@ -225,21 +225,21 @@ def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
 
     assert interesses == ["ia", "economia"]
     assert caminho_noticia.startswith("40_noticias/")
-    assert (tmp_path / "vault" / "10_memoria" / "interesses-de-pesquisa.md").exists()
-    assert list((tmp_path / "vault" / "40_noticias").glob("*.md"))
+    assert servico.memoria.ler_documento_fixo("10_memoria", "interesses-de-pesquisa.md")
+    assert servico.memoria.buscar("IA chega ao mercado")
 
 
 def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     """Constroi a arvore principal da GUI para capturar erros imediatos de import/layout."""
-    config = AppConfig(vault_path=tmp_path / "vault")
-    MemoriaObsidian(config.vault_path).salvar_nota("Teste", "Conteudo")
+    config = AppConfig(db_path=tmp_path / "banco")
+    Memoria(config.db_path).salvar_nota("Teste", "Conteudo")
 
     construir_dashboard(DashboardService(config))
 
 
 def test_criar_evento_google_na_gui_usa_servico_sem_api_real(monkeypatch, tmp_path: Path) -> None:
     """Valida o fluxo do botao de agenda sem criar evento real."""
-    config = AppConfig(vault_path=tmp_path / "vault")
+    config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
     atualizacoes = []
 
@@ -282,7 +282,7 @@ def test_criar_evento_google_na_gui_usa_servico_sem_api_real(monkeypatch, tmp_pa
 
 def test_criar_evento_google_na_gui_valida_data_hora(tmp_path: Path) -> None:
     """Impede chamada ao Google quando a data ou hora esta em formato invalido."""
-    config = AppConfig(vault_path=tmp_path / "vault")
+    config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
     status = LabelFake()
 

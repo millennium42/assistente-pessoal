@@ -2,7 +2,7 @@
 
 Este guia foi reescrito para duas coisas que ficaram muito importantes nesta versao:
 
-1. abrir o vault certo no Obsidian
+1. saber onde o banco de dados esta sendo armazenado
 2. começar a usar o dashboard sem depender de integrações externas
 
 ## 1. Instale e ative o ambiente
@@ -29,20 +29,17 @@ uv pip install -e ".[dev]"
 Isso cria:
 
 - `config.toml`
-- um vault inicial em `vault/AssistentePessoal`
-- as pastas padrao do assistente
+- um banco de dados em `banco/AssistentePessoal/memoria.sqlite`
 
-## 3. Descubra o vault efetivo
+## 3. Descubra o banco de dados efetivo
 
-Este passo e o mais importante para o Obsidian:
+Este passo e importante para saber onde seus dados estao sendo salvos:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria info
 ```
 
-Abra no Obsidian exatamente a pasta mostrada em `Vault efetivo`.
-
-Se voce abrir outro vault, as notas vao existir no disco, mas nao vao aparecer onde voce esta olhando.
+Verifique o caminho absoluto do banco de dados na resposta do comando.
 
 ## 4. Teste a memoria
 
@@ -50,8 +47,6 @@ Se voce abrir outro vault, as notas vao existir no disco, mas nao vao aparecer o
 .\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar estatistica na terca."
 .\.venv\Scripts\assistente-pessoal.exe memoria buscar estatistica
 ```
-
-Depois confirme no Obsidian se o arquivo apareceu em `10_memoria`.
 
 ## 5. Teste o clima
 
@@ -93,8 +88,7 @@ Abra a URL informada no terminal. O painel tem:
 
 Quando voce salvar:
 
-- o plano vai para `60_planejamento/plano-estudos.md`
-- a agenda vai para `61_agenda_local/agenda-local.md`
+- o plano de estudos e a agenda local sao atualizados de forma isolada no banco de dados
 
 ## 8. Configurar LLM opcional
 
@@ -141,13 +135,12 @@ rode `agenda google-auth` novamente.
 
 ## 10. Problemas comuns
 
-### As notas nao aparecem no Obsidian
+### A memoria nao aparece ou nao e encontrada
 
 Quase sempre e um destes casos:
 
-1. o vault aberto no Obsidian nao e o `Vault efetivo`
+1. o banco de dados que voce esta acessando nao e o mesmo que o assistente esta modificando (veja `memoria info`)
 2. o `config.toml` usado no terminal nao e o mesmo que voce acha que esta usando
-3. voce salvou no ambiente certo, mas esta olhando a pasta errada dentro do vault
 
 ### O dashboard abre, mas sem noticias
 

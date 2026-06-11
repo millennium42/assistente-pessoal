@@ -14,5 +14,9 @@ google-oauth-client*.json
 google-calendar-token*.json
 googleAgenda*.json
 vault/
+banco/
+*.db
+*.sqlite
 *.sqlite3
+*.db-journal
 *.wav

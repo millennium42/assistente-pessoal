@@ -1,12 +1,13 @@
-"""Memoria persistente em Markdown, compativel com Obsidian.
+"""Memoria persistente baseada em banco de dados relacional (SQLite).
 
-Este modulo gerencia as anotacoes da aplicacao criando notas Markdown
-estruturadas com front matter YAML. Tambem mantem um indice de busca
+Este modulo gerencia as anotacoes da aplicacao criando registros
+em um banco de dados relacional. Mantem um indice de busca
 de texto completo (FTS5) usando SQLite para recuperar rapidamente as notas.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -14,9 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from assistente_pessoal.config import criar_pastas_vault
 from assistente_pessoal.core_datas import normalizar_texto_ascii
-from assistente_pessoal.core_paths import caminho_exibicao
 
 
 @dataclass(frozen=True)
@@ -25,10 +24,9 @@ class ResultadoMemoria:
 
     Attributes:
         titulo: O titulo do documento encontrado.
-        caminho: O caminho completo do arquivo no vault.
+        caminho: O caminho (ID) do arquivo no banco.
         trecho: Um fragmento de texto (snippet) contendo os termos de busca.
     """
-
     titulo: str
     caminho: Path
     trecho: str
@@ -36,37 +34,52 @@ class ResultadoMemoria:
 
 @dataclass(frozen=True)
 class EstatisticasMemoria:
-    """Resumo rapido do estado atual do vault e do indice.
+    """Resumo rapido do estado atual da memoria.
 
     Attributes:
-        vault_path: O caminho raiz do vault de memoria.
-        quantidade_notas: O numero total de notas indexadas.
-        indice_path: O caminho do arquivo do banco SQLite.
+        db_path: O caminho do banco de dados SQLite.
+        quantidade_notas: O numero total de notas.
     """
-
-    vault_path: Path
+    db_path: Path
     quantidade_notas: int
-    indice_path: Path
 
 
-class MemoriaObsidian:
-    """Gerencia notas Markdown e indice SQLite FTS5 dentro de um vault."""
+class Memoria:
+    """Gerencia notas em banco de dados SQLite."""
 
-    def __init__(self, vault_path: Path, timezone: str = "America/Sao_Paulo") -> None:
-        """Inicializa a memoria apontando para um vault dedicado.
+    def __init__(self, db_path: Path, timezone: str = "America/Sao_Paulo") -> None:
+        """Inicializa a memoria apontando para o banco de dados.
 
         Args:
-            vault_path: O diretorio base do vault Obsidian.
+            db_path: O caminho para o banco de dados SQLite.
             timezone: O fuso horario para as datas de criacao das notas.
         """
-        self.vault_path = vault_path
+        self.db_path = db_path
         self.timezone = timezone
-        self.indice_path = vault_path / ".assistente" / "index.sqlite3"
 
     def preparar(self) -> None:
-        """Cria as pastas padroes e o banco de indice caso ainda nao existam."""
-        criar_pastas_vault(self.vault_path)
-        self._criar_schema()
+        """Cria as tabelas e o banco caso ainda nao existam."""
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute(
+                """
+                CREATE TABLE IF NOT EXISTS documentos (
+                    caminho TEXT PRIMARY KEY,
+                    titulo TEXT,
+                    conteudo TEXT,
+                    pasta TEXT,
+                    tags TEXT,
+                    criado_em TEXT,
+                    atualizado_em TEXT
+                )
+                """
+            )
+            conexao.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS documentos_fts
+                USING fts5(titulo, caminho UNINDEXED, conteudo, tokenize='unicode61')
+                """
+            )
 
     def salvar_nota(
         self,
@@ -75,27 +88,41 @@ class MemoriaObsidian:
         pasta: str = "10_memoria",
         tags: list[str] | None = None,
     ) -> Path:
-        """Salva uma nota Markdown com front matter simples e reindexa a nota.
+        """Salva uma nota e indexa.
 
         Args:
-            titulo: Titulo da nota (sera usado tambem no nome do arquivo).
-            conteudo: O conteudo textual da nota em Markdown.
-            pasta: A subpasta dentro do vault onde a nota sera salva.
-            tags: Lista opcional de tags para categorizar a nota.
+            titulo: Titulo da nota.
+            conteudo: O conteudo textual da nota.
+            pasta: A pasta (categoria) virtual.
+            tags: Lista opcional de tags.
 
         Returns:
-            O caminho absoluto do arquivo recem-criado.
+            O caminho virtual (ID) da nota recem-criada.
         """
         self.preparar()
         tags_reais = tags or []
-        pasta_destino = self.vault_path / pasta
-        pasta_destino.mkdir(parents=True, exist_ok=True)
-        caminho = pasta_destino / f"{_timestamp_slug(self.timezone)}-{slugificar(titulo)}.md"
-        texto = renderizar_markdown(
-            titulo=titulo, conteudo=conteudo, tags=tags_reais, timezone=self.timezone
-        )
-        caminho.write_text(texto, encoding="utf-8")
-        self.indexar_nota(caminho)
+        slug = f"{_timestamp_slug(self.timezone)}-{slugificar(titulo)}.md"
+        caminho_str = f"{pasta}/{slug}"
+        caminho = Path(caminho_str)
+        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        tags_json = json.dumps(tags_reais)
+
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute(
+                """
+                INSERT OR REPLACE INTO documentos (caminho, titulo, conteudo, pasta, tags, criado_em, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (caminho_str, titulo, conteudo, pasta, tags_json, agora, agora),
+            )
+            conexao.execute("DELETE FROM documentos_fts WHERE caminho = ?", (caminho_str,))
+            conexao.execute(
+                """
+                INSERT INTO documentos_fts(titulo, caminho, conteudo)
+                VALUES (?, ?, ?)
+                """,
+                (titulo, caminho_str, conteudo),
+            )
         return caminho
 
     def salvar_documento_fixo(
@@ -106,53 +133,68 @@ class MemoriaObsidian:
         titulo: str,
         tags: list[str] | None = None,
     ) -> Path:
-        """Mantem um documento canonico do vault para GUI, agenda e planejamento.
-
-        Sobrescreve o arquivo existente no caminho especificado e atualiza o indice.
+        """Mantem um documento canonico.
 
         Args:
-            nome_arquivo: Nome literal do arquivo (ex: 'agenda.md').
+            nome_arquivo: Nome literal do arquivo virtual.
             conteudo: Conteudo atualizado do documento.
-            pasta: O diretorio de destino relativo ao vault.
+            pasta: O diretorio de destino virtual.
             titulo: Titulo humano para exibicao e busca.
             tags: Lista opcional de tags.
 
         Returns:
-            O caminho absoluto do arquivo atualizado.
+            O caminho virtual absoluto atualizado.
         """
         self.preparar()
-        caminho = self.vault_path / pasta / nome_arquivo
-        caminho.parent.mkdir(parents=True, exist_ok=True)
-        texto = renderizar_markdown(
-            titulo=titulo,
-            conteudo=conteudo,
-            tags=tags or [],
-            timezone=self.timezone,
-        )
-        caminho.write_text(texto, encoding="utf-8")
-        self.indexar_nota(caminho)
+        caminho_str = f"{pasta}/{nome_arquivo}"
+        caminho = Path(caminho_str)
+        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        tags_json = json.dumps(tags or [])
+
+        with sqlite3.connect(self.db_path) as conexao:
+            # Verifica se existe para nao alterar data de criacao se nao precisar, ou apenas atualiza
+            existente = conexao.execute("SELECT criado_em FROM documentos WHERE caminho = ?", (caminho_str,)).fetchone()
+            criado_em = existente[0] if existente else agora
+
+            conexao.execute(
+                """
+                INSERT OR REPLACE INTO documentos (caminho, titulo, conteudo, pasta, tags, criado_em, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (caminho_str, titulo, conteudo, pasta, tags_json, criado_em, agora),
+            )
+            conexao.execute("DELETE FROM documentos_fts WHERE caminho = ?", (caminho_str,))
+            conexao.execute(
+                """
+                INSERT INTO documentos_fts(titulo, caminho, conteudo)
+                VALUES (?, ?, ?)
+                """,
+                (titulo, caminho_str, conteudo),
+            )
         return caminho
 
     def ler_documento_fixo(self, pasta: str, nome_arquivo: str) -> str:
-        """Le o corpo Markdown de um documento fixo quando ele existir.
-
-        Remove o front matter antes de retornar para facilitar o processamento.
+        """Le o corpo de um documento fixo quando ele existir no banco.
 
         Args:
-            pasta: Diretorio relativo do arquivo.
+            pasta: Diretorio virtual do arquivo.
             nome_arquivo: O nome do arquivo a ser lido.
 
         Returns:
             O texto principal do documento, ou string vazia se nao existir.
         """
-        caminho = self.vault_path / pasta / nome_arquivo
-        if not caminho.exists():
+        caminho_str = f"{pasta}/{nome_arquivo}"
+        try:
+            with sqlite3.connect(self.db_path) as conexao:
+                linha = conexao.execute(
+                    "SELECT conteudo FROM documentos WHERE caminho = ?", (caminho_str,)
+                ).fetchone()
+                return linha[0] if linha else ""
+        except sqlite3.OperationalError:
             return ""
-        texto = caminho.read_text(encoding="utf-8")
-        return remover_front_matter(texto)
 
     def buscar(self, consulta: str, limite: int = 5) -> list[ResultadoMemoria]:
-        """Busca notas pelo indice FTS5, com fallback tolerante para consultas simples.
+        """Busca notas pelo indice FTS5.
 
         Args:
             consulta: Termo ou frase a ser pesquisada.
@@ -165,13 +207,13 @@ class MemoriaObsidian:
         termo = consulta.strip()
         if not termo:
             return []
-        with sqlite3.connect(self.indice_path) as conexao:
+        with sqlite3.connect(self.db_path) as conexao:
             try:
                 linhas = conexao.execute(
                     """
-                    SELECT titulo, caminho, snippet(notas, 2, '[', ']', '...', 12)
-                    FROM notas
-                    WHERE notas MATCH ?
+                    SELECT titulo, caminho, snippet(documentos_fts, 2, '[', ']', '...', 12)
+                    FROM documentos_fts
+                    WHERE documentos_fts MATCH ?
                     ORDER BY rank
                     LIMIT ?
                     """,
@@ -181,7 +223,7 @@ class MemoriaObsidian:
                 linhas = conexao.execute(
                     """
                     SELECT titulo, caminho, substr(conteudo, 1, 240)
-                    FROM notas
+                    FROM documentos
                     WHERE conteudo LIKE ? OR titulo LIKE ?
                     LIMIT ?
                     """,
@@ -193,177 +235,75 @@ class MemoriaObsidian:
         ]
 
     def reindexar(self) -> int:
-        """Reconstrui o indice a partir de todos os Markdown existentes no vault.
+        """Reconstrui o indice.
 
         Returns:
-            O numero de notas que foram processadas e indexadas.
+            O numero de notas que foram processadas.
         """
         self.preparar()
-        arquivos = [
-            caminho
-            for caminho in self.vault_path.rglob("*.md")
-            if ".assistente" not in caminho.parts
-        ]
-        with sqlite3.connect(self.indice_path) as conexao:
-            conexao.execute("DELETE FROM notas")
-            for caminho in arquivos:
-                titulo, conteudo = extrair_titulo_e_conteudo(caminho)
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute("DELETE FROM documentos_fts")
+            linhas = conexao.execute("SELECT titulo, caminho, conteudo FROM documentos").fetchall()
+            for titulo, caminho, conteudo in linhas:
                 conexao.execute(
                     """
-                    INSERT INTO notas(titulo, caminho, conteudo)
+                    INSERT INTO documentos_fts(titulo, caminho, conteudo)
                     VALUES (?, ?, ?)
                     """,
-                    (titulo, str(caminho), conteudo),
+                    (titulo, caminho, conteudo),
                 )
-        return len(arquivos)
+        return len(linhas)
 
     def listar_recentes(self, limite: int = 5) -> list[Path]:
-        """Lista as notas mais recentes pelo nome de arquivo cronologico.
+        """Lista as notas mais recentes.
 
         Args:
             limite: Quantidade de caminhos a retornar.
 
         Returns:
-            Uma lista com os caminhos mais recentes.
+            Uma lista com os caminhos virtuais mais recentes.
         """
         self.preparar()
-        arquivos = (
-            caminho
-            for caminho in self.vault_path.rglob("*.md")
-            if ".assistente" not in caminho.parts
-        )
-        return sorted(arquivos, reverse=True)[:limite]
-
-    def indexar_nota(self, caminho: Path) -> None:
-        """Insere ou atualiza uma unica nota no indice SQLite FTS5.
-
-        Args:
-            caminho: Caminho absoluto para a nota a ser indexada.
-        """
-        titulo, conteudo = extrair_titulo_e_conteudo(caminho)
-        with sqlite3.connect(self.indice_path) as conexao:
-            conexao.execute("DELETE FROM notas WHERE caminho = ?", (str(caminho),))
-            conexao.execute(
-                """
-                INSERT INTO notas(titulo, caminho, conteudo)
-                VALUES (?, ?, ?)
-                """,
-                (titulo, str(caminho), conteudo),
-            )
+        with sqlite3.connect(self.db_path) as conexao:
+            linhas = conexao.execute(
+                "SELECT caminho FROM documentos ORDER BY criado_em DESC LIMIT ?", (limite,)
+            ).fetchall()
+        return [Path(linha[0]) for linha in linhas]
 
     def estatisticas(self) -> EstatisticasMemoria:
-        """Calcula um pequeno resumo util para diagnostico e GUI.
+        """Calcula um pequeno resumo.
 
         Returns:
-            As estatisticas de contagem de notas e caminhos vitais.
+            As estatisticas de contagem de notas.
         """
         self.preparar()
-        quantidade = sum(
-            1 for caminho in self.vault_path.rglob("*.md")
-            if ".assistente" not in caminho.parts
-        )
+        with sqlite3.connect(self.db_path) as conexao:
+            quantidade = conexao.execute("SELECT count(*) FROM documentos").fetchone()[0]
         return EstatisticasMemoria(
-            vault_path=self.vault_path,
+            db_path=self.db_path,
             quantidade_notas=quantidade,
-            indice_path=self.indice_path,
         )
 
     def caminho_relativo(self, caminho: Path) -> str:
-        """Exibe um caminho relativo ao vault para facilitar a abertura no Obsidian.
+        """Retorna o proprio caminho ja que internamente usamos formato relativo.
 
         Args:
-            caminho: O caminho absoluto do arquivo ou diretorio.
+            caminho: O caminho virtual.
 
         Returns:
             O caminho relativo formatado em posix.
         """
-        return caminho_exibicao(caminho, self.vault_path)
-
-    def _criar_schema(self) -> None:
-        """Cria a tabela FTS5 usada como indice de busca local."""
-        self.indice_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.indice_path) as conexao:
-            conexao.execute(
-                """
-                CREATE VIRTUAL TABLE IF NOT EXISTS notas
-                USING fts5(titulo, caminho UNINDEXED, conteudo, tokenize='unicode61')
-                """
-            )
-
-
-def renderizar_markdown(
-    titulo: str,
-    conteudo: str,
-    tags: list[str],
-    timezone: str = "America/Sao_Paulo",
-) -> str:
-    """Monta uma nota Markdown padronizada para o vault do assistente.
-
-    Args:
-        titulo: Titulo do documento.
-        conteudo: O conteudo pre-formatado.
-        tags: Lista de metadados de tags.
-        timezone: O fuso horario para o timestamp de criacao.
-
-    Returns:
-        O texto completo do arquivo Markdown com front matter YAML.
-    """
-    agora = datetime.now(ZoneInfo(timezone)).isoformat(timespec="seconds")
-    tags_yaml = "\n".join(f"  - {tag}" for tag in tags)
-    return f"""---
-titulo: "{_escapar_yaml(titulo)}"
-criado_em: "{agora}"
-tags:
-{tags_yaml if tags_yaml else "  - assistente"}
----
-
-# {titulo}
-
-{conteudo.strip()}
-"""
-
-
-def remover_front_matter(texto: str) -> str:
-    """Remove o front matter YAML mantendo apenas o corpo util do documento.
-
-    Args:
-        texto: Conteudo original com possivel bloco de metadados na primeira linha.
-
-    Returns:
-        O texto sem o bloco YAML inicial.
-    """
-    if not texto.startswith("---\n"):
-        return texto
-    partes = texto.split("---\n", maxsplit=2)
-    if len(partes) < 3:
-        return texto
-    return partes[2].lstrip()
-
-
-def extrair_titulo_e_conteudo(caminho: Path) -> tuple[str, str]:
-    """Extrai titulo e conteudo textual de uma nota Markdown.
-
-    Args:
-        caminho: O caminho para o arquivo.
-
-    Returns:
-        Uma tupla contendo o titulo derivado (da tag H1 ou nome do arquivo) e o conteudo total.
-    """
-    texto = caminho.read_text(encoding="utf-8")
-    for linha in texto.splitlines():
-        if linha.startswith("# "):
-            return linha[2:].strip(), texto
-    return caminho.stem, texto
+        return caminho.as_posix()
 
 
 def slugificar(texto: str) -> str:
-    """Transforma texto livre em um nome de arquivo estavel e legivel.
+    """Transforma texto livre em um nome de arquivo estavel.
 
     Args:
         texto: O texto original (geralmente um titulo).
 
     Returns:
-        Um texto hifenizado compativel com sistema de arquivos.
+        Um texto hifenizado.
     """
     texto_minusculo = normalizar_texto_ascii(texto).lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", texto_minusculo).strip("-")
@@ -371,7 +311,7 @@ def slugificar(texto: str) -> str:
 
 
 def normalizar_consulta_fts(consulta: str) -> str:
-    """Remove caracteres que quebram a sintaxe FTS5 e preserva termos uteis.
+    """Remove caracteres que quebram a sintaxe FTS5.
 
     Args:
         consulta: A query do usuario.
@@ -385,7 +325,7 @@ def normalizar_consulta_fts(consulta: str) -> str:
 
 
 def _timestamp_slug(timezone: str) -> str:
-    """Gera um prefixo cronologico para ordenar notas por criacao.
+    """Gera um prefixo cronologico para notas.
 
     Args:
         timezone: O fuso horario a ser utilizado.
@@ -394,15 +334,3 @@ def _timestamp_slug(timezone: str) -> str:
         String no formato YYYYMMDD-HHMMSS.
     """
     return datetime.now(ZoneInfo(timezone)).strftime("%Y%m%d-%H%M%S")
-
-
-def _escapar_yaml(valor: str) -> str:
-    """Escapa aspas para manter o front matter valido.
-
-    Args:
-        valor: String que sera interpolada dentro de aspas num YAML.
-
-    Returns:
-        String com aspas duplas escapadas.
-    """
-    return valor.replace('"', '\\"')

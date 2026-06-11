@@ -2053,7 +2053,7 @@ def _popular_santa_maria_em_foco(
 
 
 def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:
-    """Atualiza a lista curta de artefatos recentes do vault."""
+    """Atualiza a lista curta de artefatos recentes do banco."""
     container.clear()
     if not notas:
         with container:
@@ -2062,7 +2062,7 @@ def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:
     with container:
         for nota in notas[:6]:
             with ui.element("div").classes("stat-box"):
-                ui.label("Vault").classes("text-[11px] uppercase text-slate-400")
+                ui.label("Banco").classes("text-[11px] uppercase text-slate-400")
                 ui.label(nota).classes("text-sm font-medium text-slate-700")
 
 
@@ -2117,8 +2117,8 @@ def _salvar_noticia_observada(
     except Exception as exc:  # pragma: no cover
         status_label.text = f"Falha ao salvar noticia: {exc}"
         return
-    status_label.text = f"Noticia salva no Obsidian em {caminho}."
-    ui.notify("Noticia salva no Obsidian.", type="positive")
+    status_label.text = f"Noticia salva no banco em {caminho}."
+    ui.notify("Noticia salva no banco.", type="positive")
 
 
 def _normalizar_evento_noticia(dados_noticia):
@@ -2296,11 +2296,11 @@ def _salvar_nota(
         for caminho_item in servico.memoria.listar_recentes()
     ]
     _popular_notas_recentes(notas_recentes, notas)
-    status_label.text = "Nota criada no vault."
+    status_label.text = "Nota criada no banco."
 
 
 def _salvar_documento(funcao_salvar, conteudo: str, caminho_label, status_label) -> None:
     """Persiste um documento fixo da GUI e atualiza os avisos ao usuario."""
     caminho = funcao_salvar(conteudo.strip())
     caminho_label.text = f"Arquivo salvo em {caminho}"
-    status_label.text = "Documento salvo no vault."
+    status_label.text = "Documento salvo no banco."

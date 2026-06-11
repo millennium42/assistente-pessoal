@@ -11,7 +11,7 @@ assistente-pessoal init
 assistente-pessoal memoria info
 ```
 
-O segundo comando confirma o vault efetivo, o que ajuda quando as notas nao aparecem no Obsidian.
+O segundo comando informa onde o banco de dados esta armazenado, ajudando a entender onde as informacoes da sua memoria serao salvas.
 
 ## Memoria
 
@@ -91,10 +91,7 @@ O dashboard abre localmente no navegador e mostra:
 - agenda local
 - Google Agenda
 
-Os blocos de planejamento escrevem em:
-
-- `60_planejamento/plano-estudos.md`
-- `61_agenda_local/agenda-local.md`
+Os blocos de planejamento e agenda local sao gravados no banco de dados.
 
 ## Google Agenda
 

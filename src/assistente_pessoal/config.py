@@ -12,16 +12,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from assistente_pessoal.core_paths import resolver_relativo_ao_arquivo
 
-PASTAS_VAULT = (
-    "00_inbox",
-    "10_memoria",
-    "30_resumos",
-    "40_noticias",
-    "60_planejamento",
-    "61_agenda_local",
-    "90_logs",
-)
-
 
 class LocalizacaoConfig(BaseModel):
     """Dados de localizacao usados pelo modulo de clima."""
@@ -184,7 +174,7 @@ class FontesConfig(BaseModel):
 class AppConfig(BaseModel):
     """Objeto central de configuracao da aplicacao."""
 
-    vault_path: Path = Path("vault/AssistentePessoal")
+    db_path: Path = Path("banco/AssistentePessoal")
     localizacao: LocalizacaoConfig = Field(default_factory=LocalizacaoConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     google_agenda: GoogleAgendaConfig = Field(default_factory=GoogleAgendaConfig)
@@ -196,7 +186,7 @@ class AppConfig(BaseModel):
         """Guarda o caminho real do config para resolver paths relativos com estabilidade."""
         self._config_path = caminho.resolve() if caminho else None
         if self._config_path:
-            self.vault_path = resolver_relativo_ao_arquivo(self.vault_path, self._config_path)
+            self.db_path = resolver_relativo_ao_arquivo(self.db_path, self._config_path)
             self.google_agenda.credentials_path = resolver_relativo_ao_arquivo(
                 self.google_agenda.credentials_path,
                 self._config_path,
@@ -253,7 +243,7 @@ def carregar_config(caminho: Path | None = None) -> AppConfig:
 
 def criar_config_inicial(
     caminho: Path,
-    vault_path: Path,
+    db_path: Path,
     cidade: str,
     latitude: float,
     longitude: float,
@@ -263,7 +253,7 @@ def criar_config_inicial(
 
     Args:
         caminho: Onde o arquivo sera salvo.
-        vault_path: Caminho raiz para o vault de memoria.
+        db_path: Caminho para o banco de dados.
         cidade: Nome da cidade padrao.
         latitude: Latitude padrao para clima e agenda.
         longitude: Longitude padrao para clima e agenda.
@@ -274,7 +264,7 @@ def criar_config_inicial(
     """
     caminho_real = caminho.resolve()
     config = AppConfig(
-        vault_path=vault_path,
+        db_path=db_path,
         localizacao=LocalizacaoConfig(
             cidade=cidade,
             latitude=latitude,
@@ -310,7 +300,7 @@ def renderizar_toml(config: AppConfig) -> str:
     prioridades = "\n".join(
         f'  "{prioridade}",' for prioridade in config.fontes.noticias.prioridades
     )
-    return f"""vault_path = "{_normalizar_path(config.vault_path)}"
+    return f"""db_path = "{_normalizar_path(config.db_path)}"
 
 [localizacao]
 cidade = "{_escapar(config.localizacao.cidade)}"
@@ -395,16 +385,16 @@ def ler_api_key(nome_variavel: str) -> str:
     return os.getenv(nome_variavel, "")
 
 
-def criar_pastas_vault(vault_path: Path) -> None:
-    """Cria as pastas padrao do vault dedicado do Obsidian.
+def criar_pastas_banco(db_path: Path) -> None:
+    """Cria a pasta principal onde o banco de dados e arquivos locais ficarao armazenados.
 
     Args:
-        vault_path: O caminho raiz do vault.
+        db_path: O caminho raiz do banco de dados.
     """
     for pasta in PASTAS_VAULT:
-        (vault_path / pasta).mkdir(parents=True, exist_ok=True)
-    # A pasta oculta guarda indices tecnicos para nao poluir a navegacao do Obsidian.
-    (vault_path / ".assistente").mkdir(parents=True, exist_ok=True)
+        (db_path / pasta).mkdir(parents=True, exist_ok=True)
+    # A pasta oculta guarda indices tecnicos.
+    (db_path / ".assistente").mkdir(parents=True, exist_ok=True)
 
 
 def _normalizar_path(caminho: Path) -> str:

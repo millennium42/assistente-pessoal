@@ -16,15 +16,16 @@ Critica: `PySide6` daria mais controle visual, mas colocaria layout, empacotamen
 
 ## Memoria
 
-Escolha: Obsidian + Markdown + SQLite FTS5
+Escolha: Banco de dados relacional (SQLite)
 
 Motivo:
 
-- o usuario continua dono dos arquivos
-- busca local continua simples e rebuildavel
-- GUI e CLI compartilham o mesmo vault
+- garante integridade estrutural das memorias e relacionamentos
+- centraliza as informacoes em um unico arquivo
+- suporta operacoes de busca (FTS5) nativamente
+- GUI e CLI compartilham a mesma conexao com o banco
 
-Critica: ainda nao ha busca semantica real. Isso e aceitavel porque a prioridade agora e confiabilidade, nao sofisticao de RAG.
+Critica: o usuario perde a visao imediata via pastas do sistema operacional (como havia com arquivos soltos), mas o banco ainda e um arquivo unico e local (SQLite), que pode ser lido com ferramentas simples. A prioridade atual e desempenho, estruturacao e confiabilidade.
 
 ## Noticias
 
@@ -60,12 +61,12 @@ Critica: nao tentamos transformar clima em motor de linguagem natural. O foco e 
 
 ## Agenda
 
-Escolha: agenda local no vault + Google Agenda para leitura e criacao de eventos
+Escolha: agenda local no banco + Google Agenda para leitura e criacao de eventos
 
 Motivo:
 
 - reduz risco de privacidade
-- mantem o planejamento local no vault
+- mantem o planejamento local salvo de forma rapida no banco
 - adiciona visibilidade dos proximos eventos reais da conta Google
 - usa escopo restrito a eventos, necessario para criar compromissos
 
@@ -79,6 +80,6 @@ Escolhas:
 - nenhuma chave em `config.toml`
 - documentacao explicita do que sai da maquina
 - evitar logs com conteudo pessoal
-- manter o vault legivel, local e apagavel
+- manter o banco de dados legivel, local e apagavel
 
 Critica: LGPD nao se resolve com uma pagina de politica. A parte util aqui foi reduzir coleta, reduzir persistencia opaca e deixar integracoes externas opt-in.

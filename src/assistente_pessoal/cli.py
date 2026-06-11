@@ -20,11 +20,11 @@ from assistente_pessoal.config import (
     caminho_config_padrao,
     carregar_config,
     criar_config_inicial,
-    criar_pastas_vault,
+    criar_pastas_banco,
 )
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import avisar, console, erro, sucesso
-from assistente_pessoal.memoria import MemoriaObsidian
+from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
     ClienteNoticias,
@@ -57,10 +57,10 @@ def configurar_contexto(
 @app.command("init")
 def inicializar(
     ctx: typer.Context,
-    vault: Annotated[
+    banco: Annotated[
         Path,
-        typer.Option("--vault", help="Pasta do vault dedicado do Obsidian."),
-    ] = Path("vault/AssistentePessoal"),
+        typer.Option("--banco", help="Pasta do banco dedicado do Obsidian."),
+    ] = Path("banco/AssistentePessoal"),
     cidade: Annotated[
         str, typer.Option("--cidade", help="Cidade usada pelo clima.")
     ] = "Santa Maria, RS",
@@ -75,22 +75,22 @@ def inicializar(
         typer.Option("--force", help="Sobrescreve config.toml se ele ja existir."),
     ] = False,
 ) -> None:
-    """Cria configuracao inicial e estrutura do vault Obsidian."""
+    """Cria configuracao inicial e estrutura do banco de dados."""
     caminho_config = _caminho_config(ctx)
     if caminho_config.exists() and not force:
         erro(f"{caminho_config.name} ja existe. Use --force para sobrescrever.")
         raise typer.Exit(1)
     config = criar_config_inicial(
         caminho=caminho_config,
-        vault_path=vault,
+        db_path=banco,
         cidade=cidade,
         latitude=latitude,
         longitude=longitude,
         timezone=timezone,
     )
-    criar_pastas_vault(config.vault_path)
+    Memoria(config.db_path, config.localizacao.timezone).preparar()
     sucesso(f"Configuracao criada em {caminho_config.name}.")
-    sucesso(f"Vault efetivo preparado em {config.vault_path.as_posix()}.")
+    sucesso(f"Banco efetivo preparado em {config.db_path.as_posix()}.")
 
 
 @app.command("chat")
@@ -100,7 +100,7 @@ def conversar(
 ) -> None:
     """Conversa com o LLM configurado ou mostra o fallback local."""
     config = _carregar(ctx)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+    memoria = Memoria(config.db_path, config.localizacao.timezone)
     llm = ClienteLLM(config.llm)
     contexto = "\n".join(
         f"{item.titulo}: {item.trecho}" for item in memoria.buscar(mensagem, limite=3)
@@ -143,7 +143,7 @@ def gui(
     host: Annotated[str, typer.Option("--host", help="Host local do dashboard.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Porta local do dashboard.")] = 8765,
 ) -> None:
-    """Inicia um dashboard local com clima, noticias e notas do vault."""
+    """Inicia um dashboard local com clima, noticias e notas do banco."""
     config = _carregar(ctx)
     from assistente_pessoal.gui import iniciar_dashboard, resolver_porta_dashboard
 
@@ -209,9 +209,9 @@ def memoria_salvar(
     titulo: Annotated[str, typer.Argument(help="Titulo da memoria.")],
     conteudo: Annotated[str, typer.Argument(help="Conteudo a salvar.")],
 ) -> None:
-    """Salva uma memoria em Markdown dentro do vault."""
+    """Salva uma memoria em Markdown dentro do banco."""
     config = _carregar(ctx)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+    memoria = Memoria(config.db_path, config.localizacao.timezone)
     caminho = memoria.salvar_nota(titulo, conteudo)
     sucesso(f"Memoria salva em {memoria.caminho_relativo(caminho)}.")
 
@@ -224,7 +224,7 @@ def memoria_buscar(
 ) -> None:
     """Busca memorias no indice SQLite FTS5."""
     config = _carregar(ctx)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+    memoria = Memoria(config.db_path, config.localizacao.timezone)
     resultados = memoria.buscar(consulta, limite=limite)
     if not resultados:
         console.print("Nenhuma memoria encontrada.")
@@ -232,7 +232,7 @@ def memoria_buscar(
     tabela = Table(title="Resultados da memoria")
     tabela.add_column("Titulo")
     tabela.add_column("Trecho")
-    tabela.add_column("Caminho no vault")
+    tabela.add_column("Caminho no banco")
     for item in resultados:
         tabela.add_row(item.titulo, item.trecho, memoria.caminho_relativo(item.caminho))
     console.print(tabela)
@@ -242,29 +242,29 @@ def memoria_buscar(
 def memoria_reindexar(ctx: typer.Context) -> None:
     """Reconstrui o indice de busca a partir das notas Markdown."""
     config = _carregar(ctx)
-    quantidade = MemoriaObsidian(config.vault_path, config.localizacao.timezone).reindexar()
+    quantidade = Memoria(config.db_path, config.localizacao.timezone).reindexar()
     sucesso(f"{quantidade} notas reindexadas.")
 
 
 @memoria_app.command("info")
 def memoria_info(ctx: typer.Context) -> None:
-    """Mostra qual vault esta em uso e quantas notas ele contem."""
+    """Mostra qual banco esta em uso e quantas notas ele contem."""
     config = _carregar(ctx)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+    memoria = Memoria(config.db_path, config.localizacao.timezone)
     estatisticas = memoria.estatisticas()
-    tabela = Table(title="Diagnostico do vault")
+    tabela = Table(title="Diagnostico do banco")
     tabela.add_column("Campo")
     tabela.add_column("Valor")
-    tabela.add_row("Vault efetivo", estatisticas.vault_path.as_posix())
+    tabela.add_row("Banco efetivo", estatisticas.db_path.as_posix())
     tabela.add_row("Indice", estatisticas.indice_path.as_posix())
     tabela.add_row("Notas Markdown", str(estatisticas.quantidade_notas))
     console.print(tabela)
 
 
 def _carregar(ctx: typer.Context):
-    """Carrega configuracao para comandos e prepara o vault quando necessario."""
+    """Carrega configuracao para comandos e prepara o banco quando necessario."""
     config = carregar_config(_caminho_config(ctx))
-    criar_pastas_vault(config.vault_path)
+    Memoria(config.db_path, config.localizacao.timezone).preparar()
     return config
 
 
@@ -273,3 +273,4 @@ def _caminho_config(ctx: typer.Context) -> Path:
     if ctx.obj and ctx.obj.get("config_path"):
         return Path(ctx.obj["config_path"])
     return caminho_config_padrao()
+ao()

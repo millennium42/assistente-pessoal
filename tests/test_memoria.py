@@ -2,24 +2,24 @@
 
 from pathlib import Path
 
-from assistente_pessoal.memoria import MemoriaObsidian, normalizar_consulta_fts, slugificar
+from assistente_pessoal.memoria import Memoria, normalizar_consulta_fts, slugificar
 
 
 def test_salvar_e_buscar_memoria(tmp_path: Path) -> None:
     """Salva uma nota e encontra o conteudo pelo indice FTS5."""
-    memoria = MemoriaObsidian(tmp_path / "vault")
+    memoria = Memoria(tmp_path / "banco")
 
     caminho = memoria.salvar_nota("Revisao de calculo", "Integrais pedem pratica diaria.")
     resultados = memoria.buscar("integrais")
 
-    assert caminho.exists()
+    assert caminho.as_posix().startswith("10_memoria/")
     assert resultados
     assert resultados[0].titulo == "Revisao de calculo"
 
 
 def test_reindexar_memorias(tmp_path: Path) -> None:
-    """Reconstrui o indice depois de salvar notas no vault."""
-    memoria = MemoriaObsidian(tmp_path / "vault")
+    """Reconstrui o indice depois de salvar notas no banco."""
+    memoria = Memoria(tmp_path / "banco")
     memoria.salvar_nota("Fisica", "Energia mecanica e conservacao.")
 
     quantidade = memoria.reindexar()
@@ -39,8 +39,8 @@ def test_normalizar_consulta_fts() -> None:
 
 
 def test_salvar_documento_fixo(tmp_path: Path) -> None:
-    """Mantem agenda e planejamento em caminhos estaveis dentro do vault."""
-    memoria = MemoriaObsidian(tmp_path / "vault")
+    """Mantem agenda e planejamento em caminhos estaveis dentro do banco."""
+    memoria = Memoria(tmp_path / "banco")
 
     caminho = memoria.salvar_documento_fixo(
         nome_arquivo="agenda-local.md",

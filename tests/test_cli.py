@@ -12,11 +12,11 @@ def test_cli_init_e_memoria(tmp_path: Path) -> None:
     """Inicializa configuracao e salva memoria via CLI."""
     runner = CliRunner()
     config_path = tmp_path / "config" / "config.toml"
-    vault = Path("vault")
+    banco = Path("banco")
 
     init_result = runner.invoke(
         app,
-        ["--config", str(config_path), "init", "--vault", str(vault)],
+        ["--config", str(config_path), "init", "--banco", str(banco)],
     )
     salvar_result = runner.invoke(
         app,
@@ -32,15 +32,15 @@ def test_cli_init_e_memoria(tmp_path: Path) -> None:
 
     assert init_result.exit_code == 0
     assert salvar_result.exit_code == 0
-    assert list((config_path.parent / "vault").rglob("*.md"))
+    assert (config_path.parent / banco).exists()
 
 
 def test_cli_chat_sem_llm(tmp_path: Path) -> None:
     """Chat sem LLM configurado mostra fallback local."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
-    vault = tmp_path / "vault"
-    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+    banco = tmp_path / "banco"
+    runner.invoke(app, ["--config", str(config_path), "init", "--banco", str(banco)])
 
     result = runner.invoke(app, ["--config", str(config_path), "chat", "oi"])
 
@@ -52,8 +52,8 @@ def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
     """Propaga o argumento de dia para o cliente de clima."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
-    vault = tmp_path / "vault"
-    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+    banco = tmp_path / "banco"
+    runner.invoke(app, ["--config", str(config_path), "init", "--banco", str(banco)])
 
     class ClienteClimaFake:
         """Cliente fake para inspecionar o argumento do comando."""
@@ -88,8 +88,8 @@ def test_cli_noticias_usa_limite_padrao_100(monkeypatch, tmp_path: Path) -> None
     """Comando de noticias usa 100 itens quando --limite nao e informado."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
-    vault = tmp_path / "vault"
-    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+    banco = tmp_path / "banco"
+    runner.invoke(app, ["--config", str(config_path), "init", "--banco", str(banco)])
     chamadas: dict[str, int] = {}
 
     class ClienteNoticiasFake:
@@ -112,8 +112,8 @@ def test_cli_gui_troca_porta_ocupada(monkeypatch, tmp_path: Path) -> None:
     """Quando a porta padrao estiver ocupada, a CLI escolhe outra e avisa."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
-    vault = tmp_path / "vault"
-    runner.invoke(app, ["--config", str(config_path), "init", "--vault", str(vault)])
+    banco = tmp_path / "banco"
+    runner.invoke(app, ["--config", str(config_path), "init", "--banco", str(banco)])
 
     chamadas: dict[str, object] = {}
 

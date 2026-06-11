@@ -15,7 +15,7 @@ from assistente_pessoal.agenda_google import (
 from assistente_pessoal.cambio import ClienteCambio, CotacaoMoeda
 from assistente_pessoal.clima import ClienteClima, PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig, renderizar_toml
-from assistente_pessoal.memoria import MemoriaObsidian
+from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
     ClienteNoticias,
@@ -58,7 +58,7 @@ class DashboardService:
     def __init__(self, config: AppConfig) -> None:
         """Instancia os servicos de dominio usados pela GUI."""
         self.config = config
-        self.memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
+        self.memoria = Memoria(config.db_path, config.localizacao.timezone)
         self.noticias = ClienteNoticias()
         self.clima = ClienteClima()
         self.cambio = ClienteCambio()
@@ -189,12 +189,12 @@ class DashboardService:
         return locais_hoje[:6]
 
     def salvar_nota_rapida(self, titulo: str, conteudo: str) -> str:
-        """Cria uma nota curta no vault e devolve o caminho relativo gerado."""
+        """Cria uma nota curta no banco e devolve o caminho relativo gerado."""
         caminho = self.memoria.salvar_nota(titulo=titulo, conteudo=conteudo, pasta="10_memoria")
         return self.memoria.caminho_relativo(caminho)
 
     def adicionar_interesses(self, texto: str) -> list[str]:
-        """Adiciona termos de interesse, persiste no config e organiza no Obsidian."""
+        """Adiciona termos de interesse, persiste no config e organiza no banco de dados."""
         novos = normalizar_lista_interesses(texto)
         existentes = list(self.config.fontes.noticias.interesses_busca)
         existentes_casefold = {item.casefold() for item in existentes}
@@ -208,7 +208,7 @@ class DashboardService:
         return existentes
 
     def salvar_noticia_obsidian(self, noticia: Noticia | dict, origem: str = "clique") -> str:
-        """Guarda uma noticia relevante no Obsidian para leitura e busca futuras."""
+        """Guarda uma noticia relevante no banco de dados para leitura e busca futuras."""
         item = _normalizar_noticia_para_memoria(noticia)
         conteudo = "\n".join(
             [
@@ -223,7 +223,7 @@ class DashboardService:
                 "Adicione aqui observacoes depois da leitura.",
             ]
         )
-        tags = ["noticia", "obsidian", _slug_tag(item["grupo"])]
+        tags = ["noticia", "banco", _slug_tag(item["grupo"])]
         if origem:
             tags.append(_slug_tag(origem))
         caminho = self.memoria.salvar_nota(
@@ -235,7 +235,7 @@ class DashboardService:
         return self.memoria.caminho_relativo(caminho)
 
     def registrar_consulta_noticias(self, consulta: str, noticias: list[Noticia]) -> str:
-        """Salva no Obsidian o conjunto de noticias retornado para uma pergunta."""
+        """Salva no banco de dados o conjunto de noticias retornado para uma pergunta."""
         linhas = [f"Pergunta: {consulta}", "", "## Noticias retornadas", ""]
         for noticia in noticias:
             linhas.append(f"- [{noticia.titulo}]({noticia.link})")
@@ -245,7 +245,7 @@ class DashboardService:
             titulo="Consulta de noticias",
             conteudo="\n".join(linhas),
             pasta="40_noticias",
-            tags=["noticias", "consulta", "obsidian"],
+            tags=["noticias", "consulta", "banco"],
         )
         return self.memoria.caminho_relativo(caminho)
 

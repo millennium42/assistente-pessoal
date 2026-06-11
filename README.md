@@ -1,10 +1,10 @@
 # Assistente Pessoal
 
-Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combina CLI, dashboard local com `NiceGUI`, memoria em vault do Obsidian, noticias priorizadas, clima por dia, estudo, musica e LLM opcional.
+Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combina CLI, dashboard local com `NiceGUI`, memoria em banco de dados relacional, noticias priorizadas, clima por dia, estudo, musica e LLM opcional.
 
 ## O que mudou nesta versao
 
-- correcao da resolucao do `vault_path`, para as notas aparecerem no vault certo do Obsidian;
+- substituicao do vault do Obsidian por um banco de dados relacional SQLite;
 - dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
 - noticias priorizadas em grupos dinamicos:
   1. The News
@@ -55,15 +55,13 @@ Se preferir usar o executavel da venv sem ativacao:
 .\.venv\Scripts\assistente-pessoal.exe init
 ```
 
-2. Confira qual vault esta sendo usado:
+2. Confira onde o banco de dados esta armazenado:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria info
 ```
 
-3. Abra esse vault no Obsidian.
-
-4. Teste os modulos basicos:
+3. Teste os modulos basicos:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar calculo toda segunda."
@@ -97,7 +95,7 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 Estrutura resumida do `config.toml`:
 
 ```toml
-vault_path = "vault/AssistentePessoal"
+db_path = "banco/AssistentePessoal/memoria.sqlite"
 
 [localizacao]
 cidade = "Santa Maria, RS"
@@ -174,32 +172,22 @@ urls = [
 ]
 ```
 
-## Obsidian
+## Armazenamento de Dados
 
-O assistente grava Markdown comum e usa um vault dedicado. As pastas iniciais sao:
+O assistente utiliza um banco de dados relacional SQLite para gerenciar a memoria e os dados locais.
 
-- `00_inbox`
-- `10_memoria`
-- `20_estudos`
-- `30_resumos`
-- `40_noticias`
-- `50_musica`
-- `60_planejamento`
-- `61_agenda_local`
-- `90_logs`
+O arquivo do banco de dados ficara armazenado por padrao em `banco/AssistentePessoal/memoria.sqlite`, de acordo com o configurado em `db_path`.
 
-O indice tecnico fica em `.assistente/index.sqlite3`.
-
-Se as notas nao aparecerem no Obsidian:
+Se voce quiser verificar onde o banco esta sendo armazenado:
 
 1. rode `assistente-pessoal memoria info`
-2. abra exatamente o `Vault efetivo` mostrado no comando
+2. o comando retornara o caminho absoluto do banco de dados em uso
 3. confirme se o `config.toml` que voce esta usando e o mesmo da sessao atual
 
 ## Privacidade e LGPD
 
 - nenhuma chave de API deve ser salva no `config.toml`; use variaveis de ambiente
-- o vault e local, editavel e apagavel por voce
+- o banco de dados e local, inspecionavel e apagavel por voce
 - clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
 - logs nao devem carregar conteudo pessoal por padrao
 - a Google Agenda usa OAuth local, escopo de eventos e a API oficial `calendar-json.googleapis.com`
