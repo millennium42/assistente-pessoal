@@ -15,10 +15,8 @@ from assistente_pessoal.core_paths import resolver_relativo_ao_arquivo
 PASTAS_VAULT = (
     "00_inbox",
     "10_memoria",
-    "20_estudos",
     "30_resumos",
     "40_noticias",
-    "50_musica",
     "60_planejamento",
     "61_agenda_local",
     "90_logs",
@@ -32,15 +30,6 @@ class LocalizacaoConfig(BaseModel):
     latitude: float = -29.6868
     longitude: float = -53.8149
     timezone: str = "America/Sao_Paulo"
-
-
-class VozConfig(BaseModel):
-    """Preferencias para gravacao e transcricao de voz."""
-
-    modelo_whisper: str = "tiny"
-    idioma: str = "pt"
-    duracao_segundos: int = Field(default=6, ge=1, le=60)
-    taxa_amostragem: int = 16000
 
 
 class LLMConfig(BaseModel):
@@ -190,8 +179,6 @@ class FontesConfig(BaseModel):
     """Fontes externas consultadas pelo assistente."""
 
     noticias: NoticiasConfig = Field(default_factory=NoticiasConfig)
-    artistas: list[str] = Field(default_factory=list)
-    musicbrainz_user_agent: str = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
 
 
 class AppConfig(BaseModel):
@@ -199,7 +186,6 @@ class AppConfig(BaseModel):
 
     vault_path: Path = Path("vault/AssistentePessoal")
     localizacao: LocalizacaoConfig = Field(default_factory=LocalizacaoConfig)
-    voz: VozConfig = Field(default_factory=VozConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     google_agenda: GoogleAgendaConfig = Field(default_factory=GoogleAgendaConfig)
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
@@ -236,12 +222,23 @@ class EnvConfig(BaseSettings):
 
 
 def caminho_config_padrao() -> Path:
-    """Resolve o caminho de configuracao a partir do ambiente ou do padrao local."""
+    """Resolve o caminho de configuracao a partir do ambiente ou do padrao local.
+
+    Returns:
+        Um objeto Path apontando para o arquivo de configuracao.
+    """
     return EnvConfig().assistente_config
 
 
 def carregar_config(caminho: Path | None = None) -> AppConfig:
-    """Carrega o arquivo TOML de configuracao ou retorna valores padrao."""
+    """Carrega o arquivo TOML de configuracao ou retorna valores padrao.
+
+    Args:
+        caminho: Caminho opcional do arquivo TOML. Se None, utiliza o padrao.
+
+    Returns:
+        A instancia AppConfig com os dados carregados ou padroes instanciados.
+    """
     caminho_real = (caminho or caminho_config_padrao()).resolve()
     if not caminho_real.exists():
         config = AppConfig()
@@ -262,7 +259,19 @@ def criar_config_inicial(
     longitude: float,
     timezone: str,
 ) -> AppConfig:
-    """Cria um arquivo ``config.toml`` inicial e devolve a configuracao carregada."""
+    """Cria um arquivo ``config.toml`` inicial e devolve a configuracao carregada.
+
+    Args:
+        caminho: Onde o arquivo sera salvo.
+        vault_path: Caminho raiz para o vault de memoria.
+        cidade: Nome da cidade padrao.
+        latitude: Latitude padrao para clima e agenda.
+        longitude: Longitude padrao para clima e agenda.
+        timezone: Fuso horario aplicavel ao assistente.
+
+    Returns:
+        Um objeto AppConfig populado e renderizado em disco.
+    """
     caminho_real = caminho.resolve()
     config = AppConfig(
         vault_path=vault_path,
@@ -280,7 +289,14 @@ def criar_config_inicial(
 
 
 def renderizar_toml(config: AppConfig) -> str:
-    """Renderiza a configuracao em TOML simples, suficiente para a V1.1."""
+    """Renderiza a configuracao em TOML simples, suficiente para a V1.1.
+
+    Args:
+        config: A configuracao preenchida.
+
+    Returns:
+        A string formatada em TOML representando a configuracao.
+    """
     tech_rss = "\n".join(f'  "{url}",' for url in config.fontes.noticias.tech.rss)
     santa_urls = "\n".join(f'  "{url}",' for url in config.fontes.noticias.santa_maria.urls)
     santa_palavras_chave = "\n".join(
@@ -294,7 +310,6 @@ def renderizar_toml(config: AppConfig) -> str:
     prioridades = "\n".join(
         f'  "{prioridade}",' for prioridade in config.fontes.noticias.prioridades
     )
-    artistas = "\n".join(f'  "{artista}",' for artista in config.fontes.artistas)
     return f"""vault_path = "{_normalizar_path(config.vault_path)}"
 
 [localizacao]
@@ -302,12 +317,6 @@ cidade = "{_escapar(config.localizacao.cidade)}"
 latitude = {config.localizacao.latitude}
 longitude = {config.localizacao.longitude}
 timezone = "{_escapar(config.localizacao.timezone)}"
-
-[voz]
-modelo_whisper = "{_escapar(config.voz.modelo_whisper)}"
-idioma = "{_escapar(config.voz.idioma)}"
-duracao_segundos = {config.voz.duracao_segundos}
-taxa_amostragem = {config.voz.taxa_amostragem}
 
 [llm]
 base_url = "{_escapar(config.llm.base_url)}"
@@ -371,22 +380,27 @@ rss = [
 urls = [
 {economia_urls}
 ]
-
-[fontes]
-artistas = [
-{artistas}
-]
-musicbrainz_user_agent = "{_escapar(config.fontes.musicbrainz_user_agent)}"
 """
 
 
 def ler_api_key(nome_variavel: str) -> str:
-    """Le uma chave de API do ambiente sem expor o valor em logs ou arquivos."""
+    """Le uma chave de API do ambiente sem expor o valor em logs ou arquivos.
+
+    Args:
+        nome_variavel: O nome da variavel de ambiente que contem a chave (ex: 'OPENAI_API_KEY').
+
+    Returns:
+        O valor da chave de API ou string vazia se nao existir.
+    """
     return os.getenv(nome_variavel, "")
 
 
 def criar_pastas_vault(vault_path: Path) -> None:
-    """Cria as pastas padrao do vault dedicado do Obsidian."""
+    """Cria as pastas padrao do vault dedicado do Obsidian.
+
+    Args:
+        vault_path: O caminho raiz do vault.
+    """
     for pasta in PASTAS_VAULT:
         (vault_path / pasta).mkdir(parents=True, exist_ok=True)
     # A pasta oculta guarda indices tecnicos para nao poluir a navegacao do Obsidian.
@@ -394,15 +408,36 @@ def criar_pastas_vault(vault_path: Path) -> None:
 
 
 def _normalizar_path(caminho: Path) -> str:
-    """Converte caminhos para um formato TOML legivel em Windows e Unix."""
+    """Converte caminhos para um formato TOML legivel em Windows e Unix.
+
+    Args:
+        caminho: Objeto Path.
+
+    Returns:
+        O caminho como string (posix).
+    """
     return caminho.as_posix()
 
 
 def _escapar(valor: Any) -> str:
-    """Escapa aspas e barras invertidas para escrita segura em strings TOML."""
+    """Escapa aspas e barras invertidas para escrita segura em strings TOML.
+
+    Args:
+        valor: Valor generico que sera formatado como string.
+
+    Returns:
+        String escapada de maneira segura para inclusao no TOML.
+    """
     return str(valor).replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _toml_bool(valor: bool) -> str:
-    """Renderiza booleanos no formato esperado pelo TOML."""
+    """Renderiza booleanos no formato esperado pelo TOML.
+
+    Args:
+        valor: O booleano Python.
+
+    Returns:
+        A string 'true' ou 'false'.
+    """
     return "true" if valor else "false"

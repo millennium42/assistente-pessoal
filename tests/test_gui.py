@@ -179,10 +179,8 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
     config = AppConfig(vault_path=tmp_path / "vault")
     servico = _servico_sem_rede(config)
 
-    caminho_plano = servico.salvar_plano_estudos("Revisar algebra na segunda.")
     caminho_agenda = servico.salvar_agenda_local("10h - monitoria")
 
-    assert caminho_plano == "60_planejamento/plano-estudos.md"
     assert caminho_agenda == "61_agenda_local/agenda-local.md"
     snapshot = servico.carregar()
     assert snapshot.indicadores.eventos_google == 1

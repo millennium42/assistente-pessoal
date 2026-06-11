@@ -44,7 +44,6 @@ class DashboardSnapshot:
     noticias: list[Noticia]
     santa_maria_em_foco: list[Noticia]
     notas_recentes: list[str]
-    plano_estudos: str
     agenda_local: str
     agenda_google: list[EventoGoogleAgenda]
     agenda_google_resultado: ResultadoGoogleAgenda
@@ -84,7 +83,6 @@ class DashboardService:
         notas = [
             self.memoria.caminho_relativo(caminho) for caminho in self.memoria.listar_recentes()
         ]
-        plano_estudos = self.memoria.ler_documento_fixo("60_planejamento", "plano-estudos.md")
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
         agenda_google_resultado = self._carregar_agenda_google()
         agenda_google = agenda_google_resultado.eventos
@@ -101,7 +99,6 @@ class DashboardService:
             noticias=noticias,
             santa_maria_em_foco=santa_maria_em_foco,
             notas_recentes=notas,
-            plano_estudos=plano_estudos,
             agenda_local=agenda_local,
             agenda_google=agenda_google,
             agenda_google_resultado=agenda_google_resultado,
@@ -249,17 +246,6 @@ class DashboardService:
             conteudo="\n".join(linhas),
             pasta="40_noticias",
             tags=["noticias", "consulta", "obsidian"],
-        )
-        return self.memoria.caminho_relativo(caminho)
-
-    def salvar_plano_estudos(self, conteudo: str) -> str:
-        """Atualiza o documento canonico de planejamento de estudos."""
-        caminho = self.memoria.salvar_documento_fixo(
-            nome_arquivo="plano-estudos.md",
-            conteudo=conteudo,
-            pasta="60_planejamento",
-            titulo="Plano de estudos",
-            tags=["planejamento", "estudos"],
         )
         return self.memoria.caminho_relativo(caminho)
 
