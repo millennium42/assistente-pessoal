@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from assistente_pessoal.clima import ClienteClima, formatar_previsao
 from assistente_pessoal.config import AppConfig
-from assistente_pessoal.estudos import criar_nota_estudo
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.memoria import MemoriaObsidian
-from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
 from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
 
 
@@ -35,9 +33,6 @@ class RoteadorComandos:
                 caminho = self._registrar_consulta_noticias(comando, noticias)
                 resposta = f"{resposta}\n\nConsulta salva no Obsidian em {caminho}."
             return resposta
-        if "musica" in comando_minusculo or "lancamento" in comando_minusculo:
-            cliente = ClienteMusica(self.config.fontes.musicbrainz_user_agent)
-            return formatar_lancamentos(cliente.listar_lancamentos(self.config.fontes.artistas))
         if comando_minusculo.startswith(("memorize ", "memorizar ", "salve ", "salvar ")):
             conteudo = _remover_prefixo_memoria(comando)
             caminho = self.memoria.salvar_nota("Memoria rapida", conteudo, tags=["memoria-rapida"])
@@ -48,10 +43,6 @@ class RoteadorComandos:
             if not resultados:
                 return "Nao encontrei memorias para essa busca."
             return "\n".join(f"- {item.titulo}: {item.trecho}" for item in resultados)
-        if comando_minusculo.startswith("estudar "):
-            tema = comando.removeprefix("estudar").strip() or "Tema sem nome"
-            caminho = criar_nota_estudo(self.memoria, tema, tema, self.llm)
-            return f"Nota de estudo criada em {self.memoria.caminho_relativo(caminho)}."
         resposta = self.llm.gerar(comando, contexto=_contexto_memoria(self.memoria, comando))
         if resposta:
             return resposta.texto

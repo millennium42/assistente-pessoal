@@ -22,18 +22,15 @@ from assistente_pessoal.config import (
     criar_config_inicial,
     criar_pastas_vault,
 )
-from assistente_pessoal.estudos import criar_nota_estudo
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import avisar, console, erro, sucesso
 from assistente_pessoal.memoria import MemoriaObsidian
-from assistente_pessoal.musica import ClienteMusica, formatar_lancamentos
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
     ClienteNoticias,
     formatar_noticias,
 )
 from assistente_pessoal.roteador import RoteadorComandos
-from assistente_pessoal.voz import ouvir_e_transcrever
 
 app = typer.Typer(
     help="Assistente pessoal modular em pt-BR.",
@@ -112,41 +109,6 @@ def conversar(
     console.print(resposta.texto if resposta else resposta_fallback())
 
 
-@app.command("ouvir")
-def ouvir(ctx: typer.Context) -> None:
-    """Grava voz por alguns segundos, transcreve e executa o comando percebido."""
-    config = _carregar(ctx)
-    console.print(f"Gravando por {config.voz.duracao_segundos} segundos...")
-    texto = ouvir_e_transcrever(config.voz)
-    console.print(f"[bold]Transcricao:[/bold] {texto}")
-    console.print(RoteadorComandos(config).executar(texto))
-
-
-@app.command("estudar")
-def estudar(
-    ctx: typer.Context,
-    tema: Annotated[str, typer.Argument(help="Tema da nota de estudo.")],
-    conteudo: Annotated[
-        str | None,
-        typer.Option("--conteudo", help="Texto bruto para resumir e revisar."),
-    ] = None,
-    arquivo: Annotated[
-        Path | None,
-        typer.Option("--arquivo", help="Arquivo de texto ou Markdown com material de estudo."),
-    ] = None,
-    perguntas: Annotated[
-        int,
-        typer.Option("--perguntas", help="Quantidade de perguntas de revisao."),
-    ] = 5,
-) -> None:
-    """Cria uma nota de estudo no vault com resumo e perguntas."""
-    config = _carregar(ctx)
-    material = _ler_material(conteudo, arquivo)
-    memoria = MemoriaObsidian(config.vault_path, config.localizacao.timezone)
-    caminho = criar_nota_estudo(memoria, tema, material, ClienteLLM(config.llm), perguntas)
-    sucesso(f"Nota de estudo criada em {memoria.caminho_relativo(caminho)}.")
-
-
 @app.command("noticias")
 def noticias(
     ctx: typer.Context,
@@ -190,19 +152,6 @@ def gui(
         avisar(f"Porta {port} ocupada. Vou usar a porta {porta_real}.")
     sucesso(f"Dashboard iniciando em http://{host}:{porta_real}")
     iniciar_dashboard(config, host=host, port=porta_real)
-
-
-@app.command("musica")
-def musica(
-    ctx: typer.Context,
-    dias: Annotated[int, typer.Option("--dias", help="Janela de busca em dias.")] = 45,
-) -> None:
-    """Lista lancamentos recentes dos artistas configurados."""
-    config = _carregar(ctx)
-    cliente = ClienteMusica(config.fontes.musicbrainz_user_agent)
-    console.print(
-        formatar_lancamentos(cliente.listar_lancamentos(config.fontes.artistas, dias=dias))
-    )
 
 
 @agenda_app.command("google-auth")
@@ -324,13 +273,3 @@ def _caminho_config(ctx: typer.Context) -> Path:
     if ctx.obj and ctx.obj.get("config_path"):
         return Path(ctx.obj["config_path"])
     return caminho_config_padrao()
-
-
-def _ler_material(conteudo: str | None, arquivo: Path | None) -> str:
-    """Le material de estudo vindo de texto direto ou arquivo."""
-    if conteudo:
-        return conteudo
-    if arquivo:
-        return arquivo.read_text(encoding="utf-8")
-    erro("Informe --conteudo ou --arquivo para criar uma nota de estudo.")
-    raise typer.Exit(1)

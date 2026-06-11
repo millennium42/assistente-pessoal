@@ -1,4 +1,9 @@
-"""Utilitarios de data e timezone usados pela aplicacao."""
+"""Utilitarios de data e timezone usados pela aplicacao.
+
+Este modulo concentra as funcoes necessarias para lidar com fusos horarios,
+conversao de strings de datas humanas em datas reais, e normalizacao de dados
+temporais provenientes de fontes externas (como feeds RSS).
+"""
 
 from __future__ import annotations
 
@@ -21,18 +26,46 @@ DIAS_SEMANA = {
 
 
 def normalizar_texto_ascii(texto: str) -> str:
-    """Remove acentos preservando uma forma ASCII previsivel para slugs e chaves."""
+    """Remove acentos preservando uma forma ASCII previsivel para slugs e chaves.
+
+    Args:
+        texto: Texto original com possiveis caracteres acentuados.
+
+    Returns:
+        O texto sem acentos, contendo apenas os caracteres base.
+    """
     normalizado = unicodedata.normalize("NFKD", texto)
     return "".join(caractere for caractere in normalizado if not unicodedata.combining(caractere))
 
 
 def hoje_local(timezone: str) -> date:
-    """Retorna a data local no timezone configurado."""
+    """Retorna a data local atual no timezone configurado.
+
+    Args:
+        timezone: Nome do fuso horario (ex: 'America/Sao_Paulo').
+
+    Returns:
+        A data atual correspondente ao fuso horario informado.
+    """
     return datetime.now(ZoneInfo(timezone)).date()
 
 
 def resolver_dia_previsao(dia: str | None, timezone: str, referencia: date | None = None) -> date:
-    """Converte um seletor humano de dia em uma data local concreta."""
+    """Converte um seletor humano de dia em uma data local concreta.
+
+    Suporta valores como 'hoje', 'amanha', 'segunda', 'terca', etc.
+
+    Args:
+        dia: A string representando o dia desejado. Se None ou vazio, retorna 'hoje'.
+        timezone: O fuso horario a ser utilizado para definir 'hoje'.
+        referencia: Data base opcional para os calculos. Por padrao utiliza a data local atual.
+
+    Returns:
+        A data exata correspondente ao dia solicitado.
+
+    Raises:
+        ValueError: Se a string fornecida nao for um dia reconhecido.
+    """
     base = referencia or hoje_local(timezone)
     if dia is None:
         return base
@@ -53,7 +86,14 @@ def resolver_dia_previsao(dia: str | None, timezone: str, referencia: date | Non
 
 
 def extrair_data_iso(valor: str | None) -> datetime | None:
-    """Converte datas ISO em ``datetime`` com timezone conhecido."""
+    """Converte strings de datas ISO em objetos datetime com timezone conhecido.
+
+    Args:
+        valor: A string contendo a data no formato ISO 8601.
+
+    Returns:
+        Um objeto datetime com fuso horario, ou None se o valor for invalido/vazio.
+    """
     if not valor:
         return None
     try:
@@ -67,7 +107,17 @@ def extrair_data_iso(valor: str | None) -> datetime | None:
 
 
 def extrair_data_rss(item: dict) -> datetime | None:
-    """Extrai a melhor data publicada de um item RSS/Atom."""
+    """Extrai a melhor data publicada de um item proveniente de feed RSS ou Atom.
+
+    Tenta ler primeiro dos campos parseados ('published_parsed', 'updated_parsed')
+    e aplica um fallback para os campos de texto brutos ('published', 'updated').
+
+    Args:
+        item: Dicionario representando a entrada do feed RSS/Atom.
+
+    Returns:
+        A data de publicacao normalizada com fuso horario, ou None em caso de falha.
+    """
     publicado_parseado = item.get("published_parsed") or item.get("updated_parsed")
     if isinstance(publicado_parseado, struct_time):
         return datetime.fromtimestamp(calendar.timegm(publicado_parseado), tz=UTC)
@@ -88,7 +138,17 @@ def publicado_no_dia(
     data_referencia: date,
     timezone: str,
 ) -> bool:
-    """Confere se uma publicacao pertence ao dia local de referencia."""
+    """Confere se um dado momento pertence a um dia especifico num fuso horario.
+
+    Args:
+        publicado_em: O datetime que queremos verificar.
+        data_referencia: A data alvo.
+        timezone: O fuso horario utilizado para converter 'publicado_em'.
+
+    Returns:
+        True se a data e hora informadas ocorreram durante a data de referencia
+        no fuso horario indicado, caso contrario False.
+    """
     if publicado_em is None:
         return False
     return publicado_em.astimezone(ZoneInfo(timezone)).date() == data_referencia

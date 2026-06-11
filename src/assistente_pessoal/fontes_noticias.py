@@ -1,4 +1,9 @@
-"""Adaptadores de fontes de noticias usados pelo orquestrador."""
+"""Adaptadores de fontes de noticias usados pelo orquestrador.
+
+Fornece adaptadores para diferentes tipos de fontes de noticias, como
+API The News, feeds RSS/Atom padrão, pesquisas de interesse do Google News,
+e sites HTML que incluem metadata JSON-LD (NewsArticle).
+"""
 
 from __future__ import annotations
 
@@ -39,7 +44,17 @@ THE_NEWS_CATEGORIAS_GERAIS = (
 
 @dataclass(frozen=True)
 class ItemFonteNoticia:
-    """Noticia normalizada no nivel das fontes."""
+    """Noticia normalizada no nivel das fontes.
+
+    Attributes:
+        titulo: Titulo extraido.
+        link: URL da noticia original.
+        fonte: Nome do portal/agregador.
+        publicado: String bruta da data de publicacao.
+        publicado_em: Data e hora parseada.
+        grupo: Chave do grupo que originou a noticia.
+        interesse: Opcional. A palavra-chave se originada de interesse.
+    """
 
     titulo: str
     link: str
@@ -54,7 +69,11 @@ class TheNewsSource:
     """Le artigos do The News usando a API publica consumida pelo proprio portal."""
 
     def __init__(self, timeout: float = 15.0) -> None:
-        """Define timeout conservador para nao travar a aplicacao."""
+        """Define timeout conservador para nao travar a aplicacao.
+
+        Args:
+            timeout: Tempo maximo de espera em segundos.
+        """
         self.timeout = timeout
 
     def listar(
@@ -64,7 +83,17 @@ class TheNewsSource:
         timezone: str,
         data_referencia: date,
     ) -> list[ItemFonteNoticia]:
-        """Busca artigos do The News filtrados pelo dia local."""
+        """Busca artigos do The News filtrados pelo dia local.
+
+        Args:
+            config: A configuracao TheNewsConfig.
+            limite: Numero maximo de resultados esperados.
+            timezone: Fuso horario para bater dias.
+            data_referencia: A data do dia buscado.
+
+        Returns:
+            Lista de noticias extraidas.
+        """
         if not config.habilitado:
             return []
         url = "https://api.waffle.com.br/api/public/articles"
@@ -140,7 +169,19 @@ class RssNewsSource:
         data_referencia: date,
         apenas_dia_atual: bool,
     ) -> list[ItemFonteNoticia]:
-        """Busca noticias publicadas no periodo desejado a partir de feeds."""
+        """Busca noticias publicadas no periodo desejado a partir de feeds.
+
+        Args:
+            grupo: Identificador do grupo (ex: 'tech').
+            config: A configuracao contendo as URLs dos feeds.
+            limite: Limite maximo global de retorno.
+            timezone: Fuso horario de verificacao.
+            data_referencia: Data desejada para a publicacao.
+            apenas_dia_atual: Filtrar apenas itens deste dia.
+
+        Returns:
+            Lista com as noticias do feed.
+        """
         if not config.habilitado or not config.rss:
             return []
         noticias: list[ItemFonteNoticia] = []
@@ -189,7 +230,18 @@ class InterestNewsSource:
         data_referencia: date,
         apenas_dia_atual: bool,
     ) -> list[ItemFonteNoticia]:
-        """Consulta Google News RSS por interesse e devolve itens recentes."""
+        """Consulta Google News RSS por interesse e devolve itens recentes.
+
+        Args:
+            interesses: Tags de termos livres a buscar.
+            limite: Quantidade total esperada.
+            timezone: Fuso para validacao de datas.
+            data_referencia: Dia da consulta.
+            apenas_dia_atual: Retornar somente os itens desse dia.
+
+        Returns:
+            Uma lista de noticias mesclada de diferentes queries.
+        """
         termos = [" ".join(interesse.split()) for interesse in interesses if interesse.strip()]
         if not termos:
             return []
@@ -235,7 +287,11 @@ class HtmlJsonLdNewsSource:
     """Extrai noticias de paginas HTML que expoem JSON-LD de artigos."""
 
     def __init__(self, timeout: float = 15.0) -> None:
-        """Define timeout conservador para consultas HTML."""
+        """Define timeout conservador para consultas HTML.
+
+        Args:
+            timeout: Tempo para timeout em segundos.
+        """
         self.timeout = timeout
 
     def listar(
@@ -247,7 +303,19 @@ class HtmlJsonLdNewsSource:
         data_referencia: date,
         apenas_dia_atual: bool,
     ) -> list[ItemFonteNoticia]:
-        """Busca artigos em paginas HTML a partir de blocos JSON-LD."""
+        """Busca artigos em paginas HTML a partir de blocos JSON-LD.
+
+        Args:
+            grupo: O id deste grupo de fontes (ex: 'santa_maria').
+            config: A configuracao com as URLs.
+            limite: Limite maximo.
+            timezone: Fuso horario para comparacao de tempo.
+            data_referencia: Dia atual de referencia.
+            apenas_dia_atual: Ignorar noticias fora do dia de referencia.
+
+        Returns:
+            As noticias raspadas da home via JSON-LD ou fallback visual.
+        """
         if not config.habilitado or not config.urls:
             return []
         noticias: list[ItemFonteNoticia] = []
@@ -375,7 +443,14 @@ class HtmlJsonLdNewsSource:
 
 
 def extrair_artigos_json_ld(html: str) -> list[dict]:
-    """Varre scripts JSON-LD e devolve apenas objetos com cara de artigo."""
+    """Varre scripts JSON-LD e devolve apenas objetos com cara de artigo.
+
+    Args:
+        html: Corpo bruto HTML.
+
+    Returns:
+        Lista com as entidades JSON-LD de artigos da pagina.
+    """
     artigos: list[dict] = []
     padrao = re.compile(
         r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
@@ -394,7 +469,15 @@ def extrair_artigos_json_ld(html: str) -> list[dict]:
 
 
 def extrair_links_manchetes(html: str, base_url: str) -> list[tuple[str, str]]:
-    """Extrai links de manchetes visiveis quando a home nao oferece JSON-LD aproveitavel."""
+    """Extrai links de manchetes visiveis quando a home nao oferece JSON-LD aproveitavel.
+
+    Args:
+        html: Corpo HTML da home.
+        base_url: O endereço raiz de onde o HTML foi baixado.
+
+    Returns:
+        Uma lista de tuplas contendo (titulo_limpo, url_absoluta).
+    """
     encontrados: list[tuple[str, str]] = []
     vistos: set[str] = set()
     padrao = re.compile(
@@ -415,7 +498,15 @@ def extrair_links_manchetes(html: str, base_url: str) -> list[tuple[str, str]]:
 
 
 def extrair_data_artigo_html(html: str, timezone: str) -> tuple[datetime | None, str]:
-    """Lê datas comuns de páginas jornalísticas brasileiras sem depender de JSON-LD."""
+    """Le datas comuns de paginas jornalisticas brasileiras sem depender de JSON-LD.
+
+    Args:
+        html: O conteudo do artigo.
+        timezone: O fuso para conversao local.
+
+    Returns:
+        Tupla com o datetime parseado e a string de origem.
+    """
     candidatos_meta = [
         r'article:published_time"\s+content="([^"]+)"',
         r'article:modified_time"\s+content="([^"]+)"',
@@ -441,7 +532,16 @@ def extrair_data_artigo_html(html: str, timezone: str) -> tuple[datetime | None,
 
 
 def noticia_parece_local(titulo: str, link: str, palavras_chave: list[str]) -> bool:
-    """Aplica um filtro simples para reduzir ruido em fontes locais mistas."""
+    """Aplica um filtro simples para reduzir ruido em fontes locais mistas.
+
+    Args:
+        titulo: Titulo da noticia.
+        link: Link da noticia.
+        palavras_chave: Lista de palavras de verificação.
+
+    Returns:
+        True se a noticia condiz com o escopo local, False senão.
+    """
     link_normalizado = link.lower()
     if any(portal in link_normalizado for portal in PORTAIS_LOCAIS_CONFIAVEIS):
         return True
@@ -455,6 +555,14 @@ def noticia_parece_local(titulo: str, link: str, palavras_chave: list[str]) -> b
 
 
 def _url_google_news_interesse(termo: str) -> str:
+    """Prepara a URL de feed de um termo no Google News.
+
+    Args:
+        termo: Expressao do assunto procurado.
+
+    Returns:
+        A url gerada para consumo via RSS.
+    """
     consulta = quote_plus(f"{termo} when:1d")
     return (
         "https://news.google.com/rss/search?"
@@ -474,7 +582,14 @@ def _fonte_interesse(item: object, termo: str) -> str:
 
 
 def ordenar_itens_por_publicacao(itens: list[ItemFonteNoticia]) -> list[ItemFonteNoticia]:
-    """Mantem fontes HTML e API na ordem mais recente possivel."""
+    """Mantem fontes HTML e API na ordem mais recente possivel.
+
+    Args:
+        itens: Lista base.
+
+    Returns:
+        Lista ordenada decrescentemente por publicacao.
+    """
     return sorted(
         itens,
         key=lambda item: item.publicado_em.timestamp() if item.publicado_em else float("-inf"),
@@ -491,7 +606,14 @@ def _chave_noticia(titulo: object, link: object = "") -> str:
 
 
 def _coletar_artigos(dado: object) -> list[dict]:
-    """Percorre estruturas JSON-LD aninhadas em busca de itens do tipo artigo."""
+    """Percorre estruturas JSON-LD aninhadas em busca de itens do tipo artigo.
+
+    Args:
+        dado: Object dict (json tree).
+
+    Returns:
+        Lista com dados que correspondem a tipos jornalisticos de noticia.
+    """
     encontrados: list[dict] = []
     if isinstance(dado, list):
         for item in dado:

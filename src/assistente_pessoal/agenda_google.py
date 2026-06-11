@@ -1,4 +1,8 @@
-"""Integracao opcional com Google Agenda via Google Calendar API oficial."""
+"""Integracao opcional com Google Agenda via Google Calendar API oficial.
+
+Fornece funcionalidades para autenticar, consultar os proximos eventos e
+criar eventos no calendario configurado do usuario.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +19,16 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 @dataclass(frozen=True)
 class EventoGoogleAgenda:
-    """Evento normalizado do Google Agenda para CLI e dashboard."""
+    """Evento normalizado do Google Agenda para CLI e dashboard.
+
+    Attributes:
+        titulo: Titulo ou sumario do evento.
+        inicio: Data e hora do inicio no formato ISO 8601.
+        fim: Data e hora do fim no formato ISO 8601.
+        link: URL para visualizar o evento na web.
+        local: O local onde ocorrera o evento.
+        origem: O email de quem organizou.
+    """
 
     titulo: str
     inicio: str
@@ -27,7 +40,13 @@ class EventoGoogleAgenda:
 
 @dataclass(frozen=True)
 class ResultadoGoogleAgenda:
-    """Empacota eventos e estado de conectividade para a GUI e CLI."""
+    """Empacota eventos e estado de conectividade para a GUI e CLI.
+
+    Attributes:
+        eventos: Uma lista com os eventos recebidos.
+        erro: Texto em caso de falha de leitura (None se obteve sucesso).
+        mes_referencia: O mes utilizado na consulta (usado pela GUI para montar calendario).
+    """
 
     eventos: list[EventoGoogleAgenda]
     erro: str | None = None
@@ -36,7 +55,15 @@ class ResultadoGoogleAgenda:
 
 @dataclass(frozen=True)
 class NovoEventoGoogleAgenda:
-    """Representa um novo evento a ser criado pela UI ou CLI."""
+    """Representa um novo evento a ser criado pela UI ou CLI.
+
+    Attributes:
+        titulo: Titulo a ser inserido na agenda.
+        inicio: O datetime indicando o inicio.
+        fim: O datetime indicando o fim.
+        local: Local (opcional).
+        descricao: Descricao em texto do evento.
+    """
 
     titulo: str
     inicio: datetime
@@ -49,15 +76,27 @@ class ClienteGoogleAgenda:
     """Autentica no Google e lista eventos futuros pelo endpoint oficial Calendar API v3."""
 
     def __init__(self, config: GoogleAgendaConfig) -> None:
-        """Guarda apenas a configuracao da integracao."""
+        """Guarda apenas a configuracao da integracao.
+
+        Args:
+            config: A configuracao com caminhos para as credenciais e tokens.
+        """
         self.config = config
 
     def disponivel(self) -> bool:
-        """Indica se a integracao foi habilitada e tem um arquivo de credenciais configurado."""
+        """Indica se a integracao foi habilitada e tem um arquivo de credenciais configurado.
+
+        Returns:
+            True se estiver habilitada, False caso contrario.
+        """
         return self.config.habilitado and self.config.credentials_path.exists()
 
     def autenticar_interativo(self) -> Path:
-        """Executa o fluxo OAuth de desktop e persiste o token localmente."""
+        """Executa o fluxo OAuth de desktop e persiste o token localmente.
+
+        Returns:
+            O caminho do arquivo de token persistido.
+        """
         InstalledAppFlow = _import_installed_app_flow()
         self.config.token_path.parent.mkdir(parents=True, exist_ok=True)
         fluxo = InstalledAppFlow.from_client_secrets_file(
@@ -69,7 +108,11 @@ class ClienteGoogleAgenda:
         return self.config.token_path
 
     def listar_eventos(self) -> list[EventoGoogleAgenda]:
-        """Le os proximos eventos do calendario principal configurado."""
+        """Le os proximos eventos do calendario principal configurado.
+
+        Returns:
+            Lista de objetos EventoGoogleAgenda representando eventos futuros.
+        """
         return self.obter_eventos_intervalo().eventos
 
     def obter_eventos_intervalo(
@@ -78,7 +121,16 @@ class ClienteGoogleAgenda:
         fim: datetime | None = None,
         limite: int | None = None,
     ) -> ResultadoGoogleAgenda:
-        """Busca eventos em um intervalo e preserva erros de conectividade."""
+        """Busca eventos em um intervalo e preserva erros de conectividade.
+
+        Args:
+            inicio: Limite inicial para a consulta. Padrao e agora em UTC.
+            fim: Limite final da consulta. Padrao e calculado baseado na janela de dias configurada.
+            limite: Numero maximo de eventos retornados.
+
+        Returns:
+            Um ResultadoGoogleAgenda com os eventos ou o motivo do erro.
+        """
         if not self.config.habilitado:
             return ResultadoGoogleAgenda(eventos=[])
         try:
@@ -125,7 +177,14 @@ class ClienteGoogleAgenda:
         )
 
     def obter_eventos_mes(self, referencia: date | None = None) -> ResultadoGoogleAgenda:
-        """Busca os eventos do mes inteiro para visualizacao em calendario."""
+        """Busca os eventos do mes inteiro para visualizacao em calendario.
+
+        Args:
+            referencia: Data dentro do mes e ano que deve ser buscado.
+
+        Returns:
+            O resultado da chamada a API cobrindo todo aquele mes.
+        """
         data_base = referencia or datetime.now(UTC).date()
         primeiro_dia = data_base.replace(day=1)
         ultimo_dia = calendar.monthrange(primeiro_dia.year, primeiro_dia.month)[1]
@@ -147,7 +206,17 @@ class ClienteGoogleAgenda:
         )
 
     def criar_evento(self, evento: NovoEventoGoogleAgenda) -> EventoGoogleAgenda:
-        """Cria um evento no calendario configurado usando a API oficial."""
+        """Cria um evento no calendario configurado usando a API oficial.
+
+        Args:
+            evento: Dados do novo evento que deve ser criado.
+
+        Returns:
+            O evento criado e devolvido pelo Google.
+
+        Raises:
+            RuntimeError: Em falhas de rede ou de credenciais.
+        """
         if not self.config.habilitado:
             raise RuntimeError("Google Agenda desabilitada no config.toml.")
         try:
@@ -187,7 +256,11 @@ class ClienteGoogleAgenda:
         return normalizar_evento_google(resposta)
 
     def _obter_credenciais(self):
-        """Carrega, renova ou cria as credenciais OAuth conforme o estado local."""
+        """Carrega, renova ou cria as credenciais OAuth conforme o estado local.
+
+        Returns:
+            O objeto de credenciais OAuth, ou None caso precise intervir.
+        """
         Credentials = _import_credentials()
         Request = _import_request()
         credenciais = None
@@ -218,7 +291,14 @@ class ClienteGoogleAgenda:
 
 
 def normalizar_evento_google(item: dict) -> EventoGoogleAgenda:
-    """Converte o payload da API do Google para o formato interno do assistente."""
+    """Converte o payload da API do Google para o formato interno do assistente.
+
+    Args:
+        item: Dicionario proveniente da resposta da API.
+
+    Returns:
+        Um EventoGoogleAgenda bem formad.
+    """
     inicio = item.get("start", {}).get("dateTime") or item.get("start", {}).get("date") or ""
     fim = item.get("end", {}).get("dateTime") or item.get("end", {}).get("date") or ""
     return EventoGoogleAgenda(
@@ -232,7 +312,14 @@ def normalizar_evento_google(item: dict) -> EventoGoogleAgenda:
 
 
 def formatar_eventos_google(eventos: list[EventoGoogleAgenda]) -> str:
-    """Formata eventos para visualizacao rapida na CLI."""
+    """Formata eventos para visualizacao rapida na CLI.
+
+    Args:
+        eventos: Lista de eventos.
+
+    Returns:
+        Texto formatado em blocos numerados.
+    """
     if not eventos:
         return "Nenhum evento futuro encontrado no Google Agenda."
     linhas = ["Proximos eventos do Google Agenda:"]
@@ -245,7 +332,14 @@ def formatar_eventos_google(eventos: list[EventoGoogleAgenda]) -> str:
 
 
 def data_evento_google(evento: EventoGoogleAgenda) -> date | None:
-    """Extrai a data local basica do inicio do evento para montar calendarios."""
+    """Extrai a data local basica do inicio do evento para montar calendarios.
+
+    Args:
+        evento: O evento alvo.
+
+    Returns:
+        A data extraida ou None caso invalido.
+    """
     valor = evento.inicio.strip()
     if not valor:
         return None
@@ -265,7 +359,16 @@ def evento_google_ainda_futuro(
     timezone: str,
     agora: datetime | None = None,
 ) -> bool:
-    """Indica se o evento ainda nao terminou no fuso informado."""
+    """Indica se o evento ainda nao terminou no fuso informado.
+
+    Args:
+        evento: Evento da agenda.
+        timezone: String indicando o fuso horario.
+        agora: Base datetime de referencia.
+
+    Returns:
+        True se o evento estiver no futuro, senao False.
+    """
     tzinfo = ZoneInfo(timezone)
     referencia = agora or datetime.now(tzinfo)
     if referencia.tzinfo is None:
@@ -284,7 +387,15 @@ def evento_google_ainda_futuro(
 
 
 def formatar_data_hora_google(valor: str, timezone: str) -> str:
-    """Converte timestamps ISO do Google Agenda em texto local curto."""
+    """Converte timestamps ISO do Google Agenda em texto local curto.
+
+    Args:
+        valor: A string de data vinda do Google API.
+        timezone: O fuso para conversao.
+
+    Returns:
+        Uma string resumida como 'DD/MM HH:MM' ou semelhante.
+    """
     if not valor:
         return "--"
     if len(valor) == 10:
@@ -300,7 +411,15 @@ def formatar_data_hora_google(valor: str, timezone: str) -> str:
 
 
 def _parse_data_hora_google(valor: str, timezone: str) -> datetime | None:
-    """Converte datas do Google Agenda para datetime com timezone."""
+    """Converte datas do Google Agenda para datetime com timezone.
+
+    Args:
+        valor: A string de data original.
+        timezone: O fuso horario alvo para datas full-day.
+
+    Returns:
+        Um datetime valido ou None.
+    """
     if not valor:
         return None
     tzinfo = ZoneInfo(timezone)
@@ -319,7 +438,14 @@ def _parse_data_hora_google(valor: str, timezone: str) -> datetime | None:
 
 
 def _credenciais_tem_escopos_esperados(credenciais) -> bool:
-    """Confere se o token local cobre leitura e escrita de eventos."""
+    """Confere se o token local cobre leitura e escrita de eventos.
+
+    Args:
+        credenciais: Objeto de token oauth carregado.
+
+    Returns:
+        True se tudo ok, ou False se o escopo for muito antigo.
+    """
     if not hasattr(credenciais, "has_scopes"):
         return True
     return bool(credenciais.has_scopes(SCOPES))

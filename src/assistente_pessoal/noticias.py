@@ -1,4 +1,9 @@
-"""Orquestracao de noticias priorizadas para CLI, voz e GUI."""
+"""Orquestracao de noticias priorizadas para CLI e GUI.
+
+Realiza o controle das multiplas fontes, coleta, mesclagem e deduplicacao.
+Ordena as noticias combinadas respeitando a cronologia de publicacao e
+as prioridades tematicas configuradas.
+"""
 
 from __future__ import annotations
 
@@ -23,7 +28,17 @@ LIMITE_INTERESSES_NOTICIAS = 50
 
 @dataclass(frozen=True)
 class Noticia:
-    """Item de noticia normalizado para exibicao e memoria."""
+    """Item de noticia normalizado para exibicao e memoria.
+
+    Attributes:
+        titulo: O manchete legivel.
+        link: A url do link original.
+        fonte: A origem (site/portal).
+        publicado: String bruta da data de publicacao original.
+        publicado_em: Objeto datetime para referenciar nas logicas de tempo.
+        grupo: Grupo configurado onde foi pego (ex: 'tech', 'economia_global').
+        interesse: Caso a noticia tenha vindo por via de pesquisa de palavra-chave.
+    """
 
     titulo: str
     link: str
@@ -44,7 +59,14 @@ class ClienteNoticias:
         html_source: HtmlJsonLdNewsSource | None = None,
         interest_source: InterestNewsSource | None = None,
     ) -> None:
-        """Permite injetar fontes fake nos testes sem acoplar a infra a CLI."""
+        """Permite injetar fontes fake nos testes sem acoplar a infra a CLI.
+
+        Args:
+            the_news_source: Fonte de consumo do thenews.com.br.
+            rss_source: Fonte generica de consumo RSS.
+            html_source: Fonte focada em extração via JSON-LD.
+            interest_source: Fonte de pesquisa do Google News.
+        """
         self.the_news_source = the_news_source or TheNewsSource()
         self.rss_source = rss_source or RssNewsSource()
         self.html_source = html_source or HtmlJsonLdNewsSource()
@@ -56,7 +78,16 @@ class ClienteNoticias:
         limite: int = LIMITE_PADRAO_NOTICIAS,
         data_referencia: date | None = None,
     ) -> list[Noticia]:
-        """Busca noticias por prioridade de fonte e devolve do mais novo ao mais antigo."""
+        """Busca noticias por prioridade de fonte e devolve do mais novo ao mais antigo.
+
+        Args:
+            config: A secao de configuracao voltada a noticias.
+            limite: Quantidade total desejada.
+            data_referencia: Dia alvo, padrao 'hoje local'.
+
+        Returns:
+            Lista final contendo os itens consolidados e ja limpos de duplicacao.
+        """
         data_alvo = data_referencia or hoje_local(config.timezone)
         noticias: list[Noticia] = []
         limite_normalizado = max(limite, 1)
@@ -163,7 +194,14 @@ class ClienteNoticias:
 
 
 def normalizar_item(item: ItemFonteNoticia) -> Noticia:
-    """Converte o item interno da fonte para o tipo publico da aplicacao."""
+    """Converte o item interno da fonte para o tipo publico da aplicacao.
+
+    Args:
+        item: O item proveniente da camada de fontes.
+
+    Returns:
+        A noticia encapsulada no modelo de domínio de alto nível.
+    """
     return Noticia(
         titulo=item.titulo,
         link=item.link,
@@ -176,7 +214,15 @@ def normalizar_item(item: ItemFonteNoticia) -> Noticia:
 
 
 def ordenar_noticias_por_data(noticias: list[Noticia], timezone: str) -> list[Noticia]:
-    """Ordena noticias da publicacao mais recente para a mais antiga."""
+    """Ordena noticias da publicacao mais recente para a mais antiga.
+
+    Args:
+        noticias: Lista de dados.
+        timezone: O fuso horario atual para preencher os que vierem timezone naive.
+
+    Returns:
+        Uma lista copiada em ordem descendente.
+    """
     return sorted(
         noticias,
         key=lambda noticia: _timestamp_publicacao(noticia.publicado_em, timezone),
@@ -185,7 +231,14 @@ def ordenar_noticias_por_data(noticias: list[Noticia], timezone: str) -> list[No
 
 
 def deduplicar_noticias(noticias: list[Noticia]) -> list[Noticia]:
-    """Remove manchetes repetidas entre RSS, HTML local e buscas por interesse."""
+    """Remove manchetes repetidas entre RSS, HTML local e buscas por interesse.
+
+    Args:
+        noticias: Lista total com possiveis duplicatas.
+
+    Returns:
+        Lista com itens unicos verificando a heuristica de titulo/link.
+    """
     deduplicadas: list[Noticia] = []
     vistos: set[str] = set()
     for noticia in noticias:
@@ -198,7 +251,16 @@ def deduplicar_noticias(noticias: list[Noticia]) -> list[Noticia]:
 
 
 def selecionar_noticias(noticias: list[Noticia], limite: int, timezone: str) -> list[Noticia]:
-    """Recorta o feed preservando fontes prioritarias quando elas existem."""
+    """Recorta o feed preservando fontes prioritarias quando elas existem.
+
+    Args:
+        noticias: Todas as noticias recuperadas.
+        limite: O numero alvo desejado na saída.
+        timezone: String indicando o fuso de comparacao.
+
+    Returns:
+        Noticias selecionadas até o limite, com as essenciais garantidas primeiro.
+    """
     grupos_preservados = {"the_news", "santa_maria", "interesses"}
     selecionadas = noticias[:limite]
     prioritarias = [noticia for noticia in noticias if noticia.grupo in grupos_preservados]
@@ -224,7 +286,15 @@ def priorizar_noticias_por_interesses(
     noticias: list[Noticia],
     interesses: list[str],
 ) -> list[Noticia]:
-    """Coloca noticias relacionadas aos interesses antes, preservando a recencia."""
+    """Coloca noticias relacionadas aos interesses antes, preservando a recencia.
+
+    Args:
+        noticias: Lista inicial cronologicamente sorteada.
+        interesses: Lista de palavras-chave do usuario.
+
+    Returns:
+        Noticias reordenadas privilegiando os termos buscados.
+    """
     termos = [
         normalizar_texto_ascii(interesse).lower().strip()
         for interesse in interesses
@@ -244,7 +314,16 @@ def rotulo_tempo_publicacao(
     timezone: str = "America/Sao_Paulo",
     agora: datetime | None = None,
 ) -> str:
-    """Mostra a idade da noticia sem expor a data bruta da fonte."""
+    """Mostra a idade da noticia sem expor a data bruta da fonte.
+
+    Args:
+        noticia: O objeto de noticia avaliado.
+        timezone: O fuso para conversao (para calcular diferencas temporais reais).
+        agora: Parametro util para facilitar mock e freeze the time.
+
+    Returns:
+        String naturalizada tipo 'ha 5 minutos' ou 'agora'.
+    """
     publicado_em = _normalizar_data_publicacao(noticia.publicado_em, timezone)
     if publicado_em is None:
         return "tempo indisponivel"
@@ -277,7 +356,16 @@ def formatar_noticias(
     timezone: str = "America/Sao_Paulo",
     agora: datetime | None = None,
 ) -> str:
-    """Formata uma lista de noticias em texto legivel."""
+    """Formata uma lista de noticias em texto legivel.
+
+    Args:
+        noticias: A lista coletada.
+        timezone: O fuso horario atual.
+        agora: Instante artificial, util pra testar a variacao do tempo exibido.
+
+    Returns:
+        Texto amigavel de exibicao pronto pro stdout.
+    """
     if not noticias:
         return "Nenhuma noticia publicada no dia atual foi encontrada nas fontes configuradas."
     linhas = ["Noticias encontradas:"]
@@ -298,7 +386,14 @@ def formatar_noticias(
 
 
 def texto_terminal_seguro(texto: str) -> str:
-    """Remove caracteres que quebram consoles Windows antigos em CP1252."""
+    """Remove caracteres que quebram consoles Windows antigos em CP1252.
+
+    Args:
+        texto: Texto que deve ser limpo de caracteres unicode complexos.
+
+    Returns:
+        Texto com codificacao reduzida onde o nao-suportado e dropado.
+    """
     return texto.encode("cp1252", errors="ignore").decode("cp1252")
 
 
