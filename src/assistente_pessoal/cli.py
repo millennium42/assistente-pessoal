@@ -273,4 +273,4 @@ def _caminho_config(ctx: typer.Context) -> Path:
     if ctx.obj and ctx.obj.get("config_path"):
         return Path(ctx.obj["config_path"])
     return caminho_config_padrao()
-ao()
+
