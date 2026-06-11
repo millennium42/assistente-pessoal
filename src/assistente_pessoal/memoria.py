@@ -206,8 +206,15 @@ class MemoriaObsidian:
         ]
         with sqlite3.connect(self.indice_path) as conexao:
             conexao.execute("DELETE FROM notas")
-        for caminho in arquivos:
-            self.indexar_nota(caminho)
+            for caminho in arquivos:
+                titulo, conteudo = extrair_titulo_e_conteudo(caminho)
+                conexao.execute(
+                    """
+                    INSERT INTO notas(titulo, caminho, conteudo)
+                    VALUES (?, ?, ?)
+                    """,
+                    (titulo, str(caminho), conteudo),
+                )
         return len(arquivos)
 
     def listar_recentes(self, limite: int = 5) -> list[Path]:
@@ -220,11 +227,11 @@ class MemoriaObsidian:
             Uma lista com os caminhos mais recentes.
         """
         self.preparar()
-        arquivos = [
+        arquivos = (
             caminho
             for caminho in self.vault_path.rglob("*.md")
             if ".assistente" not in caminho.parts
-        ]
+        )
         return sorted(arquivos, reverse=True)[:limite]
 
     def indexar_nota(self, caminho: Path) -> None:
@@ -251,12 +258,9 @@ class MemoriaObsidian:
             As estatisticas de contagem de notas e caminhos vitais.
         """
         self.preparar()
-        quantidade = len(
-            [
-                caminho
-                for caminho in self.vault_path.rglob("*.md")
-                if ".assistente" not in caminho.parts
-            ]
+        quantidade = sum(
+            1 for caminho in self.vault_path.rglob("*.md")
+            if ".assistente" not in caminho.parts
         )
         return EstatisticasMemoria(
             vault_path=self.vault_path,

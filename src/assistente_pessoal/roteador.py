@@ -33,12 +33,12 @@ class RoteadorComandos:
                 caminho = self._registrar_consulta_noticias(comando, noticias)
                 resposta = f"{resposta}\n\nConsulta salva no Obsidian em {caminho}."
             return resposta
-        if comando_minusculo.startswith(("memorize ", "memorizar ", "salve ", "salvar ")):
-            conteudo = _remover_prefixo_memoria(comando)
+        if comando_minusculo.startswith(PREFIXOS_MEMORIA):
+            conteudo = _remover_prefixos(comando, PREFIXOS_MEMORIA)
             caminho = self.memoria.salvar_nota("Memoria rapida", conteudo, tags=["memoria-rapida"])
             return f"Memoria salva em {self.memoria.caminho_relativo(caminho)}."
-        if comando_minusculo.startswith(("buscar ", "procure ", "pesquisar ")):
-            consulta = _remover_prefixo_busca(comando)
+        if comando_minusculo.startswith(PREFIXOS_BUSCA):
+            consulta = _remover_prefixos(comando, PREFIXOS_BUSCA)
             resultados = self.memoria.buscar(consulta)
             if not resultados:
                 return "Nao encontrei memorias para essa busca."
@@ -64,19 +64,12 @@ class RoteadorComandos:
         return self.memoria.caminho_relativo(caminho)
 
 
-def _remover_prefixo_memoria(texto: str) -> str:
-    """Remove verbos comuns de salvamento para deixar apenas o conteudo."""
-    for prefixo in ("memorize ", "memorizar ", "salve ", "salvar "):
-        if texto.lower().startswith(prefixo):
-            return texto[len(prefixo) :].strip()
-    return texto.strip()
-
-
-def _remover_prefixo_busca(texto: str) -> str:
-    """Remove verbos comuns de busca para deixar apenas a consulta."""
-    for prefixo in ("buscar ", "procure ", "pesquisar "):
-        if texto.lower().startswith(prefixo):
-            return texto[len(prefixo) :].strip()
+def _remover_prefixos(texto: str, prefixos: tuple[str, ...]) -> str:
+    """Remove verbos iniciais para isolar o conteudo principal do comando."""
+    texto_lower = texto.lower()
+    for prefixo in prefixos:
+        if texto_lower.startswith(prefixo):
+            return texto[len(prefixo):].strip()
     return texto.strip()
 
 
