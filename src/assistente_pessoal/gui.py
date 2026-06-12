@@ -127,26 +127,51 @@ def _dashboard_css() -> str:
     """Mantem o tema visual centralizado para facilitar futuras iteracoes de produto."""
     return """
     :root {
-      --appa-bg: #060914;
-      --appa-panel: #101727;
-      --appa-panel-soft: #151f31;
-      --appa-panel-strong: #0b1020;
+      --appa-bg: #03050a; /* Darker, more futuristic */
+      --appa-panel: rgba(16, 23, 39, 0.4); /* Glass effect */
+      --appa-panel-soft: rgba(21, 31, 49, 0.3);
+      --appa-panel-strong: rgba(11, 16, 32, 0.6);
       --appa-ink: #edf7ff;
-      --appa-muted: #9fb2c7;
-      --appa-line: rgba(143, 164, 196, 0.24);
-      --appa-accent: #22d3ee;
-      --appa-blue: #60a5fa;
-      --appa-green: #34d399;
-      --appa-amber: #fbbf24;
-      --appa-rose: #fb7185;
-      --appa-magenta: #f472b6;
-      --appa-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
-      --appa-cell: rgba(11, 16, 32, 0.88);
-      --appa-command: rgba(9, 14, 28, 0.88);
-      --appa-card-bg: rgba(12, 18, 34, 0.92);
-      --appa-card-subtle: rgba(21, 31, 49, 0.76);
-      --appa-empty: rgba(11, 16, 32, 0.54);
-      --appa-input-bg: rgba(8, 13, 26, 0.64);
+      --appa-muted: #7b8eab;
+      --appa-line: rgba(143, 164, 196, 0.15);
+      --appa-accent: #00f0ff; /* Neon cyan */
+      --appa-blue: #3b82f6;
+      --appa-green: #10b981;
+      --appa-amber: #f59e0b;
+      --appa-rose: #f43f5e;
+      --appa-magenta: #d946ef;
+      --appa-shadow: 0 8px 32px rgba(0, 240, 255, 0.05); /* Soft neon glow */
+      --appa-cell: rgba(11, 16, 32, 0.5);
+      --appa-command: rgba(3, 5, 10, 0.8);
+      --appa-card-bg: rgba(12, 18, 34, 0.4);
+      --appa-card-subtle: rgba(21, 31, 49, 0.3);
+      --appa-empty: rgba(11, 16, 32, 0.3);
+      --appa-input-bg: rgba(8, 13, 26, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .weather-now {
+      background: linear-gradient(135deg, rgba(16,23,39,0.7) 0%, rgba(3,5,10,0.8) 100%);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.05);
+      backdrop-filter: blur(16px);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+    .stat-grid-modern {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .text-neon {
+      color: var(--appa-accent);
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
     }
 
     html[data-theme="light"] {
@@ -178,7 +203,7 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="comfortable"] {
-      --appa-card-pad: 10px;
+      --appa-card-pad: 8px;
       --appa-row-gap: 10px;
     }
 
@@ -262,7 +287,7 @@ def _dashboard_css() -> str:
 
     .appa-title {
       margin: 0;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       line-height: 1.1;
       font-weight: 800;
       color: var(--appa-ink);
@@ -271,7 +296,7 @@ def _dashboard_css() -> str:
     .appa-subtitle {
       margin: 5px 0 0;
       color: var(--appa-muted);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
     }
 
     .appa-summary {
@@ -373,7 +398,7 @@ def _dashboard_css() -> str:
       border: 1px solid var(--appa-line);
       border-radius: 8px;
       padding: var(--appa-card-pad, 16px);
-      min-height: 80px;
+      min-height: 60px;
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
       overflow: hidden;
     }
@@ -404,7 +429,7 @@ def _dashboard_css() -> str:
     .kpi-value {
       margin-top: 9px;
       color: var(--appa-ink);
-      font-size: 1.5rem;
+      font-size: 1.2rem;
       font-weight: 800;
       line-height: 1;
     }
@@ -451,7 +476,7 @@ def _dashboard_css() -> str:
 
     .section-title {
       color: var(--appa-ink);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 800;
     }
 
@@ -491,7 +516,7 @@ def _dashboard_css() -> str:
 
     .weather-temp {
       color: var(--appa-ink);
-      font-size: 2.4rem;
+      font-size: 2.8rem;
       font-weight: 850;
       line-height: 1;
     }
@@ -935,7 +960,7 @@ def _dashboard_css() -> str:
 
     .news-open {
       color: var(--appa-ink);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 800;
       text-decoration: none;
     }
@@ -1028,7 +1053,7 @@ def _dashboard_css() -> str:
     }
 
     html[data-density="compact"] .calendar-cell {
-      min-height: 80px;
+      min-height: 60px;
       padding: 5px;
     }
 
@@ -1387,36 +1412,17 @@ def construir_dashboard(
     ui.run_javascript("document.documentElement.dataset.density = 'compact';")
     with ui.column().classes("dashboard-shell gap-3 w-full max-w-[1600px]"):
         _cabecalho(snapshot_inicial)
-        with ui.row().classes("commandbar items-end gap-3 w-full"):
-            limite_noticias = ui.number(
-                label="Noticias",
-                value=LIMITE_PADRAO_NOTICIAS,
-                min=8,
-                max=LIMITE_PADRAO_NOTICIAS,
-                step=1,
-                format="%.0f",
-            ).classes("w-32")
-            atualizacao_auto = ui.switch("Atualizacao automatica", value=True).classes(
-                "control-switch"
-            )
-            ui.html(
-                '''
-                <div class="theme-toggle" aria-label="Tema do painel">
-                  <button type="button" data-theme-choice="dark">Dark</button>
-                  <button type="button" data-theme-choice="light">Light</button>
-                </div>
-                '''
-            )
+        with ui.row().classes("commandbar items-center gap-3 w-full"):
             ui.html(
                 '''
                 <div class="commandbar-note">
                   <span class="status-dot"></span>
-                  <span>Atualizacao local ativa</span>
+                  <span>Atualização local ativa</span>
                 </div>
                 '''
             )
             ui.button(
-                "Atualizar",
+                "Atualizar Painel",
                 icon="refresh",
                 on_click=lambda: atualizar(),
             ).classes("refresh-button")
@@ -1536,28 +1542,52 @@ def construir_dashboard(
                     ).classes("w-full")
 
             with ui.tab_panel(tab_interesses).classes('p-0 gap-3 flex flex-col'):
-                with ui.element('div').classes('expansion-shell p-3'):
-                    ui.label('Interesses de Pesquisa').classes('section-title mb-2')
-                    interesses_container = ui.element("div").classes("interest-list")
-                    _popular_interesses(
-                        interesses_container,
-                        servico.config.fontes.noticias.interesses_busca,
-                    )
-                    interesse_texto = ui.textarea("Adicionar interesses").classes("w-full mt-3")
-                    interesse_texto.props("rows=3")
-                    interesses_status = ui.label("").classes("text-sm text-slate-500")
-                    ui.button(
-                        "Salvar interesses",
-                        icon="save",
-                        on_click=lambda: _adicionar_interesses_gui(
-                            servico,
-                            interesse_texto,
-                            interesses_container,
-                            interesses_status,
-                            status,
+                with ui.grid(columns=2).classes('w-full gap-3'):
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Aparência e Comportamento').classes('section-title mb-2')
+                        limite_noticias = ui.number(
+                            label="Limite de Notícias no Dashboard",
+                            value=LIMITE_PADRAO_NOTICIAS,
+                            min=8,
+                            max=LIMITE_PADRAO_NOTICIAS,
+                            step=1,
+                            format="%.0f",
+                        ).classes("w-full mb-3")
+                        atualizacao_auto = ui.switch("Atualização automática", value=True).classes(
+                            "control-switch mb-3"
                         )
-                        and atualizar(),
-                    ).classes("w-full mt-2")
+                        ui.label('Tema do Painel').classes('text-xs font-semibold text-slate-500 mb-1')
+                        ui.html(
+                            '''
+                            <div class="theme-toggle" aria-label="Tema do painel">
+                              <button type="button" data-theme-choice="dark">Dark</button>
+                              <button type="button" data-theme-choice="light">Light</button>
+                            </div>
+                            '''
+                        )
+                        
+                    with ui.element('div').classes('expansion-shell p-3'):
+                        ui.label('Interesses de Pesquisa').classes('section-title mb-2')
+                        interesses_container = ui.element("div").classes("interest-list")
+                        _popular_interesses(
+                            interesses_container,
+                            servico.config.fontes.noticias.interesses_busca,
+                        )
+                        interesse_texto = ui.textarea("Adicionar interesses (vírgula)").classes("w-full mt-3")
+                        interesse_texto.props("rows=3")
+                        interesses_status = ui.label("").classes("text-sm text-slate-500")
+                        ui.button(
+                            "Salvar interesses",
+                            icon="save",
+                            on_click=lambda: _adicionar_interesses_gui(
+                                servico,
+                                interesse_texto,
+                                interesses_container,
+                                interesses_status,
+                                status,
+                            )
+                            and atualizar(),
+                        ).classes("w-full mt-2")
 
         def atualizar() -> None:
             try:
@@ -1741,50 +1771,64 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
 
 
 def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
-    """Constroi o resumo visual de clima em estilo dashboard."""
-    with ui.element("div").classes("weather-now w-full h-full flex flex-col justify-center"):
-        cidade = ui.label(snapshot.previsao.cidade if snapshot else "Sem dados").classes(
-            "text-lg font-semibold"
-        )
-        data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
-            "text-sm text-slate-500"
-        )
-        referencia = ui.label(
-            _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
-        ).classes("text-xs uppercase text-slate-400")
-        temperatura = ui.label(
-            _formatar_grau(snapshot.previsao.temperatura_referencia) if snapshot else "--"
-        ).classes("weather-temp")
-        with ui.element("div").classes("stat-grid mt-4"):
-            maxima = _stat_box(
-                "Maxima",
-                _formatar_grau(snapshot.previsao.maxima) if snapshot else "--",
-            )
-            minima = _stat_box(
-                "Minima",
-                _formatar_grau(snapshot.previsao.minima) if snapshot else "--",
-            )
-            chuva = _stat_box(
-                "Chuva",
-                _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--",
-            )
-        contexto = ui.label(
-            _texto_contexto_clima(snapshot.previsao)
-            if snapshot
-            else "Sem leitura de clima ainda."
-        ).classes("text-sm text-slate-500 mt-3")
+    """Constroi o resumo visual de clima em estilo dashboard (Minimalista/Futurista)."""
+    with ui.element("div").classes("weather-now w-full h-full flex flex-col justify-center relative overflow-hidden"):
+        # Decorative glow
+        ui.html('<div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:radial-gradient(circle, rgba(0,240,255,0.15) 0%, transparent 70%); border-radius:50%; pointer-events:none;"></div>')
         
+        with ui.row().classes("w-full justify-between items-start"):
+            with ui.column().classes("gap-0"):
+                cidade = ui.label(snapshot.previsao.cidade if snapshot else "Sem dados").classes(
+                    "text-lg font-bold text-neon tracking-wide"
+                )
+                data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
+                    "text-xs text-slate-400"
+                )
+            referencia = ui.label(
+                _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
+            ).classes("text-[10px] uppercase font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full border border-slate-700/50")
+            
+        with ui.row().classes("w-full items-center gap-4 mt-2"):
+            temperatura = ui.label(
+                _formatar_grau(snapshot.previsao.temperatura_referencia) if snapshot else "--"
+            ).classes("text-5xl font-black text-white drop-shadow-md")
+            with ui.column().classes("gap-0"):
+                sensacao = ui.label(f"Sensação: {_formatar_grau(snapshot.previsao.sensacao) if snapshot and snapshot.previsao.sensacao else '--'}").classes("text-xs text-slate-400")
+                condicao = ui.label("Condição atual").classes("text-xs text-slate-300 font-medium")
+
+        with ui.element("div").classes("stat-grid-modern"):
+            maxima = _stat_box_modern("Máx", _formatar_grau(snapshot.previsao.maxima) if snapshot else "--", "mdi-arrow-up text-rose-400")
+            minima = _stat_box_modern("Mín", _formatar_grau(snapshot.previsao.minima) if snapshot else "--", "mdi-arrow-down text-blue-400")
+            chuva = _stat_box_modern("Chuva", _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--", "mdi-water-percent text-cyan-400")
+            uv = _stat_box_modern("UV Max", str(snapshot.previsao.uv_max) if snapshot and snapshot.previsao.uv_max else "--", "mdi-white-balance-sunny text-amber-400")
+            umidade = _stat_box_modern("Umidade", f"{snapshot.previsao.umidade}%" if snapshot and snapshot.previsao.umidade else "--", "mdi-water text-blue-300")
+            vento = _stat_box_modern("Vento", f"{snapshot.previsao.vento}km/h" if snapshot and snapshot.previsao.vento else "--", "mdi-weather-windy text-slate-300")
+            nascer = _stat_box_modern("Nascer", snapshot.previsao.nascer_sol if snapshot and snapshot.previsao.nascer_sol else "--", "mdi-weather-sunset-up text-orange-400")
+            por = _stat_box_modern("Pôr", snapshot.previsao.por_sol if snapshot and snapshot.previsao.por_sol else "--", "mdi-weather-sunset-down text-purple-400")
+            
     return {
         "cidade": cidade,
         "data": data,
         "referencia": referencia,
         "temperatura": temperatura,
+        "sensacao": sensacao,
         "maxima": maxima,
         "minima": minima,
         "chuva": chuva,
-        "contexto": contexto,
+        "uv": uv,
+        "umidade": umidade,
+        "vento": vento,
+        "nascer": nascer,
+        "por": por,
     }
 
+def _stat_box_modern(rotulo: str, valor: str, icone: str) -> ui.label:
+    """Cria uma mini caixa numerica para os blocos de clima, mais minimalista."""
+    with ui.element("div").classes("stat-box flex flex-col items-center justify-center p-2"):
+        ui.icon(icone.split(" ")[0]).classes(f"text-base mb-1 {icone.split(' ')[1]}")
+        texto = ui.label(valor).classes("text-sm font-bold text-slate-200")
+        ui.label(rotulo).classes("text-[9px] uppercase tracking-wider text-slate-500 mt-1")
+    return texto
 
 def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardSnapshot) -> None:
     """Atualiza o bloco principal de clima."""
@@ -1793,10 +1837,16 @@ def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardS
     widgets["data"].text = previsao.data_alvo.isoformat()
     widgets["referencia"].text = _rotulo_referencia_clima(previsao)
     widgets["temperatura"].text = _formatar_grau(previsao.temperatura_referencia)
+    widgets["sensacao"].text = f"Sensação: {_formatar_grau(previsao.sensacao) if previsao.sensacao else '--'}"
     widgets["maxima"].text = _formatar_grau(previsao.maxima)
     widgets["minima"].text = _formatar_grau(previsao.minima)
     widgets["chuva"].text = _formatar_chuva(previsao.chuva)
-    widgets["contexto"].text = _texto_contexto_clima(previsao)
+    widgets["uv"].text = str(previsao.uv_max) if previsao.uv_max else "--"
+    widgets["umidade"].text = f"{previsao.umidade}%" if previsao.umidade else "--"
+    widgets["vento"].text = f"{previsao.vento}km/h" if previsao.vento else "--"
+    widgets["nascer"].text = previsao.nascer_sol if previsao.nascer_sol else "--"
+    widgets["por"].text = previsao.por_sol if previsao.por_sol else "--"
+
 
 
 def _stat_box(rotulo: str, valor: str) -> ui.label:
@@ -1866,13 +1916,6 @@ def _formatar_chuva(valor: float | None) -> str:
 def _rotulo_referencia_clima(previsao: PrevisaoClima) -> str:
     """Explica se o numero principal do clima representa agora ou um dia futuro."""
     return "Agora" if previsao.e_hoje else "Temperatura prevista"
-
-
-def _texto_contexto_clima(previsao: PrevisaoClima) -> str:
-    """Monta um contexto coerente para hoje e para dias futuros."""
-    if previsao.e_hoje:
-        return f"Sensacao {previsao.sensacao} C | Vento {previsao.vento} km/h"
-    return f"Vento previsto {previsao.vento} km/h | Chance de chuva {previsao.chuva}%"
 
 
 def _resumo_feed_noticias(noticias: list[Noticia]) -> str:

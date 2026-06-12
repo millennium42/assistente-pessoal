@@ -39,9 +39,15 @@ class PrevisaoClima:
     temperatura_referencia: float | None
     sensacao: float | None
     vento: float | None
+    direcao_vento: int | None
+    umidade: float | None
+    pressao: float | None
     maxima: float | None
     minima: float | None
     chuva: float | None
+    uv_max: float | None
+    nascer_sol: str | None
+    por_sol: str | None
     codigo_tempo: int | None
 
     @property
@@ -103,9 +109,9 @@ class ClienteClima:
             "latitude": localizacao.latitude,
             "longitude": localizacao.longitude,
             "timezone": localizacao.timezone,
-            "current": "temperature_2m,apparent_temperature,wind_speed_10m,weather_code",
+            "current": "temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure,weather_code",
             "daily": (
-                "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+                "temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunrise,sunset,weather_code"
             ),
             "forecast_days": min(max(forecast_days, 1), 16),
         }
@@ -180,6 +186,11 @@ def montar_previsao(cidade: str, dados: dict, data_alvo: date) -> PrevisaoClima:
     temperatura_referencia = (
         atual.get("temperature_2m") if e_hoje else _temperatura_media(maxima, minima)
     )
+    nascer = _valor_na_posicao(diario.get("sunrise"), indice)
+    por = _valor_na_posicao(diario.get("sunset"), indice)
+    if nascer: nascer = nascer.split("T")[-1][:5]
+    if por: por = por.split("T")[-1][:5]
+
     return PrevisaoClima(
         cidade=cidade,
         data_alvo=data_alvo,
@@ -187,9 +198,15 @@ def montar_previsao(cidade: str, dados: dict, data_alvo: date) -> PrevisaoClima:
         temperatura_referencia=temperatura_referencia,
         sensacao=atual.get("apparent_temperature") if e_hoje else None,
         vento=atual.get("wind_speed_10m"),
+        direcao_vento=atual.get("wind_direction_10m"),
+        umidade=atual.get("relative_humidity_2m"),
+        pressao=atual.get("surface_pressure"),
         maxima=maxima,
         minima=minima,
         chuva=_valor_na_posicao(diario.get("precipitation_probability_max"), indice),
+        uv_max=_valor_na_posicao(diario.get("uv_index_max"), indice),
+        nascer_sol=nascer,
+        por_sol=por,
         codigo_tempo=_valor_na_posicao(diario.get("weather_code"), indice)
         if not e_hoje
         else atual.get("weather_code"),
