@@ -15,6 +15,7 @@ from assistente_pessoal.agenda_google import (
 from assistente_pessoal.cambio import ClienteCambio, CotacaoMoeda
 from assistente_pessoal.clima import ClienteClima, PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig, renderizar_toml
+from assistente_pessoal.dashboard_insights import DashboardInsights, GeradorInsightsDashboard
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
@@ -45,10 +46,13 @@ class DashboardSnapshot:
     santa_maria_em_foco: list[Noticia]
     notas_recentes: list[str]
     agenda_local: str
+    perfil_pessoal: str
     agenda_google: list[EventoGoogleAgenda]
     agenda_google_resultado: ResultadoGoogleAgenda
     indicadores: IndicadoresDashboard
     noticias_por_grupo: dict[str, int]
+    clima_ontem: ResumoClimaDia | None
+    insights: DashboardInsights
     atualizado_em: str
 
 
@@ -63,11 +67,13 @@ class DashboardService:
         self.clima = ClienteClima()
         self.cambio = ClienteCambio()
         self.google_agenda = ClienteGoogleAgenda(config.google_agenda)
+        self.gerador_insights = GeradorInsightsDashboard(config)
         self._cache_clima: tuple[datetime, PrevisaoClima] | None = None
         self._cache_resumo_semana: tuple[datetime, list[ResumoClimaDia]] | None = None
         self._cache_cotacao_dolar: tuple[datetime, CotacaoMoeda] | None = None
         self._cache_noticias: tuple[datetime, list[Noticia]] | None = None
         self._cache_agenda_google: tuple[datetime, ResultadoGoogleAgenda] | None = None
+        self._cache_clima_ontem: tuple[datetime, ResumoClimaDia | None] | None = None
 
     def carregar(
         self,
@@ -84,6 +90,7 @@ class DashboardService:
             self.memoria.caminho_relativo(caminho) for caminho in self.memoria.listar_recentes()
         ]
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
+        perfil_pessoal = self.memoria.ler_documento_fixo("10_memoria", "perfil-pessoal.md")
         agenda_google_resultado = self._carregar_agenda_google()
         agenda_google = agenda_google_resultado.eventos
         agenda_google_futuros = [
@@ -92,6 +99,18 @@ class DashboardService:
             if evento_google_ainda_futuro(evento, self.config.localizacao.timezone)
         ]
         contagem_grupos = Counter(noticia.grupo for noticia in noticias)
+        clima_ontem = self._carregar_clima_ontem()
+        atualizado_em = datetime.now().strftime("%H:%M:%S")
+        insights = self.gerador_insights.gerar(
+            agenda_google=agenda_google_futuros,
+            noticias=noticias,
+            noticias_por_grupo=dict(contagem_grupos),
+            previsao=previsao,
+            clima_ontem=clima_ontem,
+            perfil_pessoal=perfil_pessoal,
+            timezone=self.config.localizacao.timezone,
+            atualizado_em=atualizado_em,
+        )
         return DashboardSnapshot(
             previsao=previsao,
             resumo_semana=resumo_semana,
@@ -100,6 +119,7 @@ class DashboardService:
             santa_maria_em_foco=santa_maria_em_foco,
             notas_recentes=notas,
             agenda_local=agenda_local,
+            perfil_pessoal=perfil_pessoal,
             agenda_google=agenda_google,
             agenda_google_resultado=agenda_google_resultado,
             indicadores=IndicadoresDashboard(
@@ -110,7 +130,9 @@ class DashboardService:
                 eventos_google=len(agenda_google_futuros),
             ),
             noticias_por_grupo=dict(contagem_grupos),
-            atualizado_em=datetime.now().strftime("%H:%M:%S"),
+            clima_ontem=clima_ontem,
+            insights=insights,
+            atualizado_em=atualizado_em,
         )
 
     def _carregar_previsao(self, dia_clima: str | None) -> PrevisaoClima:
@@ -178,6 +200,21 @@ class DashboardService:
         resultado = self.google_agenda.obter_eventos_mes()
         self._cache_agenda_google = (datetime.now(), resultado)
         return resultado
+
+    def _carregar_clima_ontem(self) -> ResumoClimaDia | None:
+        """Busca um ponto de comparacao para os insights do tempo."""
+        ttl = self.config.dashboard.ttl_clima_segundos
+        if self._cache_clima_ontem and self._cache_valido(self._cache_clima_ontem[0], ttl):
+            return self._cache_clima_ontem[1]
+        metodo = getattr(self.clima, "obter_resumo_historico", None)
+        if metodo is None:
+            return None
+        try:
+            resumo = metodo(self.config.localizacao, dias_atras=1)
+        except Exception:
+            resumo = None
+        self._cache_clima_ontem = (datetime.now(), resumo)
+        return resumo
 
     def _cache_valido(self, atualizado_em: datetime, ttl_segundos: int) -> bool:
         """Indica se um bloco ainda pode ser reutilizado sem nova chamada externa."""
@@ -257,6 +294,17 @@ class DashboardService:
             pasta="61_agenda_local",
             titulo="Agenda local",
             tags=["agenda", "planejamento"],
+        )
+        return self.memoria.caminho_relativo(caminho)
+
+    def salvar_perfil_pessoal(self, conteudo: str) -> str:
+        """Mantem um resumo pessoal canonico para personalizar o assistente."""
+        caminho = self.memoria.salvar_documento_fixo(
+            nome_arquivo="perfil-pessoal.md",
+            conteudo=conteudo.strip() or "Perfil pessoal ainda nao preenchido.",
+            pasta="10_memoria",
+            titulo="Perfil pessoal",
+            tags=["perfil", "pessoal", "assistente"],
         )
         return self.memoria.caminho_relativo(caminho)
 

@@ -2,7 +2,7 @@
 
 import shutil
 import subprocess
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -48,6 +48,16 @@ class ClimaFake:
             for indice, dia in enumerate(range(8, 15))
         ]
 
+    def obter_resumo_historico(self, *_args, **_kwargs) -> ResumoClimaDia:
+        """Oferece o recorte de ontem para os insights de clima."""
+        return ResumoClimaDia(
+            data=date(2026, 6, 7),
+            maxima=18.0,
+            minima=11.0,
+            chuva=20.0,
+            codigo_tempo=3,
+        )
+
 
 class ClimaContador(ClimaFake):
     """Conta quantas vezes o clima foi consultado para validar o cache."""
@@ -71,6 +81,22 @@ class NoticiasFake:
     def listar(self, *_args, **_kwargs) -> list:
         """Mantem o teste focado no painel, nao em parsing de noticias."""
         return []
+
+
+class NoticiasFakeComPublicacao(NoticiasFake):
+    """Entrega uma noticia completa para validar os insights do feed."""
+
+    def listar(self, *_args, **_kwargs) -> list[Noticia]:
+        return [
+            Noticia(
+                titulo="UFSM abre novo edital de pesquisa",
+                link="https://noticias.test/ufsm-edital",
+                fonte="Portal Teste",
+                publicado="2026-06-08T12:00:00-03:00",
+                publicado_em=datetime(2026, 6, 8, 12, 0),
+                grupo="interesses",
+            )
+        ]
 
 
 class NoticiasContador(NoticiasFake):
@@ -190,6 +216,36 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
     assert snapshot.indicadores.eventos_google == 1
     assert len(snapshot.resumo_semana) == 7
     assert snapshot.cotacao_dolar.valor == 5.25
+    assert snapshot.insights.motor == "Local"
+    assert snapshot.clima_ontem is not None
+
+
+def test_dashboard_service_salva_perfil_pessoal(tmp_path: Path) -> None:
+    """Usa um documento canonico de perfil para orientar os insights."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+
+    caminho = servico.salvar_perfil_pessoal("Sou professor, gosto de foco pela manhã.")
+    snapshot = servico.carregar()
+
+    assert caminho == "10_memoria/perfil-pessoal.md"
+    assert "professor" in snapshot.perfil_pessoal
+    assert snapshot.insights.agenda.resumo
+    assert snapshot.insights.noticias.resumo
+    assert snapshot.insights.clima.resumo
+
+
+def test_dashboard_service_gera_bullet_de_noticia_mais_recente(tmp_path: Path) -> None:
+    """Mantem o card de noticias dos insights sem quebrar ao formatar o tempo."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    servico.noticias = NoticiasFakeComPublicacao()
+
+    snapshot = servico.carregar()
+
+    assert snapshot.insights.noticias.resumo
+    assert snapshot.insights.noticias.bullets
+    assert "Mais recente:" in snapshot.insights.noticias.bullets[0]
 
 
 def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: Path) -> None:
@@ -238,7 +294,7 @@ def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     config = AppConfig(db_path=tmp_path / "banco")
     Memoria(config.db_path).salvar_nota("Teste", "Conteudo")
 
-    construir_dashboard(DashboardService(config))
+    construir_dashboard(_servico_sem_rede(config))
 
 
 def test_dashboard_js_do_tema_e_sintaticamente_valido() -> None:

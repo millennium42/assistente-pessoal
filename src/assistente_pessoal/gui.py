@@ -553,6 +553,72 @@ def _dashboard_css() -> str:
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 
+    .insights-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .insight-card {
+      min-height: 220px;
+      background:
+        linear-gradient(180deg, rgba(34, 211, 238, 0.05), transparent 160px),
+        var(--appa-panel);
+      border: 1px solid var(--appa-line);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
+    }
+
+    .insight-kicker {
+      color: var(--appa-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .insight-summary {
+      color: var(--appa-ink);
+      font-size: 1rem;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .insight-bullets {
+      gap: 8px;
+    }
+
+    .insight-bullet {
+      color: var(--appa-muted);
+      font-size: 0.84rem;
+      line-height: 1.35;
+      padding-left: 14px;
+      position: relative;
+    }
+
+    .insight-bullet::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 8px;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--appa-accent);
+    }
+
+    .insight-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--appa-line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: var(--appa-card-subtle);
+      color: var(--appa-muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
     
 
     
@@ -1639,12 +1705,21 @@ def construir_dashboard(
             status = ui.label("Painel pronto.").classes("dashboard-status ml-auto")
 
         with ui.tabs().classes("w-full") as tabs:
+            tab_insights = ui.tab("Insights", icon="auto_awesome")
             tab_visao_geral = ui.tab("Visão Geral", icon="dashboard")
             tab_noticias = ui.tab("Explorador de Notícias", icon="analytics")
             tab_agenda = ui.tab("Agenda e Eventos", icon="calendar_month")
             tab_interesses = ui.tab("Configurações", icon="settings")
 
-        with ui.tab_panels(tabs, value=tab_visao_geral).classes("w-full bg-transparent p-0"):
+        with ui.tab_panels(tabs, value=tab_insights).classes("w-full bg-transparent p-0"):
+            with ui.tab_panel(tab_insights).classes("p-0 gap-3 flex flex-col"):
+                with ui.row().classes("w-full items-center justify-between"):
+                    ui.label("Resumo pessoal com contexto do banco").classes("section-title")
+                    insight_motor = ui.label(
+                        snapshot_inicial.insights.motor if snapshot_inicial else "Local"
+                    ).classes("insight-chip")
+                insights_widgets = _render_insights(snapshot_inicial)
+
             with ui.tab_panel(tab_visao_geral).classes("p-0 gap-3 flex flex-col"):
                 kpi_cards = _criar_kpis(snapshot_inicial)
                 with ui.grid(columns=6).classes("kpi-grid w-full gap-3"):
@@ -1860,6 +1935,33 @@ def construir_dashboard(
                                 and atualizar()
                             ),
                         ).classes("w-full mt-2")
+                with ui.element("div").classes("expansion-shell p-3"):
+                    ui.label("Perfil pessoal da assistente").classes("section-title mb-2")
+                    ui.label(
+                        "Guarde rotina, preferências, contexto profissional e pessoal "
+                        "para personalizar os insights."
+                    ).classes("section-subtitle mb-2")
+                    perfil_pessoal = ui.textarea(
+                        "Quem sou eu / como devo ser assistido(a)"
+                    ).classes("w-full")
+                    perfil_pessoal.props("rows=6")
+                    perfil_pessoal.value = (
+                        snapshot_inicial.perfil_pessoal if snapshot_inicial else ""
+                    )
+                    perfil_status = ui.label("").classes("text-sm text-slate-500")
+                    ui.button(
+                        "Salvar perfil pessoal",
+                        icon="person",
+                        on_click=lambda: (
+                            _salvar_perfil_pessoal_gui(
+                                servico,
+                                perfil_pessoal,
+                                perfil_status,
+                                status,
+                            )
+                            and atualizar()
+                        ),
+                    ).classes("w-full mt-2")
 
         def atualizar() -> None:
             try:
@@ -1871,6 +1973,8 @@ def construir_dashboard(
                 return
 
             _atualizar_kpis(kpi_cards, snapshot)
+            _atualizar_insights(insights_widgets, snapshot)
+            insight_motor.text = snapshot.insights.motor
             _atualizar_clima_resumo(clima_resumo, snapshot)
             _atualizar_grafico_clima(grafico_clima, snapshot.resumo_semana)
             _atualizar_grafico_noticias(grafico_noticias, snapshot.noticias_por_grupo)
@@ -1909,6 +2013,8 @@ def construir_dashboard(
         noticias_total.text = _resumo_feed_noticias(
             _noticias_sem_santa_maria(snapshot_inicial.noticias if snapshot_inicial else [])
         )
+        if snapshot_inicial is None:
+            atualizar()
         cliente_dashboard = ui.context.client
 
         def atualizar_automaticamente() -> None:
@@ -2047,6 +2153,73 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
         partes.append(f"Atualizado {cotacao.horario.strftime('%H:%M')}")
     partes.append(cotacao.fonte)
     return " | ".join(partes)
+
+
+def _render_insights(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
+    """Constroi os tres cards principais de resumo pessoal."""
+    insights = snapshot.insights if snapshot else None
+    with ui.grid(columns=3).classes("insights-grid w-full gap-3"):
+        agenda = _criar_card_insight(
+            insights.agenda if insights else None,
+            "Agenda do dia",
+            "Sua agenda futura aparece aqui com contexto pessoal.",
+        )
+        noticias = _criar_card_insight(
+            insights.noticias if insights else None,
+            "Panorama de noticias",
+            "As noticias mais relevantes serao resumidas aqui.",
+        )
+        clima = _criar_card_insight(
+            insights.clima if insights else None,
+            "Leitura do clima",
+            "O clima vira um resumo pratico para sair de casa.",
+        )
+    return {
+        "agenda": agenda,
+        "noticias": noticias,
+        "clima": clima,
+    }
+
+
+def _criar_card_insight(card, titulo_padrao: str, resumo_padrao: str) -> dict[str, ui.element]:
+    """Cria um card de insight e devolve seus widgets mutaveis."""
+    with ui.element("div").classes("insight-card flex flex-col gap-3"):
+        kicker = ui.label(card.titulo if card else titulo_padrao).classes("insight-kicker")
+        resumo = ui.label(card.resumo if card else resumo_padrao).classes("insight-summary")
+        bullets = ui.column().classes("insight-bullets")
+        _popular_bullets_insight(bullets, card.bullets if card else [])
+    return {
+        "kicker": kicker,
+        "resumo": resumo,
+        "bullets": bullets,
+    }
+
+
+def _popular_bullets_insight(container: ui.element, bullets: list[str]) -> None:
+    """Atualiza a lista curta de orientacoes do card."""
+    container.clear()
+    with container:
+        if not bullets:
+            ui.label("Sem detalhes extras no momento.").classes("insight-bullet")
+            return
+        for bullet in bullets[:4]:
+            ui.label(bullet).classes("insight-bullet")
+
+
+def _atualizar_insights(
+    widgets: dict[str, dict[str, ui.element]],
+    snapshot: DashboardSnapshot,
+) -> None:
+    """Sincroniza os cards principais com o snapshot mais recente."""
+    mapa = {
+        "agenda": snapshot.insights.agenda,
+        "noticias": snapshot.insights.noticias,
+        "clima": snapshot.insights.clima,
+    }
+    for chave, card in mapa.items():
+        widgets[chave]["kicker"].text = card.titulo
+        widgets[chave]["resumo"].text = card.resumo
+        _popular_bullets_insight(widgets[chave]["bullets"], card.bullets)
 
 
 def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
@@ -2487,6 +2660,25 @@ def _adicionar_interesses_gui(
     _popular_interesses(interesses_container, interesses)
     status_label.text = "Interesses salvos. Buscando noticias relacionadas..."
     painel_status.text = "Interesses atualizados; atualizando o feed."
+    return True
+
+
+def _salvar_perfil_pessoal_gui(
+    servico: DashboardService,
+    campo_perfil,
+    status_label,
+    painel_status,
+) -> bool:
+    """Persiste o perfil pessoal usado pelos insights do assistente."""
+    texto = str(campo_perfil.value or "")
+    try:
+        caminho = servico.salvar_perfil_pessoal(texto)
+    except Exception as exc:  # pragma: no cover
+        status_label.text = f"Falha ao salvar perfil: {exc}"
+        painel_status.text = status_label.text
+        return False
+    status_label.text = f"Perfil salvo no banco em {caminho}."
+    painel_status.text = "Perfil pessoal atualizado; refinando os insights."
     return True
 
 

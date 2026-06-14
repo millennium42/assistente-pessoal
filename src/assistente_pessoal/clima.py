@@ -8,7 +8,7 @@ sem depender de chaves de API.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import httpx
 
@@ -148,6 +148,34 @@ class ClienteClima:
         with httpx.Client(timeout=self.timeout) as client:
             dados = self._buscar_payload(client, parametros)
         return montar_resumo_semana(dados)
+
+    def obter_resumo_historico(
+        self,
+        localizacao: LocalizacaoConfig,
+        *,
+        dias_atras: int = 1,
+    ) -> ResumoClimaDia | None:
+        """Busca um dia historico recente para comparacoes simples do dashboard."""
+        referencia = hoje_local(localizacao.timezone) - timedelta(days=max(dias_atras, 1))
+        parametros = {
+            "latitude": localizacao.latitude,
+            "longitude": localizacao.longitude,
+            "timezone": localizacao.timezone,
+            "daily": (
+                "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+            ),
+            "start_date": referencia.isoformat(),
+            "end_date": referencia.isoformat(),
+        }
+        with httpx.Client(timeout=self.timeout) as client:
+            resposta = client.get(
+                "https://archive-api.open-meteo.com/v1/archive",
+                params=parametros,
+            )
+            resposta.raise_for_status()
+            dados = resposta.json()
+        resumo = montar_resumo_semana(dados)
+        return resumo[0] if resumo else None
 
     def _buscar_payload(self, client: httpx.Client, parametros: dict) -> dict:
         """Centraliza a chamada a Open-Meteo para evitar duplicacao nos casos de uso.
