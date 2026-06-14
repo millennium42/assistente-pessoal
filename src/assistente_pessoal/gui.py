@@ -1326,9 +1326,9 @@ def _dashboard_js() -> str:
       appa.setTheme = function (mode) {
         const chosen = mode === 'light' ? 'light' : 'dark';
         appa.currentTheme = chosen;
-      document.documentElement.dataset.theme = chosen;
-      try { localStorage.setItem('appa-dashboard-theme', chosen); } catch (error) {}
-      appa.applyThemeControls();
+        document.documentElement.dataset.theme = chosen;
+        try { localStorage.setItem('appa-dashboard-theme', chosen); } catch (error) {}
+        appa.applyThemeControls();
       };
 
       
@@ -1353,10 +1353,6 @@ def _dashboard_js() -> str:
           appa.setTheme(button.dataset.themeChoice);
         };
         document.addEventListener('click', appa.themeClickHandler);
-      }
-
-      ;
-        document.addEventListener('click', appa.viewClickHandler);
       }
 
       appa.tick = function () {

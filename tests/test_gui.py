@@ -1,13 +1,17 @@
 """Testes leves do dashboard sem depender de navegador."""
 
+import shutil
+import subprocess
 from datetime import date, timedelta
 from pathlib import Path
+
+import pytest
 
 from assistente_pessoal.agenda_google import EventoGoogleAgenda, ResultadoGoogleAgenda
 from assistente_pessoal.cambio import CotacaoMoeda
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
-from assistente_pessoal.gui import _criar_evento_google, construir_dashboard
+from assistente_pessoal.gui import _criar_evento_google, _dashboard_js, construir_dashboard
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import Noticia
 from assistente_pessoal.painel import DashboardService
@@ -235,6 +239,25 @@ def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     Memoria(config.db_path).salvar_nota("Teste", "Conteudo")
 
     construir_dashboard(DashboardService(config))
+
+
+def test_dashboard_js_do_tema_e_sintaticamente_valido() -> None:
+    """Captura regressao em que o tema nao inicializa por JS invalido."""
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("Node.js indisponivel para validar JS do dashboard")
+
+    result = subprocess.run(
+        [node_path, "--check", "-"],
+        input=_dashboard_js(),
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "appa-dashboard-theme" in _dashboard_js()
+    assert "themeClickHandler" in _dashboard_js()
 
 
 def test_criar_evento_google_na_gui_usa_servico_sem_api_real(monkeypatch, tmp_path: Path) -> None:
