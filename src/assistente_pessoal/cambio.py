@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from assistente_pessoal import USER_AGENT
+
 
 @dataclass(frozen=True)
 class CotacaoMoeda:
@@ -112,7 +114,7 @@ def _buscar_cotacao(client: httpx.Client, url: str) -> dict | None:
     Returns:
         Um dicionario com os dados da cotacao se existir, None caso contrario.
     """
-    resposta = client.get(url, headers={"User-Agent": "assistente-pessoal/0.1.0"})
+    resposta = client.get(url, headers={"User-Agent": USER_AGENT})
     resposta.raise_for_status()
     dados = resposta.json()
     if isinstance(dados, dict):

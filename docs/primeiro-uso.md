@@ -1,45 +1,37 @@
 # Guia de primeiro uso
 
-Este guia foi reescrito para duas coisas que ficaram muito importantes nesta versao:
+Este guia ajuda a subir o projeto pela primeira vez sem depender de integracoes externas logo no inicio.
 
-1. saber onde o banco de dados esta sendo armazenado
-2. começar a usar o dashboard sem depender de integrações externas
+## 1. Prepare o ambiente
 
-## 1. Instale e ative o ambiente
-
-Se estiver usando o bootstrap:
+Opcao automatizada:
 
 ```powershell
 .\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
 ```
 
-Se estiver fazendo manualmente:
+Opcao manual:
 
 ```powershell
 uv venv
 uv pip install -e ".[dev]"
 ```
 
-## 2. Crie a configuracao
+## 2. Gere a configuracao inicial
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe init
 ```
 
-Isso cria:
+Isso cria a base minima de execucao, incluindo o `config.toml` e o banco SQLite local.
 
-- `config.toml`
-- um banco de dados em `banco/AssistentePessoal/memoria.sqlite`
-
-## 3. Descubra o banco de dados efetivo
-
-Este passo e importante para saber onde seus dados estao sendo salvos:
+## 3. Descubra onde seus dados estao
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria info
 ```
 
-Verifique o caminho absoluto do banco de dados na resposta do comando.
+Use esse comando sempre que quiser confirmar qual banco esta em uso na sessao atual.
 
 ## 4. Teste a memoria
 
@@ -48,51 +40,25 @@ Verifique o caminho absoluto do banco de dados na resposta do comando.
 .\.venv\Scripts\assistente-pessoal.exe memoria buscar estatistica
 ```
 
-## 5. Teste o clima
+## 5. Teste clima e noticias
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe clima
 .\.venv\Scripts\assistente-pessoal.exe clima --dia amanha
-.\.venv\Scripts\assistente-pessoal.exe clima --dia sexta
-```
-
-## 6. Teste as noticias
-
-```powershell
 .\.venv\Scripts\assistente-pessoal.exe noticias
 ```
 
-Prioridade atual:
-
-1. The News
-2. Santa Maria - RS
-3. tech
-4. economia global
-
-Regra importante: so entram noticias do dia atual no fuso configurado.
-
-## 7. Abra o dashboard
+## 6. Abra o dashboard
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe gui
 ```
 
-Abra a URL informada no terminal. O painel tem:
+O dashboard sobe primeiro e atualiza os blocos externos depois. Isso deixa a abertura mais responsiva mesmo quando clima, noticias ou agenda estiverem lentos.
 
-- clima
-- noticias
-- nota rapida
-- plano de estudos
-- agenda local
-- Google Agenda
+## 7. Habilite o LLM apenas se quiser
 
-Quando voce salvar:
-
-- o plano de estudos e a agenda local sao atualizados de forma isolada no banco de dados
-
-## 8. Configurar LLM opcional
-
-No `config.toml`:
+Exemplo minimo no `config.toml`:
 
 ```toml
 [llm]
@@ -101,15 +67,13 @@ modelo = "llama3.2:3b"
 api_key_env = "OPENAI_API_KEY"
 ```
 
-Se usar um servidor local compativel, o chat melhora sem mudar o restante do projeto.
+Sem essa configuracao, o comando `chat` continua disponivel com fallback local.
 
-## 9. Integrar Google Agenda
+## 8. Configure Google Agenda de forma segura
 
-Primeiro, ative a Google Calendar API no projeto do Google Cloud:
+Use um arquivo OAuth local, fora de versionamento, e mantenha o token em uma pasta local ignorada pelo Git.
 
-[Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?hl=pt-br)
-
-No `config.toml`:
+Exemplo:
 
 ```toml
 [google_agenda]
@@ -121,37 +85,27 @@ max_eventos = 10
 janela_dias = 7
 ```
 
-Depois de baixar o arquivo OAuth do Google Cloud para `credentials_path`:
+Depois autentique:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe agenda google-auth
 .\.venv\Scripts\assistente-pessoal.exe agenda google-listar
-.\.venv\Scripts\assistente-pessoal.exe agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30
 ```
 
-Quando a integracao estiver autenticada, o dashboard mostra os proximos eventos e permite
-criar eventos no calendario configurado. Se o token foi criado antes da criacao de eventos,
-rode `agenda google-auth` novamente.
+## 9. Problemas comuns
 
-## 10. Problemas comuns
+### A memoria parece vazia
 
-### A memoria nao aparece ou nao e encontrada
+Verifique se o `config.toml` da sessao atual aponta para o banco que voce espera e confirme isso com `memoria info`.
 
-Quase sempre e um destes casos:
+### O dashboard abre sem noticias
 
-1. o banco de dados que voce esta acessando nao e o mesmo que o assistente esta modificando (veja `memoria info`)
-2. o `config.toml` usado no terminal nao e o mesmo que voce acha que esta usando
-
-### O dashboard abre, mas sem noticias
-
-Isso pode acontecer quando:
+Isso normalmente significa uma destas situacoes:
 
 - as fontes do dia ainda nao publicaram
-- uma fonte local mudou o HTML
-- a sua rede bloqueou uma das consultas
+- algum portal mudou o HTML
+- a rede falhou em uma das consultas
 
-The News, RSS e HTML local falham de forma isolada; uma fonte ruim nao deveria derrubar todo o painel.
+### O chat diz que nao ha LLM configurado
 
-### O chat responde que nao ha LLM
-
-Isso e esperado quando `base_url` e `modelo` estao vazios.
+Esse comportamento e esperado quando `llm.base_url` ou `llm.modelo` estao vazios.

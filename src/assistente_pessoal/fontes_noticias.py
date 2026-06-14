@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 import feedparser
 import httpx
 
+from assistente_pessoal import USER_AGENT
 from assistente_pessoal.config import GrupoRssConfig, TheNewsConfig
 from assistente_pessoal.core_datas import (
     extrair_data_iso,
@@ -113,7 +114,7 @@ class TheNewsSource:
                     resposta = client.get(
                         url,
                         params=params,
-                        headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                        headers={"User-Agent": USER_AGENT},
                     )
                     resposta.raise_for_status()
                     dados = resposta.json()
@@ -325,7 +326,7 @@ class HtmlJsonLdNewsSource:
                 try:
                     resposta = client.get(
                         url,
-                        headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                        headers={"User-Agent": USER_AGENT},
                     )
                     resposta.raise_for_status()
                     html = resposta.text
@@ -415,7 +416,7 @@ class HtmlJsonLdNewsSource:
             try:
                 resposta_artigo = client.get(
                     link,
-                    headers={"User-Agent": "assistente-pessoal/0.1.0"},
+                    headers={"User-Agent": USER_AGENT},
                 )
                 resposta_artigo.raise_for_status()
             except httpx.HTTPError:

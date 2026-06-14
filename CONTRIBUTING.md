@@ -1,6 +1,6 @@
 # Guia de contribuicao
 
-Obrigado por querer melhorar o Assistente Pessoal. Este projeto e escrito em pt-BR por escolha deliberada: a documentacao, os comandos, as mensagens de erro e as docstrings devem conversar com quem vai usar o assistente no dia a dia.
+O projeto e mantido em pt-BR por escolha de produto. Documentacao, mensagens e exemplos devem continuar claros para quem usa o assistente no dia a dia.
 
 ## Ambiente local
 
@@ -9,17 +9,15 @@ uv venv
 uv pip install -e ".[dev]"
 ```
 
-Se `uv`, `python`, `git` ou `ffmpeg` nao forem reconhecidos logo apos instalar, reinicie o terminal. No Windows, os instaladores costumam atualizar o PATH apenas para novas sessoes.
+## Boas praticas
 
-## Padroes de codigo
+- escreva docstrings curtas e uteis
+- prefira modulos pequenos e responsabilidades claras
+- trate integracoes externas com timeout e falha graciosa
+- mantenha segredos fora do codigo e dos arquivos versionados
+- preserve fallback local quando um LLM nao estiver configurado
 
-- Toda funcao, metodo e classe deve ter docstring em pt-BR.
-- Comentarios devem explicar por que uma decisao existe, nao repetir o que a linha ja diz.
-- Modulos devem ficar pequenos e com responsabilidade clara.
-- Integracoes externas devem ter timeout e testes com mock.
-- O assistente nao deve quebrar quando o LLM nao estiver configurado.
-
-## Antes de abrir PR
+## Validacao antes de propor mudancas
 
 ```powershell
 uv run pytest
@@ -27,7 +25,6 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-## Filosofia tecnica
+## Direcao tecnica
 
-A V1 prioriza confiabilidade e modularidade sobre espetaculo. Ideias como wake word, interface grafica, RAG vetorial e TTS neural melhor devem entrar somente quando a base local estiver simples de usar e facil de testar.
-
+A linha atual do projeto prioriza confiabilidade, privacidade, legibilidade e iteracao local rapida. Novas capacidades devem reforcar essa base, e nao enfraquece-la.

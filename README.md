@@ -1,70 +1,66 @@
-# Assistente Pessoal
+# Assistente Pessoal 0.2.1
 
-Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combina CLI, dashboard local com `NiceGUI`, memoria em banco de dados relacional, noticias priorizadas, clima por dia, estudo, musica e LLM opcional.
+Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e integracao opcional com LLM.
 
-## O que mudou nesta versao
+## Visao geral
 
-- persistencia centralizada em banco de dados relacional SQLite;
-- dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
-- noticias priorizadas em grupos dinamicos:
-  1. The News
-  2. Santa Maria - RS
-  3. tech
-  4. economia global
-  5. interesses de pesquisa
-- clima com `--dia hoje|amanha|segunda|...`;
-- limpeza da documentacao para remover caminhos pessoais;
-- revisao pratica de privacidade e LGPD.
+Esta versao `0.2.1` marca a v2 do alpha: a base continua simples de executar localmente, mas agora com uma estrutura mais consistente para memoria, painel, privacidade e extensao por IA.
+
+Principais capacidades:
+
+- CLI para operacoes rapidas de memoria, clima, noticias, agenda e chat.
+- Dashboard local com modos visual `Limpa` e `Detalhada`.
+- Memoria persistente em SQLite com busca textual por FTS5.
+- Noticias organizadas por prioridades e interesses do usuario.
+- Integracao opcional com LLM compativel com Chat Completions.
+- Integracao opcional com Google Agenda via OAuth local.
+
+## Arquitetura em uma frase
+
+Uma aplicacao Python modular que privilegia dados locais, falhas isoladas por integracao e configuracao previsivel.
+
+Leia mais em [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Requisitos
 
 - Windows 10 ou superior
 - Python 3.12
 - `uv`
-- Git
 - FFmpeg
-
-Se algum comando novo nao for reconhecido, abra um terminal novo.
 
 ## Instalacao
 
-Para preparar uma maquina Windows:
+Preparacao automatizada:
 
 ```powershell
 .\scripts\bootstrap_windows.ps1 -InstalarDependenciasProjeto
 ```
 
-Instalacao manual:
+Preparacao manual:
 
 ```powershell
 uv venv
 uv pip install -e ".[dev]"
 ```
 
-Se preferir usar o executavel da venv sem ativacao:
+## Inicio rapido
 
-```powershell
-.\.venv\Scripts\assistente-pessoal.exe --help
-```
-
-## Primeiro uso
-
-1. Crie a configuracao inicial:
+1. Gere a configuracao inicial:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe init
 ```
 
-2. Confira onde o banco de dados esta armazenado:
+2. Confira o banco efetivo:
 
 ```powershell
 .\.venv\Scripts\assistente-pessoal.exe memoria info
 ```
 
-3. Teste os modulos basicos:
+3. Faça um smoke test funcional:
 
 ```powershell
-.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar calculo toda segunda."
+.\.venv\Scripts\assistente-pessoal.exe memoria salvar "Primeira memoria" "Revisar estatistica na segunda."
 .\.venv\Scripts\assistente-pessoal.exe clima --dia amanha
 .\.venv\Scripts\assistente-pessoal.exe noticias
 .\.venv\Scripts\assistente-pessoal.exe gui
@@ -79,137 +75,42 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 - `assistente-pessoal memoria buscar`
 - `assistente-pessoal memoria reindexar`
 - `assistente-pessoal memoria info`
-- `assistente-pessoal estudar`
 - `assistente-pessoal clima --dia amanha`
 - `assistente-pessoal noticias`
-- `assistente-pessoal musica`
+- `assistente-pessoal chat "mensagem"`
+- `assistente-pessoal gui`
 - `assistente-pessoal agenda google-auth`
 - `assistente-pessoal agenda google-listar`
-- `assistente-pessoal agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30`
-- `assistente-pessoal chat "mensagem"`
-- `assistente-pessoal ouvir`
-- `assistente-pessoal gui`
-
-## Dashboard grafico
-
-O dashboard local abre primeiro a interface e deixa as chamadas externas para a
-atualizacao feita na tela. Isso evita que RSS, clima ou cambio atrasem a abertura
-do servidor local.
-
-A GUI tem dois modos visuais:
-
-- `Limpa`: visao executiva, com KPIs maiores, menos detalhes secundarios e foco
-  no grafico semanal.
-- `Detalhada`: visao operacional, com grade tecnica, seis KPIs compactos,
-  distribuicao de noticias e metricas secundarias abertas.
-
-O tema claro foi ajustado para cards brancos, contraste mais forte e tabela
-legivel. Os controles usam icones pequenos para manter a interface mais limpa.
+- `assistente-pessoal agenda google-criar "Consulta" --data 2026-06-15 --hora 14:30`
 
 ## Configuracao
 
-Estrutura resumida do `config.toml`:
+O projeto usa `config.toml` como fonte principal de configuracao. Um exemplo atualizado esta em [config.example.toml](config.example.toml).
 
-```toml
-db_path = "banco/AssistentePessoal/memoria.sqlite"
+Pontos importantes:
 
-[localizacao]
-cidade = "Santa Maria, RS"
-latitude = -29.6868
-longitude = -53.8149
-timezone = "America/Sao_Paulo"
+- `db_path` define onde a memoria local sera persistida.
+- `llm.base_url` e `llm.modelo` habilitam o chat com um provedor compativel.
+- `google_agenda.credentials_path` deve apontar para um arquivo OAuth local fora de versionamento.
+- chaves e tokens devem ficar em variaveis de ambiente ou em arquivos locais ignorados pelo Git.
 
-[google_agenda]
-habilitado = false
-credentials_path = "google-oauth-client.json"
-token_path = ".assistente/google-calendar-token.json"
-calendar_id = "primary"
-max_eventos = 10
-janela_dias = 7
+Variaveis de ambiente suportadas:
 
-[dashboard]
-intervalo_atualizacao_segundos = 15
-ttl_dolar_segundos = 15
-ttl_noticias_segundos = 60
-ttl_agenda_segundos = 1800
-ttl_clima_segundos = 3600
-
-[fontes.noticias]
-timezone = "America/Sao_Paulo"
-apenas_dia_atual = true
-interesses_busca = []
-prioridades = ["the_news", "santa_maria", "tech", "economia_global"]
-
-[fontes.noticias.the_news]
-habilitado = true
-categoria = "" # vazio busca todas as categorias do The News
-
-[fontes.noticias.santa_maria]
-habilitado = true
-modo = "midia_local"
-titulo_fonte = "santa maria - midia local"
-urls = [
-  "https://diariosm.com.br/",
-  "https://bei.net.br/plantao/",
-]
-palavras_chave = [
-  "santa maria",
-  "santa-mariense",
-  "ufsm",
-  "regiao central",
-  "quarta colonia",
-  "agudo",
-  "sao sepe",
-  "sao pedro do sul",
-  "julio de castilhos",
-  "cruz alta",
-]
-
-[fontes.noticias.tech]
-habilitado = true
-titulo_fonte = "tech"
-rss = [
-  "https://tecnoblog.net/feed/",
-  "https://www.canaltech.com.br/rss/",
-  "https://olhardigital.com.br/feed/",
-]
-
-[fontes.noticias.economia_global]
-habilitado = true
-modo = "misto"
-titulo_fonte = "economia global"
-rss = [
-  "https://www.federalreserve.gov/feeds/press_monetary.xml",
-  "https://www.federalreserve.gov/feeds/press_all.xml",
-]
-urls = [
-  "https://www.imf.org/en/News",
-  "https://www.worldbank.org/en/news",
-]
+```dotenv
+OPENAI_API_KEY=
+ASSISTENTE_CONFIG=config.toml
 ```
-
-## Armazenamento de Dados
-
-O assistente utiliza um banco de dados relacional SQLite para gerenciar a memoria e os dados locais.
-
-O arquivo do banco de dados ficara armazenado por padrao em `banco/AssistentePessoal/memoria.sqlite`, de acordo com o configurado em `db_path`.
-
-Se voce quiser verificar onde o banco esta sendo armazenado:
-
-1. rode `assistente-pessoal memoria info`
-2. o comando retornara o caminho absoluto do banco de dados em uso
-3. confirme se o `config.toml` que voce esta usando e o mesmo da sessao atual
 
 ## Privacidade e LGPD
 
-- nenhuma chave de API deve ser salva no `config.toml`; use variaveis de ambiente
-- o banco de dados e local, inspecionavel e apagavel por voce
-- clima, noticias, musica e LLM externo enviam dados para fora da maquina quando habilitados
-- logs nao devem carregar conteudo pessoal por padrao
-- a Google Agenda usa OAuth local, escopo de eventos e a API oficial `calendar-json.googleapis.com`
-- o arquivo de credenciais OAuth e o token local nao devem ser versionados
+O repositório foi organizado para reforçar um modelo local-first e opt-in para integracoes externas.
 
-Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
+- dados pessoais e memoria ficam em SQLite local, inspecionavel e apagavel
+- nenhuma chave deve ser salva em `config.toml`
+- LLM, noticias, clima, musica e Google Agenda so enviam dados para fora quando configurados ou usados
+- arquivos OAuth e tokens locais nao devem ser versionados
+
+Leitura dedicada: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
 
 ## Documentacao
 
@@ -218,16 +119,17 @@ Leia: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
 - [docs/arquitetura.md](docs/arquitetura.md)
 - [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md)
 - [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)
-- [docs/publicacao-github.md](docs/publicacao-github.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Qualidade
+
+Verificacao rapida:
 
 ```powershell
 .\scripts\verificar.ps1
 ```
 
-Ou:
+Ou manualmente:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest

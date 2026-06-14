@@ -141,6 +141,7 @@ class Memoria:
                 )
                 """
             )
+            _sincronizar_documentos_canonicos_estruturados(conexao)
 
     def salvar_nota(
         self,
@@ -246,7 +247,7 @@ class Memoria:
     def salvar_perfil_pessoal(self, conteudo: str) -> None:
         """Persiste o perfil pessoal canonico em tabela estruturada."""
         self.preparar()
-        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        agora = _agora_iso(self.timezone)
         conteudo_limpo = conteudo.strip() or "Perfil pessoal ainda nao preenchido."
         with sqlite3.connect(self.db_path) as conexao:
             conexao.execute(
@@ -261,24 +262,16 @@ class Memoria:
             )
 
     def obter_perfil_pessoal(self) -> str:
-        """Le o perfil pessoal; migra do modelo legado quando necessario."""
+        """Le o perfil pessoal estruturado."""
         self.preparar()
         with sqlite3.connect(self.db_path) as conexao:
-            linha = conexao.execute(
-                "SELECT conteudo FROM perfil_pessoal WHERE id = 1"
-            ).fetchone()
-        if linha and linha[0]:
-            return str(linha[0])
-        legado = self.ler_documento_fixo("10_memoria", "perfil-pessoal.md").strip()
-        if legado:
-            self.salvar_perfil_pessoal(legado)
-            return legado
-        return ""
+            linha = conexao.execute("SELECT conteudo FROM perfil_pessoal WHERE id = 1").fetchone()
+        return str(linha[0]) if linha and linha[0] else ""
 
     def substituir_interesses(self, interesses: list[str]) -> None:
         """Substitui a lista de interesses usada para personalizacao."""
         self.preparar()
-        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        agora = _agora_iso(self.timezone)
         itens = [interesse.strip() for interesse in interesses if interesse.strip()]
         with sqlite3.connect(self.db_path) as conexao:
             conexao.execute("DELETE FROM interesses_usuario")
@@ -297,17 +290,7 @@ class Memoria:
             linhas = conexao.execute(
                 "SELECT interesse FROM interesses_usuario ORDER BY rowid ASC"
             ).fetchall()
-        if linhas:
-            return [str(linha[0]) for linha in linhas]
-        legado = self.ler_documento_fixo("10_memoria", "interesses-de-pesquisa.md")
-        interesses = [
-            linha.removeprefix("-").strip()
-            for linha in legado.splitlines()
-            if linha.strip().startswith("-")
-        ]
-        if interesses:
-            self.substituir_interesses(interesses)
-        return interesses
+        return [str(linha[0]) for linha in linhas]
 
     def registrar_interacao_noticia(
         self,
@@ -321,7 +304,7 @@ class Memoria:
     ) -> None:
         """Armazena uma noticia observada para orientar relevancia futura."""
         self.preparar()
-        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        agora = _agora_iso(self.timezone)
         with sqlite3.connect(self.db_path) as conexao:
             conexao.execute(
                 """
@@ -516,6 +499,56 @@ def _salvar_documento_sqlite(
     )
 
 
+def _sincronizar_documentos_canonicos_estruturados(conexao: sqlite3.Connection) -> None:
+    """Sincroniza documentos canonicos antigos com as tabelas estruturadas atuais."""
+    perfil = conexao.execute("SELECT conteudo FROM perfil_pessoal WHERE id = 1").fetchone()
+    if not perfil or not str(perfil[0]).strip():
+        documento_perfil = conexao.execute(
+            "SELECT conteudo FROM documentos WHERE caminho = ?",
+            ("10_memoria/perfil-pessoal.md",),
+        ).fetchone()
+        conteudo_perfil = (
+            str(documento_perfil[0]).strip() if documento_perfil and documento_perfil[0] else ""
+        )
+        if conteudo_perfil:
+            atualizado_em = _agora_iso("America/Sao_Paulo")
+            conexao.execute(
+                """
+                INSERT INTO perfil_pessoal (id, conteudo, atualizado_em)
+                VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    conteudo = excluded.conteudo,
+                    atualizado_em = excluded.atualizado_em
+                """,
+                (conteudo_perfil, atualizado_em),
+            )
+
+    quantidade_interesses = conexao.execute("SELECT count(*) FROM interesses_usuario").fetchone()[0]
+    if quantidade_interesses:
+        return
+    documento_interesses = conexao.execute(
+        "SELECT conteudo FROM documentos WHERE caminho = ?",
+        ("10_memoria/interesses-de-pesquisa.md",),
+    ).fetchone()
+    if not documento_interesses or not documento_interesses[0]:
+        return
+    interesses = [
+        linha.removeprefix("-").strip()
+        for linha in str(documento_interesses[0]).splitlines()
+        if linha.strip().startswith("-")
+    ]
+    if not interesses:
+        return
+    atualizado_em = _agora_iso("America/Sao_Paulo")
+    conexao.executemany(
+        """
+        INSERT OR IGNORE INTO interesses_usuario (interesse, criado_em, atualizado_em)
+        VALUES (?, ?, ?)
+        """,
+        [(interesse, atualizado_em, atualizado_em) for interesse in interesses],
+    )
+
+
 def slugificar(texto: str) -> str:
     """Transforma texto livre em um nome de arquivo estavel.
 
@@ -554,3 +587,8 @@ def _timestamp_slug(timezone: str) -> str:
         String no formato YYYYMMDD-HHMMSS.
     """
     return datetime.now(ZoneInfo(timezone)).strftime("%Y%m%d-%H%M%S")
+
+
+def _agora_iso(timezone: str) -> str:
+    """Entrega o timestamp local padronizado usado nas tabelas estruturadas."""
+    return datetime.now(ZoneInfo(timezone)).isoformat(timespec="seconds")

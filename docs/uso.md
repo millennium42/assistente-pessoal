@@ -1,17 +1,15 @@
 # Guia de uso
 
-Se esta for sua primeira vez com o projeto, comece por [primeiro-uso.md](primeiro-uso.md). Este arquivo e a referencia curta dos comandos.
+Se esta for sua primeira execucao, comece por [primeiro-uso.md](primeiro-uso.md).
 
 Se a venv nao estiver ativada, troque `assistente-pessoal` por `.\.venv\Scripts\assistente-pessoal.exe`.
 
-## Inicializar
+## Inicializacao
 
 ```powershell
 assistente-pessoal init
 assistente-pessoal memoria info
 ```
-
-O segundo comando informa onde o banco de dados esta armazenado, ajudando a entender onde as informacoes da sua memoria serao salvas.
 
 ## Memoria
 
@@ -22,13 +20,6 @@ assistente-pessoal memoria reindexar
 assistente-pessoal memoria info
 ```
 
-## Estudo
-
-```powershell
-assistente-pessoal estudar "Algebra linear" --conteudo "Vetores, bases e transformacoes."
-assistente-pessoal estudar "Fisica 1" --arquivo ".\resumo-aula.md"
-```
-
 ## Clima
 
 ```powershell
@@ -37,7 +28,7 @@ assistente-pessoal clima --dia amanha
 assistente-pessoal clima --dia sexta
 ```
 
-Regra: se voce pedir um dia que ja passou na semana, o sistema assume a proxima ocorrencia.
+Se voce pedir um dia da semana que ja passou, o sistema usa a proxima ocorrencia.
 
 ## Noticias
 
@@ -45,22 +36,12 @@ Regra: se voce pedir um dia que ja passou na semana, o sistema assume a proxima 
 assistente-pessoal noticias
 ```
 
-Prioridade atual:
+Prioridade padrao do feed:
 
 1. The News
-2. Santa Maria - RS
+2. Santa Maria
 3. tech
 4. economia global
-
-O filtro considera apenas noticias publicadas no dia atual do fuso configurado.
-
-## Musica
-
-```powershell
-assistente-pessoal musica
-```
-
-Edite `fontes.artistas` no `config.toml` para personalizar a busca.
 
 ## Chat
 
@@ -68,85 +49,34 @@ Edite `fontes.artistas` no `config.toml` para personalizar a busca.
 assistente-pessoal chat "o que voce consegue fazer?"
 ```
 
-Sem LLM configurado, o comando mostra fallback local.
+Com LLM configurado, o assistente usa um endpoint compativel com Chat Completions. Sem LLM, cai em fallback local.
 
-## Voz
-
-```powershell
-assistente-pessoal ouvir
-```
-
-## Dashboard grafico
+## Dashboard
 
 ```powershell
 assistente-pessoal gui
 ```
 
-O dashboard abre localmente no navegador. A janela sobe antes das consultas externas
-mais lentas; use `Atualizar Painel` para carregar ou recarregar clima, noticias,
-cambio e agenda.
+O dashboard local oferece:
 
-Modos visuais:
-
-- `Limpa`: menos elementos simultaneos, KPIs maiores e distribuicao de noticias
-  escondida para leitura rapida.
-- `Detalhada`: painel mais denso, grade de fundo, seis KPIs por linha, distribuicao
-  de noticias e metricas extras de clima.
-
-Temas:
-
-- `Claro`: cards brancos, contraste reforcado e tabela ajustada para fundo claro.
-- `Escuro`: fundo tecnico discreto, sem brilhos decorativos pesados.
-
-O dashboard mostra:
-
-- clima
-- noticias
+- clima atual e previsao
+- noticias priorizadas
 - nota rapida
 - plano de estudos
 - agenda local
 - Google Agenda
 
-Os blocos de planejamento e agenda local sao gravados no banco de dados.
+Modos visuais:
+
+- `Limpa`: foco em leitura rapida
+- `Detalhada`: foco em operacao e contexto
 
 ## Google Agenda
 
-1. Ative a Google Calendar API no projeto do Google Cloud:
-
-[Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?hl=pt-br)
-
-2. Crie um client OAuth de aplicativo desktop no Google Cloud.
-3. Baixe o JSON e coloque no caminho configurado em `google_agenda.credentials_path`.
-4. Ative a integracao no `config.toml`:
-
-```toml
-[google_agenda]
-habilitado = true
-credentials_path = "google-oauth-client.json"
-token_path = ".assistente/google-calendar-token.json"
-calendar_id = "primary"
-max_eventos = 10
-janela_dias = 7
-```
-
-5. Autentique:
-
 ```powershell
 assistente-pessoal agenda google-auth
-```
-
-6. Liste os proximos eventos:
-
-```powershell
 assistente-pessoal agenda google-listar
+assistente-pessoal agenda google-criar "Consulta" --data 2026-06-15 --hora 14:30 --duracao 45
 ```
 
-7. Crie um evento:
-
-```powershell
-assistente-pessoal agenda google-criar "Consulta" --data 2026-06-09 --hora 14:30 --duracao 45
-```
-
-O dashboard tambem tem um bloco "Adicionar evento" dentro de Google Agenda.
-Se o token tiver sido criado com permissao antiga, rode `assistente-pessoal agenda google-auth`
-novamente para conceder o escopo de eventos.
+Mantenha o arquivo OAuth e o token local fora de versionamento.

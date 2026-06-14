@@ -1,39 +1,36 @@
 # Privacidade e LGPD
 
-Este projeto e local por padrao, mas nao e "offline por definicao". Algumas funcoes usam servicos externos quando habilitadas.
+O projeto adota uma postura local-first, mas nao promete funcionamento totalmente offline. Sempre que uma integracao externa e usada, existe trafego de dados correspondente.
 
-## O que fica local
+## O que permanece local
 
-- banco de dados relacional (SQLite) centralizando as informacoes
-- plano de estudos e agenda local armazenados no banco
-- configuracao estrutural do `config.toml`
+- banco SQLite com memoria e documentos canonicos
+- configuracao estrutural do projeto
+- agenda local e plano de estudos
 
 ## O que pode sair da maquina
 
 - clima: coordenadas e timezone para a Open-Meteo
-- noticias: requisicoes HTTP para The News, feeds RSS, paginas locais configuradas e buscas RSS por interesses
-- musica: nomes de artistas para o MusicBrainz
+- noticias: consultas HTTP para The News, RSS, HTML e interesses
 - chat: mensagem e contexto local para o endpoint LLM configurado
-- Google Agenda: leitura e criacao de eventos no calendario configurado via OAuth
+- Google Agenda: leitura e criacao de eventos via OAuth
 
-## Escolhas praticas alinhadas com LGPD
+## Diretrizes aplicadas no repositorio
 
-- minimizacao: nao salvamos chaves de API em arquivo
-- transparencia: o README explica quais modulos usam rede
-- controle do titular: o banco de dados e local e pode ser completamente inspecionado e apagado
-- segregacao: agenda local e planejamento ficam isolados na estrutura do banco
-- reducao de privilegio: Google Agenda usa escopo restrito a eventos
+- minimizacao de dados por padrao
+- nenhuma chave em `config.toml`
+- tokens e arquivos OAuth fora de versionamento
+- transparencia documental sobre trafego externo
+- controle local sobre o banco e sua exclusao
 
-## Recomendacoes de uso
+## Recomendacoes operacionais
 
-- nao comite `config.toml` com informacoes privadas
-- nao comite o arquivo de credenciais OAuth do Google nem o token local
-- prefira um banco de dados local isolado no ambiente do projeto ao inves de mesclar com bancos de dados de producao
-- revise o conteudo enviado a provedores LLM externos
-- nao use logs verbosos em producao com conteudo de notas pessoais
+- mantenha `config.toml` sem credenciais sensiveis
+- guarde o arquivo OAuth apenas no ambiente local
+- revise o contexto enviado a provedores LLM externos
+- evite logs verbosos com conteudo pessoal
 
-## Fontes de referencia
+## Referencias
 
 - [Lei 13.709/2018 - LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
 - [Perguntas frequentes da ANPD](https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/perguntas-frequentes-anpd)
-- [Guia de Boas Praticas - LGPD](https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/guias/guia_lgpd.pdf)

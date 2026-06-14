@@ -279,7 +279,7 @@ def criar_config_inicial(
 
 
 def renderizar_toml(config: AppConfig) -> str:
-    """Renderiza a configuracao em TOML simples, suficiente para a V1.1.
+    """Renderiza a configuracao em TOML simples para a versao atual do projeto.
 
     Args:
         config: A configuracao preenchida.

@@ -1,4 +1,4 @@
-"""Roteador simples de intencoes em texto livre para comandos da V1."""
+"""Roteador simples de intencoes em texto livre para o assistente atual."""
 
 from __future__ import annotations
 

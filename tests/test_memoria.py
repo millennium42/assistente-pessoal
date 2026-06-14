@@ -74,3 +74,23 @@ def test_memoria_structurada_para_secretaria_virtual(tmp_path: Path) -> None:
     assert memoria.listar_interesses() == ["ia", "educacao"]
     assert memoria.listar_interacoes_noticias(limite=1)[0].origem == "clique"
     assert "educacao digital" in contexto.lower()
+
+
+def test_sincronizar_documentos_canonicos_para_tabelas_estruturadas(tmp_path: Path) -> None:
+    """Sincroniza perfil e interesses canonicos durante a preparacao."""
+    memoria = Memoria(tmp_path / "banco")
+    memoria.salvar_documento_fixo(
+        nome_arquivo="perfil-pessoal.md",
+        conteudo="Prefiro compromissos pela manha.",
+        pasta="10_memoria",
+        titulo="Perfil pessoal",
+    )
+    memoria.salvar_documento_fixo(
+        nome_arquivo="interesses-de-pesquisa.md",
+        conteudo="- ia\n- educacao\n",
+        pasta="10_memoria",
+        titulo="Interesses de pesquisa",
+    )
+
+    assert memoria.obter_perfil_pessoal() == "Prefiro compromissos pela manha."
+    assert memoria.listar_interesses() == ["ia", "educacao"]

@@ -1,19 +1,13 @@
 # Copie este arquivo para config.toml ou rode:
 #   assistente-pessoal init
 
-vault_path = "vault/AssistentePessoal"
+db_path = "banco/AssistentePessoal/memoria.sqlite"
 
 [localizacao]
 cidade = "Santa Maria, RS"
 latitude = -29.6868
 longitude = -53.8149
 timezone = "America/Sao_Paulo"
-
-[voz]
-modelo_whisper = "tiny"
-idioma = "pt"
-duracao_segundos = 6
-taxa_amostragem = 16000
 
 [llm]
 base_url = ""
@@ -98,6 +92,7 @@ rss = [
   "https://www.ecb.europa.eu/rss/press.html",
   "https://www.federalreserve.gov/feeds/press_all.xml",
 ]
+urls = []
 palavras_chave = [
   "economy",
   "economic",
@@ -120,7 +115,3 @@ palavras_chave = [
   "factory",
   "manufacturing",
 ]
-
-[fontes]
-artistas = []
-musicbrainz_user_agent = "assistente-pessoal/0.1.0 (contato: configure-seu-email)"
