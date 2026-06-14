@@ -268,16 +268,12 @@ def selecionar_noticias(noticias: list[Noticia], limite: int, timezone: str) -> 
     if not faltantes:
         return ordenar_noticias_por_data(selecionadas, timezone)
 
-    preservadas = [
-        noticia for noticia in selecionadas if noticia.grupo in grupos_preservados
-    ]
+    preservadas = [noticia for noticia in selecionadas if noticia.grupo in grupos_preservados]
     prioritarias_final = preservadas + faltantes
     if len(prioritarias_final) >= limite:
         return ordenar_noticias_por_data(prioritarias_final[:limite], timezone)
 
-    outras = [
-        noticia for noticia in selecionadas if noticia.grupo not in grupos_preservados
-    ]
+    outras = [noticia for noticia in selecionadas if noticia.grupo not in grupos_preservados]
     vagas_outras = limite - len(prioritarias_final)
     return ordenar_noticias_por_data(prioritarias_final + outras[:vagas_outras], timezone)
 
@@ -420,9 +416,7 @@ def _pontuacao_interesse(noticia: Noticia, termos: list[str]) -> int:
         if termo in universo:
             pontuacao += 4
             continue
-        combina_termo = termo in universo or all(
-            token in tokens_universo for token in tokens_termo
-        )
+        combina_termo = termo in universo or all(token in tokens_universo for token in tokens_termo)
         pontuacao += int(combina_termo)
     return pontuacao
 

@@ -10,7 +10,7 @@ from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from nicegui import app, ui
+from nicegui import app, core, ui
 
 from assistente_pessoal.agenda_google import (
     EventoGoogleAgenda,
@@ -22,7 +22,6 @@ from assistente_pessoal.agenda_google import (
 )
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
-from assistente_pessoal.logs import avisar
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
     Noticia,
@@ -75,17 +74,13 @@ def iniciar_dashboard(
     """Inicializa e executa a GUI local no navegador."""
     _registrar_arquivos_estaticos()
     servico = DashboardService(config)
-    try:
-        snapshot_inicial = servico.carregar()
-    except Exception:
-        snapshot_inicial = None
     ui.run(
         host=host,
         port=port,
         title=titulo,
         reload=False,
         show=False,
-        root=lambda: construir_dashboard(servico, snapshot_inicial=snapshot_inicial),
+        root=lambda: construir_dashboard(servico),
     )
 
 
@@ -116,6 +111,13 @@ def _registrar_arquivos_estaticos() -> None:
     _ASSETS_ESTATICOS_REGISTRADOS = True
 
 
+def _executar_javascript(codigo: str) -> None:
+    """Executa JS apenas quando o contexto do NiceGUI tem loop ativo."""
+    if core.loop is None:
+        return
+    ui.run_javascript(codigo)
+
+
 def _logo_appa_src() -> str:
     """Retorna a URL servida pelo dashboard para o logo minimalista."""
     if not LOGO_APPA_FILE.exists():
@@ -127,33 +129,35 @@ def _dashboard_css() -> str:
     """Mantem o tema visual centralizado para facilitar futuras iteracoes de produto."""
     return """
     :root {
-      --appa-bg: #03050a; /* Darker, more futuristic */
-      --appa-panel: rgba(16, 23, 39, 0.4); /* Glass effect */
-      --appa-panel-soft: rgba(21, 31, 49, 0.3);
-      --appa-panel-strong: rgba(11, 16, 32, 0.6);
-      --appa-ink: #edf7ff;
-      --appa-muted: #7b8eab;
-      --appa-line: rgba(143, 164, 196, 0.15);
-      --appa-accent: #00f0ff; /* Neon cyan */
-      --appa-blue: #3b82f6;
-      --appa-green: #10b981;
+      --appa-bg: #050810;
+      --appa-panel: #0b111a;
+      --appa-panel-soft: #141c2b;
+      --appa-panel-strong: #0f172a;
+      --appa-ink: #edf2f7;
+      --appa-muted: #94a3b8;
+      --appa-line: rgba(148, 163, 184, 0.12);
+      --appa-accent: #14b8a6;
+      --appa-blue: #60a5fa;
+      --appa-green: #22c55e;
       --appa-amber: #f59e0b;
-      --appa-rose: #f43f5e;
-      --appa-magenta: #d946ef;
-      --appa-shadow: 0 8px 32px rgba(0, 240, 255, 0.05); /* Soft neon glow */
-      --appa-cell: rgba(11, 16, 32, 0.5);
-      --appa-command: rgba(3, 5, 10, 0.8);
-      --appa-card-bg: rgba(12, 18, 34, 0.4);
-      --appa-card-subtle: rgba(21, 31, 49, 0.3);
-      --appa-empty: rgba(11, 16, 32, 0.3);
-      --appa-input-bg: rgba(8, 13, 26, 0.5);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      --appa-rose: #fb7185;
+      --appa-magenta: #e879f9;
+      --appa-shadow: 0 12px 32px rgba(0, 240, 255, 0.08);
+      --appa-cell: #111827;
+      --appa-command: rgba(11, 17, 26, 0.85);
+      --appa-card-bg: #0b111a;
+      --appa-card-subtle: #172033;
+      --appa-empty: #121a2a;
+      --appa-input-bg: #0f172a;
+      --appa-button-ink: #052e2b;
+      --appa-chart-axis: #94a3b8;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
     }
     .weather-now {
-      background: linear-gradient(135deg, rgba(16,23,39,0.7) 0%, rgba(3,5,10,0.8) 100%);
-      border: 1px solid rgba(0, 240, 255, 0.2);
-      box-shadow: 0 0 20px rgba(0, 240, 255, 0.05);
+      background: var(--appa-card-bg);
+      border: 1px solid var(--appa-line);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
       backdrop-filter: blur(16px);
       border-radius: 12px;
       padding: 16px;
@@ -161,7 +165,7 @@ def _dashboard_css() -> str:
     .stat-box {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
+      border-radius: 12px;
     }
     .stat-grid-modern {
       display: grid;
@@ -169,32 +173,50 @@ def _dashboard_css() -> str:
       gap: 8px;
       margin-top: 12px;
     }
+
+    
+
+    .detail-metric {
+      display: flex;
+    }
+
+    .climate-pill {
+      border: 1px solid var(--appa-line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: var(--appa-card-subtle);
+      color: var(--appa-muted);
+      font-size: 0.64rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
     .text-neon {
       color: var(--appa-accent);
-      text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
     }
 
     html[data-theme="light"] {
-      --appa-bg: #f4f7fb;
+      --appa-bg: #f6f8fb;
       --appa-panel: #ffffff;
-      --appa-panel-soft: #eef5fb;
-      --appa-panel-strong: #e6edf5;
-      --appa-ink: #0f172a;
-      --appa-muted: #536276;
-      --appa-line: rgba(64, 85, 112, 0.18);
-      --appa-accent: #0891b2;
+      --appa-panel-soft: #f1f5f9;
+      --appa-panel-strong: #e8eef6;
+      --appa-ink: #142033;
+      --appa-muted: #607086;
+      --appa-line: rgba(64, 85, 112, 0.16);
+      --appa-accent: #0f766e;
       --appa-blue: #2563eb;
       --appa-green: #059669;
-      --appa-amber: #b7791f;
+      --appa-amber: #b45309;
       --appa-rose: #be123c;
-      --appa-magenta: #be185d;
-      --appa-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
-      --appa-cell: rgba(255, 255, 255, 0.88);
-      --appa-command: rgba(255, 255, 255, 0.86);
-      --appa-card-bg: rgba(255, 255, 255, 0.92);
-      --appa-card-subtle: rgba(238, 245, 251, 0.84);
-      --appa-empty: rgba(238, 245, 251, 0.68);
-      --appa-input-bg: rgba(255, 255, 255, 0.72);
+      --appa-magenta: #a21caf;
+      --appa-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      --appa-cell: #ffffff;
+      --appa-command: rgba(255, 255, 255, 0.96);
+      --appa-card-bg: #ffffff;
+      --appa-card-subtle: #f4f7fb;
+      --appa-empty: #f1f5f9;
+      --appa-input-bg: #ffffff;
+      --appa-button-ink: #ffffff;
+      --appa-chart-axis: #64748b;
     }
 
     html[data-density="compact"] {
@@ -208,17 +230,7 @@ def _dashboard_css() -> str:
     }
 
     body.appa-dashboard {
-      background:
-        linear-gradient(
-          180deg,
-          rgba(34, 211, 238, 0.10),
-          rgba(244, 114, 182, 0.04) 270px,
-          transparent 560px
-        ),
-        linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-        linear-gradient(180deg, rgba(52, 211, 153, 0.035) 1px, transparent 1px),
-        var(--appa-bg);
-      background-size: auto, 44px 44px, 44px 44px, auto;
+      background: var(--appa-bg);
       color: var(--appa-ink);
       font-family:
         Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -240,9 +252,31 @@ def _dashboard_css() -> str:
     }
 
     .dashboard-shell {
-      max-width: 1380px;
+      max-width: 1220px;
       margin: 0 auto;
-      padding: 8px 12px 14px;
+      padding: 10px 14px 18px;
+    }
+
+    .dashboard-shell {
+      max-width: 1520px;
+    }
+
+    
+
+    body.appa-dashboard {
+      background:
+        linear-gradient(90deg, rgba(20, 184, 166, 0.075) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(96, 165, 250, 0.06) 1px, transparent 1px),
+        var(--appa-bg);
+      background-size: 32px 32px, 32px 32px, auto;
+    }
+
+    [data-theme="light"] body.appa-dashboard {
+      background:
+        linear-gradient(90deg, rgba(15, 118, 110, 0.08) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+        var(--appa-bg);
+      background-size: 32px 32px, 32px 32px, auto;
     }
 
     .appa-top {
@@ -251,12 +285,18 @@ def _dashboard_css() -> str:
       gap: 18px;
       align-items: stretch;
       background:
-        linear-gradient(135deg, rgba(34, 211, 238, 0.12), transparent 36%),
         linear-gradient(90deg, var(--appa-panel), var(--appa-panel-strong));
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
-      box-shadow: var(--appa-shadow);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
       overflow: hidden;
+    }
+
+    
+
+    .appa-top {
+      min-height: 86px;
+      grid-template-columns: minmax(0, 0.9fr) minmax(420px, 0.65fr);
     }
 
     .appa-brand {
@@ -267,14 +307,25 @@ def _dashboard_css() -> str:
       border-left: 5px solid var(--appa-accent);
     }
 
+    .appa-brand {
+      padding: 10px 14px;
+      gap: 10px;
+    }
+
     .appa-logo {
       width: 58px;
       height: 58px;
-      border-radius: 8px;
+      border-radius: 12px;
       object-fit: cover;
       border: 1px solid rgba(34, 211, 238, 0.42);
       background: var(--appa-panel-soft);
       box-shadow: 0 0 24px rgba(34, 211, 238, 0.16);
+    }
+
+    .appa-logo {
+      width: 38px;
+      height: 38px;
+      box-shadow: none;
     }
 
     .appa-kicker {
@@ -291,6 +342,17 @@ def _dashboard_css() -> str:
       line-height: 1.1;
       font-weight: 800;
       color: var(--appa-ink);
+    }
+
+    
+
+    .appa-title {
+      font-size: 1.02rem;
+    }
+
+    .appa-subtitle,
+    .appa-kicker {
+      display: none;
     }
 
     .appa-subtitle {
@@ -311,6 +373,10 @@ def _dashboard_css() -> str:
     .summary-cell {
       background: var(--appa-cell);
       padding: 15px 18px;
+    }
+
+    .summary-cell {
+      padding: 8px 12px;
     }
 
     .summary-cell span {
@@ -335,9 +401,16 @@ def _dashboard_css() -> str:
       background: var(--appa-command);
       backdrop-filter: blur(10px);
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 12px 14px;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
+    }
+
+    
+
+    .commandbar {
+      padding: 7px 9px;
+      box-shadow: none;
     }
 
     .commandbar-note,
@@ -357,33 +430,47 @@ def _dashboard_css() -> str:
       box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16), 0 0 18px rgba(34, 197, 94, 0.24);
     }
 
-    .density-toggle,
+    .view-toggle,
     .theme-toggle {
       display: inline-flex;
       gap: 4px;
       padding: 3px;
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       background: var(--appa-card-subtle);
     }
 
-    .density-toggle button,
+    .view-toggle button,
     .theme-toggle button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       border: 0;
       border-radius: 6px;
-      padding: 7px 10px;
+      padding: 5px 8px;
       color: var(--appa-muted);
       background: transparent;
       font-weight: 700;
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       cursor: pointer;
     }
 
-    .density-toggle button.is-active,
+    .view-toggle button.is-active,
     .theme-toggle button.is-active {
       color: var(--appa-ink);
-      background: rgba(34, 211, 238, 0.15);
-      box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28);
+      background: color-mix(in srgb, var(--appa-accent) 13%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--appa-accent) 28%, transparent);
+    }
+
+    .view-toggle .q-icon,
+    .theme-toggle .q-icon,
+    .appa-seg-icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .kpi-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
 
     .kpi-grid {
@@ -396,11 +483,18 @@ def _dashboard_css() -> str:
         linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
         var(--appa-panel);
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: var(--appa-card-pad, 16px);
       min-height: 60px;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
       overflow: hidden;
+    }
+
+    
+
+    .kpi {
+      min-height: 76px;
+      padding: 10px 11px;
     }
 
     .kpi::before {
@@ -420,11 +514,25 @@ def _dashboard_css() -> str:
     .kpi:nth-child(6)::before { background: var(--appa-rose); }
 
     .kpi-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       color: var(--appa-muted);
       font-size: 0.78rem;
       font-weight: 700;
       text-transform: uppercase;
     }
+
+    .kpi-icon {
+      color: var(--appa-accent);
+      font-size: 14px;
+    }
+
+    .kpi-detail {
+      color: var(--appa-muted);
+    }
+
+    
 
     .kpi-value {
       margin-top: 9px;
@@ -434,12 +542,38 @@ def _dashboard_css() -> str:
       line-height: 1;
     }
 
+    
+
+    .kpi-value {
+      font-size: 1.25rem;
+    }
+
+    .overview-charts-grid,
+    .overview-local-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    
+
+    
+
+    
+
+    .chart-weather,
+    .chart-news {
+      height: 230px;
+    }
+
+    .overview-local-grid {
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr) !important;
+    }
+
     .expansion-shell {
       background: var(--appa-panel);
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.20);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
     }
 
     .expansion-shell .q-expansion-item__container > .q-item {
@@ -476,8 +610,14 @@ def _dashboard_css() -> str:
 
     .section-title {
       color: var(--appa-ink);
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .section-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
     }
 
     .section-subtitle {
@@ -493,7 +633,7 @@ def _dashboard_css() -> str:
 
     .stat-box {
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 10px 12px;
       background: var(--appa-card-subtle);
     }
@@ -507,16 +647,21 @@ def _dashboard_css() -> str:
 
     .weather-now {
       border: 1px solid rgba(52, 211, 153, 0.28);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 16px;
-      background:
-        linear-gradient(145deg, rgba(52, 211, 153, 0.13), rgba(34, 211, 238, 0.05)),
-        var(--appa-card-subtle);
+      background: var(--appa-card-bg);
+    }
+
+    
+
+    .weather-now {
+      min-height: 100%;
+      padding: 12px;
     }
 
     .weather-temp {
       color: var(--appa-ink);
-      font-size: 2.8rem;
+      font-size: 2.35rem;
       font-weight: 850;
       line-height: 1;
     }
@@ -531,7 +676,7 @@ def _dashboard_css() -> str:
     .weather-day {
       min-height: 150px;
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 10px;
       background: var(--appa-card-bg);
     }
@@ -575,7 +720,7 @@ def _dashboard_css() -> str:
     .headline-card {
       border: 1px solid var(--appa-line);
       border-left: 4px solid var(--appa-accent);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 12px 14px;
       background: var(--appa-card-bg);
       transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
@@ -584,7 +729,7 @@ def _dashboard_css() -> str:
     .headline-card:hover {
       transform: translateY(-1px);
       border-color: rgba(34, 211, 238, 0.52);
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
     }
 
     .headline-link {
@@ -602,7 +747,7 @@ def _dashboard_css() -> str:
 
     .q-table__container {
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       box-shadow: none;
       background: var(--appa-panel);
       color: var(--appa-ink);
@@ -629,6 +774,17 @@ def _dashboard_css() -> str:
       background: rgba(34, 211, 238, 0.08);
     }
 
+    .ag-theme-balham-dark {
+      --ag-background-color: var(--appa-card-bg);
+      --ag-foreground-color: var(--appa-ink);
+      --ag-header-background-color: var(--appa-panel-soft);
+      --ag-header-foreground-color: var(--appa-muted);
+      --ag-border-color: var(--appa-line);
+      --ag-row-hover-color: color-mix(in srgb, var(--appa-accent) 8%, transparent);
+      --ag-odd-row-background-color: var(--appa-card-bg);
+      --ag-control-panel-background-color: var(--appa-panel-soft);
+    }
+
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -646,7 +802,7 @@ def _dashboard_css() -> str:
     .calendar-cell {
       min-height: 90px;
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 6px;
       background: var(--appa-card-bg);
     }
@@ -723,7 +879,7 @@ def _dashboard_css() -> str:
     .agenda-side-pane,
     .agenda-form-shell {
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 12px;
       background: var(--appa-card-subtle);
     }
@@ -735,7 +891,7 @@ def _dashboard_css() -> str:
 
     .agenda-upcoming-item {
       border: 1px solid var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 8px 9px;
       background: var(--appa-card-bg);
     }
@@ -772,7 +928,7 @@ def _dashboard_css() -> str:
 
     .calendar-error {
       border: 1px solid #fecaca;
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 9px 11px;
       color: #fecdd3;
       background: rgba(127, 29, 29, 0.32);
@@ -780,7 +936,7 @@ def _dashboard_css() -> str:
     }
 
     .q-field--outlined .q-field__control {
-      border-radius: 8px;
+      border-radius: 12px;
       background: var(--appa-input-bg);
       color: var(--appa-ink);
     }
@@ -803,17 +959,17 @@ def _dashboard_css() -> str:
     }
 
     .q-btn {
-      border-radius: 8px;
+      border-radius: 12px;
       font-weight: 700;
       text-transform: none;
     }
 
     .refresh-button {
-      background: linear-gradient(135deg, var(--appa-accent), var(--appa-magenta)) !important;
-      color: #06101f !important;
+      background: var(--appa-accent) !important;
+      color: var(--appa-button-ink) !important;
       padding-left: 14px;
       padding-right: 14px;
-      box-shadow: 0 0 22px rgba(34, 211, 238, 0.18);
+      box-shadow: none;
     }
 
     .interest-list {
@@ -872,11 +1028,11 @@ def _dashboard_css() -> str:
       padding: 14px;
       border: 1px solid var(--appa-line);
       border-top: 3px solid var(--news-color, var(--appa-accent));
-      border-radius: 8px;
+      border-radius: 12px;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
         var(--appa-card-bg);
-      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
       scroll-snap-align: start;
       transition:
         border-color 180ms ease,
@@ -888,8 +1044,8 @@ def _dashboard_css() -> str:
     .news-card.is-active {
       border-color: var(--news-color, var(--appa-accent));
       box-shadow:
-        0 18px 34px rgba(0, 0, 0, 0.28),
-        0 0 22px rgba(34, 211, 238, 0.14);
+        var(--appa-shadow),
+        0 0 0 1px color-mix(in srgb, var(--news-color, var(--appa-accent)) 22%, transparent);
       transform: translateY(-2px);
     }
 
@@ -977,7 +1133,7 @@ def _dashboard_css() -> str:
       align-content: center;
       gap: 6px;
       border: 1px dashed var(--appa-line);
-      border-radius: 8px;
+      border-radius: 12px;
       color: var(--appa-muted);
       background: var(--appa-empty);
       text-align: center;
@@ -1045,6 +1201,13 @@ def _dashboard_css() -> str:
 
     html[data-density="compact"] .weather-temp {
       font-size: 2.45rem;
+    }
+
+    
+
+    .stat-grid-modern {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
     }
 
     html[data-density="compact"] .weather-day {
@@ -1163,10 +1326,16 @@ def _dashboard_js() -> str:
       appa.setTheme = function (mode) {
         const chosen = mode === 'light' ? 'light' : 'dark';
         appa.currentTheme = chosen;
-        document.documentElement.dataset.theme = chosen;
-        try { localStorage.setItem('appa-dashboard-theme', chosen); } catch (error) {}
-        appa.applyThemeControls();
+      document.documentElement.dataset.theme = chosen;
+      try { localStorage.setItem('appa-dashboard-theme', chosen); } catch (error) {}
+      appa.applyThemeControls();
       };
+
+      
+
+      
+
+      
 
       if (!appa.densityClickHandler) {
         appa.densityClickHandler = function (event) {
@@ -1184,6 +1353,10 @@ def _dashboard_js() -> str:
           appa.setTheme(button.dataset.themeChoice);
         };
         document.addEventListener('click', appa.themeClickHandler);
+      }
+
+      ;
+        document.addEventListener('click', appa.viewClickHandler);
       }
 
       appa.tick = function () {
@@ -1316,6 +1489,7 @@ def _dashboard_js() -> str:
         try { storedTheme = localStorage.getItem('appa-dashboard-theme') || storedTheme; }
         catch (error) {}
         appa.setTheme(storedTheme);
+
         appa.tick();
         appa.mountNewsStreams();
         if (!appa.clockTimer) {
@@ -1326,6 +1500,7 @@ def _dashboard_js() -> str:
             window.requestAnimationFrame(function () {
               appa.applyDensityControls();
               appa.applyThemeControls();
+              
               appa.tick();
               appa.mountNewsStreams();
             });
@@ -1340,56 +1515,79 @@ def _dashboard_js() -> str:
     """
 
 
-
 def _criar_grafico_clima(resumo: list[ResumoClimaDia]):
     dias = [_rotulo_dia_curto(d) for d in resumo]
     maximas = [d.maxima for d in resumo]
     minimas = [d.minima for d in resumo]
-    return ui.echart({
-        'tooltip': {'trigger': 'axis'},
-        'legend': {'data': ['Max', 'Min'], 'textStyle': {'color': '#9fb2c7'}},
-        'grid': {'left': '3%', 'right': '4%', 'bottom': '3%', 'containLabel': True},
-        'xAxis': {'type': 'category', 'data': dias, 'axisLabel': {'color': '#9fb2c7'}},
-        'yAxis': {'type': 'value', 'axisLabel': {'color': '#9fb2c7'}, 'splitLine': {'lineStyle': {'color': '#1e293b'}}},
-        'series': [
-            {'name': 'Max', 'type': 'line', 'data': maximas, 'itemStyle': {'color': '#fbbf24'}, 'smooth': True},
-            {'name': 'Min', 'type': 'line', 'data': minimas, 'itemStyle': {'color': '#60a5fa'}, 'smooth': True},
-        ]
-    }).classes('w-full h-64')
+    return ui.echart(
+        {
+            "tooltip": {"trigger": "axis"},
+            "legend": {"data": ["Max", "Min"], "textStyle": {"color": "#9fb2c7"}},
+            "grid": {"left": "3%", "right": "4%", "bottom": "3%", "containLabel": True},
+            "xAxis": {"type": "category", "data": dias, "axisLabel": {"color": "#9fb2c7"}},
+            "yAxis": {
+                "type": "value",
+                "axisLabel": {"color": "#9fb2c7"},
+                "splitLine": {"lineStyle": {"color": "#1e293b"}},
+            },
+            "series": [
+                {
+                    "name": "Max",
+                    "type": "line",
+                    "data": maximas,
+                    "itemStyle": {"color": "#fbbf24"},
+                    "smooth": True,
+                },
+                {
+                    "name": "Min",
+                    "type": "line",
+                    "data": minimas,
+                    "itemStyle": {"color": "#60a5fa"},
+                    "smooth": True,
+                },
+            ],
+        }
+    ).classes("chart-weather w-full h-64")
+
 
 def _atualizar_grafico_clima(chart, resumo: list[ResumoClimaDia]):
     dias = [_rotulo_dia_curto(d) for d in resumo]
     maximas = [d.maxima for d in resumo]
     minimas = [d.minima for d in resumo]
-    chart.options['xAxis']['data'] = dias
-    chart.options['series'][0]['data'] = maximas
-    chart.options['series'][1]['data'] = minimas
+    chart.options["xAxis"]["data"] = dias
+    chart.options["series"][0]["data"] = maximas
+    chart.options["series"][1]["data"] = minimas
     chart.update()
+
 
 def _criar_grafico_noticias(grupos: dict[str, int]):
-    data = [{'value': v, 'name': GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
-    return ui.echart({
-        'tooltip': {'trigger': 'item'},
-        'legend': {'top': '5%', 'left': 'center', 'textStyle': {'color': '#9fb2c7'}},
-        'series': [
-            {
-                'name': 'Notícias',
-                'type': 'pie',
-                'radius': ['40%', '70%'],
-                'avoidLabelOverlap': False,
-                'itemStyle': {'borderRadius': 5, 'borderColor': '#060914', 'borderWidth': 2},
-                'label': {'show': False, 'position': 'center'},
-                'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold'}},
-                'labelLine': {'show': False},
-                'data': data
-            }
-        ]
-    }).classes('w-full h-64')
+    data = [{"value": v, "name": GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
+    return ui.echart(
+        {
+            "tooltip": {"trigger": "item"},
+            "legend": {"top": "5%", "left": "center", "textStyle": {"color": "#9fb2c7"}},
+            "series": [
+                {
+                    "name": "Notícias",
+                    "type": "pie",
+                    "radius": ["40%", "70%"],
+                    "avoidLabelOverlap": False,
+                    "itemStyle": {"borderRadius": 5, "borderColor": "#060914", "borderWidth": 2},
+                    "label": {"show": False, "position": "center"},
+                    "emphasis": {"label": {"show": True, "fontSize": 16, "fontWeight": "bold"}},
+                    "labelLine": {"show": False},
+                    "data": data,
+                }
+            ],
+        }
+    ).classes("chart-news w-full h-64")
+
 
 def _atualizar_grafico_noticias(chart, grupos: dict[str, int]):
-    data = [{'value': v, 'name': GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
-    chart.options['series'][0]['data'] = data
+    data = [{"value": v, "name": GRUPOS_LABEL.get(k, k.title())} for k, v in grupos.items()]
+    chart.options["series"][0]["data"] = data
     chart.update()
+
 
 def _linhas_noticias_aggrid(noticias: list[Noticia], timezone: str) -> list[dict]:
     return [
@@ -1403,60 +1601,82 @@ def _linhas_noticias_aggrid(noticias: list[Noticia], timezone: str) -> list[dict
         for n in noticias
     ]
 
+
 def construir_dashboard(
     servico: DashboardService,
     snapshot_inicial: DashboardSnapshot | None = None,
 ) -> None:
     """Constroi um dashboard denso, visual e voltado a acompanhamento diario."""
     _registrar_assets_dashboard()
-    ui.run_javascript("document.documentElement.dataset.density = 'compact';")
+    _executar_javascript("document.documentElement.dataset.density = 'compact';")
     with ui.column().classes("dashboard-shell gap-3 w-full max-w-[1600px]"):
         _cabecalho(snapshot_inicial)
         with ui.row().classes("commandbar items-center gap-3 w-full"):
             ui.html(
-                '''
+                """
                 <div class="commandbar-note">
                   <span class="status-dot"></span>
                   <span>Atualização local ativa</span>
                 </div>
-                '''
+                """
             )
             ui.button(
                 "Atualizar Painel",
                 icon="refresh",
                 on_click=lambda: atualizar(),
             ).classes("refresh-button")
+            ui.html(
+                """
+
+                <div class="theme-toggle" aria-label="Tema do painel">
+                  <button type="button" data-theme-choice="light">
+                    <span class="material-icons appa-seg-icon">light_mode</span>
+                    Claro
+                  </button>
+                  <button type="button" data-theme-choice="dark">
+                    <span class="material-icons appa-seg-icon">dark_mode</span>
+                    Escuro
+                  </button>
+                </div>
+                """
+            )
             status = ui.label("Painel pronto.").classes("dashboard-status ml-auto")
 
-        with ui.tabs().classes('w-full') as tabs:
-            tab_visao_geral = ui.tab('Visão Geral', icon='dashboard')
-            tab_noticias = ui.tab('Explorador de Notícias', icon='analytics')
-            tab_agenda = ui.tab('Agenda e Eventos', icon='calendar_month')
-            tab_interesses = ui.tab('Configurações', icon='settings')
-            
-        with ui.tab_panels(tabs, value=tab_visao_geral).classes('w-full bg-transparent p-0'):
-            with ui.tab_panel(tab_visao_geral).classes('p-0 gap-3 flex flex-col'):
+        with ui.tabs().classes("w-full") as tabs:
+            tab_visao_geral = ui.tab("Visão Geral", icon="dashboard")
+            tab_noticias = ui.tab("Explorador de Notícias", icon="analytics")
+            tab_agenda = ui.tab("Agenda e Eventos", icon="calendar_month")
+            tab_interesses = ui.tab("Configurações", icon="settings")
+
+        with ui.tab_panels(tabs, value=tab_visao_geral).classes("w-full bg-transparent p-0"):
+            with ui.tab_panel(tab_visao_geral).classes("p-0 gap-3 flex flex-col"):
                 kpi_cards = _criar_kpis(snapshot_inicial)
                 with ui.grid(columns=6).classes("kpi-grid w-full gap-3"):
                     for card in kpi_cards:
                         with ui.element("div").classes("kpi"):
-                            ui.label(card["label"]).classes("kpi-label")
+                            with ui.element("div").classes("kpi-label"):
+                                ui.icon(card["icon"]).classes("kpi-icon")
+                                ui.label(card["label"])
                             valor = ui.label(card["value"]).classes("kpi-value")
-                            detalhe = ui.label(card["detail"]).classes("text-xs text-slate-500")
+                            detalhe = ui.label(card["detail"]).classes("kpi-detail text-xs")
                             card["widgets"] = (valor, detalhe)
 
-                with ui.grid(columns=2).classes('w-full gap-3'):
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Previsão da Semana').classes('section-title mb-2')
-                        grafico_clima = _criar_grafico_clima(snapshot_inicial.resumo_semana if snapshot_inicial else [])
-                    
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Distribuição de Notícias').classes('section-title mb-2')
-                        grafico_noticias = _criar_grafico_noticias(snapshot_inicial.noticias_por_grupo if snapshot_inicial else {})
+                with ui.grid(columns=2).classes("overview-charts-grid w-full gap-3"):
+                    with ui.element("div").classes("expansion-shell panel-week p-3"):
+                        ui.label("Previsão da Semana").classes("section-title mb-2")
+                        grafico_clima = _criar_grafico_clima(
+                            snapshot_inicial.resumo_semana if snapshot_inicial else []
+                        )
 
-                with ui.grid(columns=2).classes('w-full gap-3'):
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Santa Maria em Foco').classes('section-title mb-2')
+                    with ui.element("div").classes("expansion-shell panel-news-distribution p-3"):
+                        ui.label("Distribuição de Notícias").classes("section-title mb-2")
+                        grafico_noticias = _criar_grafico_noticias(
+                            snapshot_inicial.noticias_por_grupo if snapshot_inicial else {}
+                        )
+
+                with ui.grid(columns=2).classes("overview-local-grid w-full gap-3"):
+                    with ui.element("div").classes("expansion-shell panel-local p-3"):
+                        ui.label("Santa Maria em Foco").classes("section-title mb-2")
                         santa_maria_cards = ui.column().classes("w-full gap-2")
                         _popular_santa_maria_em_foco(
                             santa_maria_cards,
@@ -1465,31 +1685,74 @@ def construir_dashboard(
                             servico,
                             status,
                         )
-                    
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Clima Atual').classes('section-title mb-2')
+
+                    with ui.element("div").classes("expansion-shell panel-weather p-3"):
+                        ui.label("Clima Atual").classes("section-title mb-2")
                         clima_resumo = _render_clima_resumo(snapshot_inicial)
 
-            with ui.tab_panel(tab_noticias).classes('p-0 gap-3 flex flex-col'):
-                with ui.element('div').classes('expansion-shell p-3 w-full h-[600px] flex flex-col'):
+            with ui.tab_panel(tab_noticias).classes("p-0 gap-3 flex flex-col"):
+                with ui.element("div").classes(
+                    "expansion-shell p-3 w-full h-[600px] flex flex-col"
+                ):
                     with ui.row().classes("w-full items-center justify-between mb-2"):
-                        ui.label('Explorador de Notícias').classes('section-title')
+                        ui.label("Explorador de Notícias").classes("section-title")
                         noticias_total = ui.label("").classes("news-live-count text-sm")
-                    
-                    tabela_noticias = ui.aggrid({
-                        'columnDefs': [
-                            {'headerName': 'Grupo', 'field': 'grupo', 'sortable': True, 'filter': True, 'width': 130},
-                            {'headerName': 'Fonte', 'field': 'fonte', 'sortable': True, 'filter': True, 'width': 130},
-                            {'headerName': 'Título', 'field': 'titulo', 'sortable': True, 'filter': True, 'flex': 1},
-                            {'headerName': 'Publicado', 'field': 'publicado', 'sortable': True, 'filter': True, 'width': 150},
-                            {'headerName': 'Link', 'field': 'link', 'cellRenderer': '''(params) => `<a href="${params.value}" target="_blank" style="color: #22d3ee; text-decoration: underline;">Abrir</a>`''', 'width': 90}
-                        ],
-                        'rowData': _linhas_noticias_aggrid(_noticias_sem_santa_maria(snapshot_inicial.noticias) if snapshot_inicial else [], servico.config.localizacao.timezone),
-                        'rowSelection': 'single',
-                        'defaultColDef': {'resizable': True},
-                    }).classes('w-full flex-grow ag-theme-balham-dark')
 
-            with ui.tab_panel(tab_agenda).classes('p-0 gap-3 flex flex-col'):
+                    renderer_link = (
+                        "(params) => "
+                        '`<a href="${params.value}" target="_blank" '
+                        'style="color: #22d3ee; text-decoration: underline;">Abrir</a>`'
+                    )
+                    tabela_noticias = ui.aggrid(
+                        {
+                            "columnDefs": [
+                                {
+                                    "headerName": "Grupo",
+                                    "field": "grupo",
+                                    "sortable": True,
+                                    "filter": True,
+                                    "width": 130,
+                                },
+                                {
+                                    "headerName": "Fonte",
+                                    "field": "fonte",
+                                    "sortable": True,
+                                    "filter": True,
+                                    "width": 130,
+                                },
+                                {
+                                    "headerName": "Título",
+                                    "field": "titulo",
+                                    "sortable": True,
+                                    "filter": True,
+                                    "flex": 1,
+                                },
+                                {
+                                    "headerName": "Publicado",
+                                    "field": "publicado",
+                                    "sortable": True,
+                                    "filter": True,
+                                    "width": 150,
+                                },
+                                {
+                                    "headerName": "Link",
+                                    "field": "link",
+                                    "cellRenderer": renderer_link,
+                                    "width": 90,
+                                },
+                            ],
+                            "rowData": _linhas_noticias_aggrid(
+                                _noticias_sem_santa_maria(snapshot_inicial.noticias)
+                                if snapshot_inicial
+                                else [],
+                                servico.config.localizacao.timezone,
+                            ),
+                            "rowSelection": "single",
+                            "defaultColDef": {"resizable": True},
+                        }
+                    ).classes("w-full flex-grow ag-theme-balham-dark")
+
+            with ui.tab_panel(tab_agenda).classes("p-0 gap-3 flex flex-col"):
                 with ui.element("div").classes("agenda-layout w-full"):
                     with ui.element("div").classes("agenda-calendar-pane"):
                         agenda_mes_titulo = ui.label("").classes("section-title")
@@ -1541,10 +1804,10 @@ def construir_dashboard(
                         ),
                     ).classes("w-full")
 
-            with ui.tab_panel(tab_interesses).classes('p-0 gap-3 flex flex-col'):
-                with ui.grid(columns=2).classes('w-full gap-3'):
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Aparência e Comportamento').classes('section-title mb-2')
+            with ui.tab_panel(tab_interesses).classes("p-0 gap-3 flex flex-col"):
+                with ui.grid(columns=2).classes("w-full gap-3"):
+                    with ui.element("div").classes("expansion-shell p-3"):
+                        ui.label("Aparência e Comportamento").classes("section-title mb-2")
                         limite_noticias = ui.number(
                             label="Limite de Notícias no Dashboard",
                             value=LIMITE_PADRAO_NOTICIAS,
@@ -1556,37 +1819,50 @@ def construir_dashboard(
                         atualizacao_auto = ui.switch("Atualização automática", value=True).classes(
                             "control-switch mb-3"
                         )
-                        ui.label('Tema do Painel').classes('text-xs font-semibold text-slate-500 mb-1')
-                        ui.html(
-                            '''
-                            <div class="theme-toggle" aria-label="Tema do painel">
-                              <button type="button" data-theme-choice="dark">Dark</button>
-                              <button type="button" data-theme-choice="light">Light</button>
-                            </div>
-                            '''
+                        ui.label("Visual do Painel").classes(
+                            "text-xs font-semibold text-slate-500 mb-1"
                         )
-                        
-                    with ui.element('div').classes('expansion-shell p-3'):
-                        ui.label('Interesses de Pesquisa').classes('section-title mb-2')
+                        ui.html(
+                            """
+
+                            <div class="theme-toggle" aria-label="Tema do painel">
+                              <button type="button" data-theme-choice="light">
+                                <span class="material-icons appa-seg-icon">light_mode</span>
+                                Claro
+                              </button>
+                              <button type="button" data-theme-choice="dark">
+                                <span class="material-icons appa-seg-icon">dark_mode</span>
+                                Escuro
+                              </button>
+                            </div>
+                            """
+                        )
+
+                    with ui.element("div").classes("expansion-shell p-3"):
+                        ui.label("Interesses de Pesquisa").classes("section-title mb-2")
                         interesses_container = ui.element("div").classes("interest-list")
                         _popular_interesses(
                             interesses_container,
                             servico.config.fontes.noticias.interesses_busca,
                         )
-                        interesse_texto = ui.textarea("Adicionar interesses (vírgula)").classes("w-full mt-3")
+                        interesse_texto = ui.textarea("Adicionar interesses (vírgula)").classes(
+                            "w-full mt-3"
+                        )
                         interesse_texto.props("rows=3")
                         interesses_status = ui.label("").classes("text-sm text-slate-500")
                         ui.button(
                             "Salvar interesses",
                             icon="save",
-                            on_click=lambda: _adicionar_interesses_gui(
-                                servico,
-                                interesse_texto,
-                                interesses_container,
-                                interesses_status,
-                                status,
-                            )
-                            and atualizar(),
+                            on_click=lambda: (
+                                _adicionar_interesses_gui(
+                                    servico,
+                                    interesse_texto,
+                                    interesses_container,
+                                    interesses_status,
+                                    status,
+                                )
+                                and atualizar()
+                            ),
                         ).classes("w-full mt-2")
 
         def atualizar() -> None:
@@ -1602,7 +1878,7 @@ def construir_dashboard(
             _atualizar_clima_resumo(clima_resumo, snapshot)
             _atualizar_grafico_clima(grafico_clima, snapshot.resumo_semana)
             _atualizar_grafico_noticias(grafico_noticias, snapshot.noticias_por_grupo)
-            
+
             _popular_santa_maria_em_foco(
                 santa_maria_cards,
                 snapshot.santa_maria_em_foco,
@@ -1610,15 +1886,15 @@ def construir_dashboard(
                 servico,
                 status,
             )
-            
+
             novas_noticias = _noticias_sem_santa_maria(snapshot.noticias)
-            tabela_noticias.options['rowData'] = _linhas_noticias_aggrid(novas_noticias, servico.config.localizacao.timezone)
+            tabela_noticias.options["rowData"] = _linhas_noticias_aggrid(
+                novas_noticias, servico.config.localizacao.timezone
+            )
             tabela_noticias.update()
-            
+
             noticias_total.text = (
-                f"{_resumo_feed_noticias(novas_noticias)} "
-                f"| atualizado "
-                f"{snapshot.atualizado_em}"
+                f"{_resumo_feed_noticias(novas_noticias)} | atualizado {snapshot.atualizado_em}"
             )
             _popular_agenda_google(
                 calendario_google,
@@ -1628,7 +1904,7 @@ def construir_dashboard(
                 snapshot.agenda_google_resultado,
                 servico.config.localizacao.timezone,
             )
-            ui.run_javascript(
+            _executar_javascript(
                 "const alvo = document.querySelector('[data-appa-updated]');"
                 f"if (alvo) alvo.textContent = '{snapshot.atualizado_em}';"
             )
@@ -1653,6 +1929,7 @@ def construir_dashboard(
         cliente_dashboard.on_delete(
             lambda *_args: timer_atualizacao.cancel(with_current_invocation=True)
         )
+
 
 def _cabecalho(snapshot: DashboardSnapshot | None) -> None:
     """Renderiza a faixa superior com contexto operacional do painel."""
@@ -1700,43 +1977,49 @@ def _criar_kpis(snapshot: DashboardSnapshot | None) -> list[dict]:
         previsao = snapshot.previsao
         return [
             {
+                "icon": "article",
                 "label": "Noticias no radar",
                 "value": str(snapshot.indicadores.total_noticias),
                 "detail": "Itens do dia atual carregados no painel",
             },
             {
+                "icon": "newspaper",
                 "label": "The News em destaque",
                 "value": str(snapshot.indicadores.noticias_the_news),
                 "detail": "Artigos do grupo prioritario",
             },
             {
+                "icon": "location_on",
                 "label": "Santa Maria hoje",
                 "value": str(snapshot.indicadores.noticias_santa_maria),
                 "detail": "Cobertura local disponivel hoje",
             },
             {
+                "icon": "thermostat",
                 "label": "Temperatura alvo",
                 "value": f"{previsao.maxima or '--'} C",
                 "detail": (f"Minima {previsao.minima or '--'} C | Chuva {previsao.chuva or '--'}%"),
             },
             {
+                "icon": "event",
                 "label": "Google Agenda",
                 "value": str(snapshot.indicadores.eventos_google),
                 "detail": "Eventos futuros sincronizados",
             },
             {
+                "icon": "payments",
                 "label": "Dolar agora",
                 "value": _formatar_dolar(snapshot),
                 "detail": _detalhe_dolar(snapshot),
             },
         ]
     return [
-        {"label": "Noticias no radar", "value": "0", "detail": "Sem dados iniciais"},
-        {"label": "The News em destaque", "value": "0", "detail": "Sem dados iniciais"},
-        {"label": "Santa Maria hoje", "value": "0", "detail": "Sem dados iniciais"},
-        {"label": "Temperatura alvo", "value": "--", "detail": "Sem dados iniciais"},
-        {"label": "Google Agenda", "value": "0", "detail": "Sem dados iniciais"},
-        {"label": "Dolar agora", "value": "--", "detail": "Sem dados iniciais"},
+        {"icon": "article", "label": "Noticias no radar", "value": "0", "detail": "Sem dados"},
+        {"icon": "newspaper", "label": "The News em destaque", "value": "0", "detail": "Sem dados"},
+        {"icon": "location_on", "label": "Santa Maria hoje", "value": "0", "detail": "Sem dados"},
+        {"icon": "thermostat", "label": "Temperatura alvo", "value": "--", "detail": "Sem dados"},
+        {"icon": "event", "label": "Google Agenda", "value": "0", "detail": "Sem dados"},
+        {"icon": "payments", "label": "Dolar agora", "value": "--", "detail": "Sem dados"},
     ]
 
 
@@ -1771,41 +2054,79 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
 
 
 def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
-    """Constroi o resumo visual de clima em estilo dashboard (Minimalista/Futurista)."""
-    with ui.element("div").classes("weather-now w-full h-full flex flex-col justify-center relative overflow-hidden"):
-        # Decorative glow
-        ui.html('<div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:radial-gradient(circle, rgba(0,240,255,0.15) 0%, transparent 70%); border-radius:50%; pointer-events:none;"></div>')
-        
+    """Constroi o resumo visual de clima em estilo limpo e compacto."""
+    with ui.element("div").classes("weather-now w-full h-full flex flex-col justify-center"):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
                 cidade = ui.label(snapshot.previsao.cidade if snapshot else "Sem dados").classes(
                     "text-lg font-bold text-neon tracking-wide"
                 )
-                data = ui.label(snapshot.previsao.data_alvo.isoformat() if snapshot else "--").classes(
-                    "text-xs text-slate-400"
-                )
+                data = ui.label(
+                    snapshot.previsao.data_alvo.isoformat() if snapshot else "--"
+                ).classes("text-xs text-slate-400")
             referencia = ui.label(
                 _rotulo_referencia_clima(snapshot.previsao) if snapshot else "Sem referencia"
-            ).classes("text-[10px] uppercase font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full border border-slate-700/50")
-            
+            ).classes("climate-pill")
+
         with ui.row().classes("w-full items-center gap-4 mt-2"):
             temperatura = ui.label(
                 _formatar_grau(snapshot.previsao.temperatura_referencia) if snapshot else "--"
-            ).classes("text-5xl font-black text-white drop-shadow-md")
+            ).classes("weather-temp")
             with ui.column().classes("gap-0"):
-                sensacao = ui.label(f"Sensação: {_formatar_grau(snapshot.previsao.sensacao) if snapshot and snapshot.previsao.sensacao else '--'}").classes("text-xs text-slate-400")
-                condicao = ui.label("Condição atual").classes("text-xs text-slate-300 font-medium")
+                texto_sensacao = (
+                    _formatar_grau(snapshot.previsao.sensacao)
+                    if snapshot and snapshot.previsao.sensacao
+                    else "--"
+                )
+                sensacao = ui.label(f"Sensação: {texto_sensacao}").classes("text-xs text-slate-400")
+                ui.label("Condição atual").classes("text-xs text-slate-300 font-medium")
 
         with ui.element("div").classes("stat-grid-modern"):
-            maxima = _stat_box_modern("Máx", _formatar_grau(snapshot.previsao.maxima) if snapshot else "--", "mdi-arrow-up text-rose-400")
-            minima = _stat_box_modern("Mín", _formatar_grau(snapshot.previsao.minima) if snapshot else "--", "mdi-arrow-down text-blue-400")
-            chuva = _stat_box_modern("Chuva", _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--", "mdi-water-percent text-cyan-400")
-            uv = _stat_box_modern("UV Max", str(snapshot.previsao.uv_max) if snapshot and snapshot.previsao.uv_max else "--", "mdi-white-balance-sunny text-amber-400")
-            umidade = _stat_box_modern("Umidade", f"{snapshot.previsao.umidade}%" if snapshot and snapshot.previsao.umidade else "--", "mdi-water text-blue-300")
-            vento = _stat_box_modern("Vento", f"{snapshot.previsao.vento}km/h" if snapshot and snapshot.previsao.vento else "--", "mdi-weather-windy text-slate-300")
-            nascer = _stat_box_modern("Nascer", snapshot.previsao.nascer_sol if snapshot and snapshot.previsao.nascer_sol else "--", "mdi-weather-sunset-up text-orange-400")
-            por = _stat_box_modern("Pôr", snapshot.previsao.por_sol if snapshot and snapshot.previsao.por_sol else "--", "mdi-weather-sunset-down text-purple-400")
-            
+            maxima = _stat_box_modern(
+                "Máx",
+                _formatar_grau(snapshot.previsao.maxima) if snapshot else "--",
+                "mdi-arrow-up text-rose-400",
+            )
+            minima = _stat_box_modern(
+                "Mín",
+                _formatar_grau(snapshot.previsao.minima) if snapshot else "--",
+                "mdi-arrow-down text-blue-400",
+            )
+            chuva = _stat_box_modern(
+                "Chuva",
+                _formatar_chuva(snapshot.previsao.chuva) if snapshot else "--",
+                "mdi-water-percent text-cyan-400",
+            )
+            uv = _stat_box_modern(
+                "UV Max",
+                str(snapshot.previsao.uv_max) if snapshot and snapshot.previsao.uv_max else "--",
+                "mdi-white-balance-sunny text-amber-400",
+            )
+            umidade = _stat_box_modern(
+                "Umidade",
+                f"{snapshot.previsao.umidade}%" if snapshot and snapshot.previsao.umidade else "--",
+                "mdi-water text-blue-300",
+                detalhado=True,
+            )
+            vento = _stat_box_modern(
+                "Vento",
+                f"{snapshot.previsao.vento}km/h" if snapshot and snapshot.previsao.vento else "--",
+                "mdi-weather-windy text-slate-300",
+                detalhado=True,
+            )
+            nascer = _stat_box_modern(
+                "Nascer",
+                snapshot.previsao.nascer_sol if snapshot and snapshot.previsao.nascer_sol else "--",
+                "mdi-weather-sunset-up text-orange-400",
+                detalhado=True,
+            )
+            por = _stat_box_modern(
+                "Pôr",
+                snapshot.previsao.por_sol if snapshot and snapshot.previsao.por_sol else "--",
+                "mdi-weather-sunset-down text-purple-400",
+                detalhado=True,
+            )
+
     return {
         "cidade": cidade,
         "data": data,
@@ -1822,13 +2143,23 @@ def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.ele
         "por": por,
     }
 
-def _stat_box_modern(rotulo: str, valor: str, icone: str) -> ui.label:
+
+def _stat_box_modern(
+    rotulo: str,
+    valor: str,
+    icone: str,
+    detalhado: bool = False,
+) -> ui.label:
     """Cria uma mini caixa numerica para os blocos de clima, mais minimalista."""
-    with ui.element("div").classes("stat-box flex flex-col items-center justify-center p-2"):
-        ui.icon(icone.split(" ")[0]).classes(f"text-base mb-1 {icone.split(' ')[1]}")
+    classes = "stat-box flex flex-col items-center justify-center p-2"
+    if detalhado:
+        classes += " detail-metric"
+    with ui.element("div").classes(classes):
+        ui.icon(icone.split(" ")[0]).classes(f"text-[13px] mb-1 {icone.split(' ')[1]}")
         texto = ui.label(valor).classes("text-sm font-bold text-slate-200")
         ui.label(rotulo).classes("text-[9px] uppercase tracking-wider text-slate-500 mt-1")
     return texto
+
 
 def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardSnapshot) -> None:
     """Atualiza o bloco principal de clima."""
@@ -1837,7 +2168,9 @@ def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardS
     widgets["data"].text = previsao.data_alvo.isoformat()
     widgets["referencia"].text = _rotulo_referencia_clima(previsao)
     widgets["temperatura"].text = _formatar_grau(previsao.temperatura_referencia)
-    widgets["sensacao"].text = f"Sensação: {_formatar_grau(previsao.sensacao) if previsao.sensacao else '--'}"
+    widgets[
+        "sensacao"
+    ].text = f"Sensação: {_formatar_grau(previsao.sensacao) if previsao.sensacao else '--'}"
     widgets["maxima"].text = _formatar_grau(previsao.maxima)
     widgets["minima"].text = _formatar_grau(previsao.minima)
     widgets["chuva"].text = _formatar_chuva(previsao.chuva)
@@ -1846,7 +2179,6 @@ def _atualizar_clima_resumo(widgets: dict[str, ui.element], snapshot: DashboardS
     widgets["vento"].text = f"{previsao.vento}km/h" if previsao.vento else "--"
     widgets["nascer"].text = previsao.nascer_sol if previsao.nascer_sol else "--"
     widgets["por"].text = previsao.por_sol if previsao.por_sol else "--"
-
 
 
 def _stat_box(rotulo: str, valor: str) -> ui.label:
@@ -1963,9 +2295,7 @@ def _popular_feed_dinamico(
                 </div>
                 """
             )
-    ui.run_javascript(
-        "window.APPA_DASHBOARD && window.APPA_DASHBOARD.mountNewsStreams();"
-    )
+    _executar_javascript("window.APPA_DASHBOARD && window.APPA_DASHBOARD.mountNewsStreams();")
 
 
 def _renderizar_card_noticia(
@@ -1980,9 +2310,12 @@ def _renderizar_card_noticia(
     grupo = GRUPOS_LABEL.get(noticia.grupo, noticia.grupo.replace("_", " ").title())
     cor = GRUPOS_COR.get(noticia.grupo, "#5bd8ff")
     link = _link_seguro(noticia.link)
-    with ui.element("article").classes("news-card").props(
-        f'data-news-card data-news-id="{card_id}"'
-    ).style(f"--news-color: {cor};"):
+    with (
+        ui.element("article")
+        .classes("news-card")
+        .props(f'data-news-card data-news-id="{card_id}"')
+        .style(f"--news-color: {cor};")
+    ):
         with ui.row().classes("news-card-top items-center justify-between"):
             ui.label(grupo).classes("news-chip")
             ui.label(f"#{indice:02d}").classes("news-index")
@@ -2274,8 +2607,12 @@ def _renderizar_calendario_google(
                                         '<a class="calendar-event" '
                                         f'href="{link}" '
                                         'target="_blank" rel="noopener noreferrer">'
-                                        f'<span class="calendar-event-time">{escape(prefixo)}</span>'
-                                        f'<span class="calendar-event-title">{escape(titulo)}</span>'
+                                        '<span class="calendar-event-time">'
+                                        f"{escape(prefixo)}"
+                                        "</span>"
+                                        '<span class="calendar-event-title">'
+                                        f"{escape(titulo)}"
+                                        "</span>"
                                         "</a>"
                                     )
                                 if len(eventos_dia) > 3:

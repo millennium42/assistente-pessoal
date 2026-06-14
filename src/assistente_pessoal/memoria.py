@@ -17,6 +17,19 @@ from zoneinfo import ZoneInfo
 
 from assistente_pessoal.core_datas import normalizar_texto_ascii
 
+_SQL_UPSERT_DOCUMENTO = """
+INSERT OR REPLACE INTO documentos (
+    caminho,
+    titulo,
+    conteudo,
+    pasta,
+    tags,
+    criado_em,
+    atualizado_em
+)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
 
 @dataclass(frozen=True)
 class ResultadoMemoria:
@@ -27,6 +40,7 @@ class ResultadoMemoria:
         caminho: O caminho (ID) do arquivo no banco.
         trecho: Um fragmento de texto (snippet) contendo os termos de busca.
     """
+
     titulo: str
     caminho: Path
     trecho: str
@@ -40,6 +54,7 @@ class EstatisticasMemoria:
         db_path: O caminho do banco de dados SQLite.
         quantidade_notas: O numero total de notas.
     """
+
     db_path: Path
     quantidade_notas: int
 
@@ -105,23 +120,17 @@ class Memoria:
         caminho_str = f"{pasta}/{slug}"
         caminho = Path(caminho_str)
         agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
-        tags_json = json.dumps(tags_reais)
 
         with sqlite3.connect(self.db_path) as conexao:
-            conexao.execute(
-                """
-                INSERT OR REPLACE INTO documentos (caminho, titulo, conteudo, pasta, tags, criado_em, atualizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (caminho_str, titulo, conteudo, pasta, tags_json, agora, agora),
-            )
-            conexao.execute("DELETE FROM documentos_fts WHERE caminho = ?", (caminho_str,))
-            conexao.execute(
-                """
-                INSERT INTO documentos_fts(titulo, caminho, conteudo)
-                VALUES (?, ?, ?)
-                """,
-                (titulo, caminho_str, conteudo),
+            _salvar_documento_sqlite(
+                conexao=conexao,
+                caminho=caminho_str,
+                titulo=titulo,
+                conteudo=conteudo,
+                pasta=pasta,
+                tags=tags_reais,
+                criado_em=agora,
+                atualizado_em=agora,
             )
         return caminho
 
@@ -149,27 +158,22 @@ class Memoria:
         caminho_str = f"{pasta}/{nome_arquivo}"
         caminho = Path(caminho_str)
         agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
-        tags_json = json.dumps(tags or [])
 
         with sqlite3.connect(self.db_path) as conexao:
-            # Verifica se existe para nao alterar data de criacao se nao precisar, ou apenas atualiza
-            existente = conexao.execute("SELECT criado_em FROM documentos WHERE caminho = ?", (caminho_str,)).fetchone()
+            existente = conexao.execute(
+                "SELECT criado_em FROM documentos WHERE caminho = ?",
+                (caminho_str,),
+            ).fetchone()
             criado_em = existente[0] if existente else agora
-
-            conexao.execute(
-                """
-                INSERT OR REPLACE INTO documentos (caminho, titulo, conteudo, pasta, tags, criado_em, atualizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (caminho_str, titulo, conteudo, pasta, tags_json, criado_em, agora),
-            )
-            conexao.execute("DELETE FROM documentos_fts WHERE caminho = ?", (caminho_str,))
-            conexao.execute(
-                """
-                INSERT INTO documentos_fts(titulo, caminho, conteudo)
-                VALUES (?, ?, ?)
-                """,
-                (titulo, caminho_str, conteudo),
+            _salvar_documento_sqlite(
+                conexao=conexao,
+                caminho=caminho_str,
+                titulo=titulo,
+                conteudo=conteudo,
+                pasta=pasta,
+                tags=tags or [],
+                criado_em=criado_em,
+                atualizado_em=agora,
             )
         return caminho
 
@@ -294,6 +298,32 @@ class Memoria:
             O caminho relativo formatado em posix.
         """
         return caminho.as_posix()
+
+
+def _salvar_documento_sqlite(
+    conexao: sqlite3.Connection,
+    caminho: str,
+    titulo: str,
+    conteudo: str,
+    pasta: str,
+    tags: list[str],
+    criado_em: str,
+    atualizado_em: str,
+) -> None:
+    """Atualiza a tabela principal e mantem o FTS sincronizado."""
+    tags_json = json.dumps(tags)
+    conexao.execute(
+        _SQL_UPSERT_DOCUMENTO,
+        (caminho, titulo, conteudo, pasta, tags_json, criado_em, atualizado_em),
+    )
+    conexao.execute("DELETE FROM documentos_fts WHERE caminho = ?", (caminho,))
+    conexao.execute(
+        """
+        INSERT INTO documentos_fts(titulo, caminho, conteudo)
+        VALUES (?, ?, ?)
+        """,
+        (titulo, caminho, conteudo),
+    )
 
 
 def slugificar(texto: str) -> str:

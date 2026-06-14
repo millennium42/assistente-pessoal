@@ -82,7 +82,23 @@ assistente-pessoal ouvir
 assistente-pessoal gui
 ```
 
-O dashboard abre localmente no navegador e mostra:
+O dashboard abre localmente no navegador. A janela sobe antes das consultas externas
+mais lentas; use `Atualizar Painel` para carregar ou recarregar clima, noticias,
+cambio e agenda.
+
+Modos visuais:
+
+- `Limpa`: menos elementos simultaneos, KPIs maiores e distribuicao de noticias
+  escondida para leitura rapida.
+- `Detalhada`: painel mais denso, grade de fundo, seis KPIs por linha, distribuicao
+  de noticias e metricas extras de clima.
+
+Temas:
+
+- `Claro`: cards brancos, contraste reforcado e tabela ajustada para fundo claro.
+- `Escuro`: fundo tecnico discreto, sem brilhos decorativos pesados.
+
+O dashboard mostra:
 
 - clima
 - noticias

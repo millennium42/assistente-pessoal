@@ -48,7 +48,23 @@ Esta versao separa o projeto em camadas pequenas para reduzir acoplamento entre 
 ## Fluxo da GUI
 
 1. `assistente-pessoal gui` carrega a configuracao
-2. `DashboardService` monta um snapshot com clima, noticias e dados do banco
-3. `gui` renderiza blocos editaveis
-4. salvar agenda/plano atualiza registros no banco de dados
-5. criar evento chama a Google Agenda configurada e recarrega o mes exibido
+2. o servidor NiceGUI sobe sem bloquear em chamadas externas
+3. `gui` renderiza a estrutura inicial com estado vazio ou snapshot injetado em testes
+4. `DashboardService` monta snapshots quando a tela atualiza dados
+5. a visualizacao `Limpa` prioriza leitura rapida e esconde detalhes secundarios
+6. a visualizacao `Detalhada` mostra grade mais densa, distribuicao de noticias e metricas extras
+7. salvar agenda/plano atualiza registros no banco de dados
+8. criar evento chama a Google Agenda configurada e recarrega o mes exibido
+
+## Otimizacoes de qualidade
+
+- O modelo `PrevisaoClima` mantem campos meteorologicos opcionais com defaults para
+  preservar compatibilidade com testes e fakes.
+- Escritas da memoria SQLite passam por uma rotina comum que sincroniza tabela
+  principal e FTS5 no mesmo ponto.
+- `memoria info` mostra apenas dados existentes no modelo atual do banco; o indice
+  agora vive dentro do SQLite via FTS5.
+- O cambio tenta endpoints conhecidos da AwesomeAPI em ordem e so retorna erro depois
+  de esgotar os fallbacks.
+- Chamadas JavaScript da GUI sao protegidas quando a arvore NiceGUI e montada em teste
+  sem loop ativo.

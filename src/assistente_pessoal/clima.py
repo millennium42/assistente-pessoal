@@ -36,19 +36,19 @@ class PrevisaoClima:
     cidade: str
     data_alvo: date
     e_hoje: bool
-    temperatura_referencia: float | None
-    sensacao: float | None
-    vento: float | None
-    direcao_vento: int | None
-    umidade: float | None
-    pressao: float | None
-    maxima: float | None
-    minima: float | None
-    chuva: float | None
-    uv_max: float | None
-    nascer_sol: str | None
-    por_sol: str | None
-    codigo_tempo: int | None
+    temperatura_referencia: float | None = None
+    sensacao: float | None = None
+    vento: float | None = None
+    direcao_vento: int | None = None
+    umidade: float | None = None
+    pressao: float | None = None
+    maxima: float | None = None
+    minima: float | None = None
+    chuva: float | None = None
+    uv_max: float | None = None
+    nascer_sol: str | None = None
+    por_sol: str | None = None
+    codigo_tempo: int | None = None
 
     @property
     def erro(self) -> bool:
@@ -109,7 +109,10 @@ class ClienteClima:
             "latitude": localizacao.latitude,
             "longitude": localizacao.longitude,
             "timezone": localizacao.timezone,
-            "current": "temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure,weather_code",
+            "current": (
+                "temperature_2m,apparent_temperature,wind_speed_10m,"
+                "wind_direction_10m,relative_humidity_2m,surface_pressure,weather_code"
+            ),
             "daily": (
                 "temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunrise,sunset,weather_code"
             ),
@@ -188,8 +191,10 @@ def montar_previsao(cidade: str, dados: dict, data_alvo: date) -> PrevisaoClima:
     )
     nascer = _valor_na_posicao(diario.get("sunrise"), indice)
     por = _valor_na_posicao(diario.get("sunset"), indice)
-    if nascer: nascer = nascer.split("T")[-1][:5]
-    if por: por = por.split("T")[-1][:5]
+    if nascer:
+        nascer = nascer.split("T")[-1][:5]
+    if por:
+        por = por.split("T")[-1][:5]
 
     return PrevisaoClima(
         cidade=cidade,
@@ -223,12 +228,7 @@ def formatar_previsao(previsao: PrevisaoClima) -> str:
         Texto formatado amigavel para humanos.
     """
     if previsao.erro:
-        return (
-            f"Clima em {previsao.cidade} para {previsao.data_alvo.isoformat()}: "
-            f"agora {previsao.temperatura_referencia} C, sensacao {previsao.sensacao} C, "
-            f"vento {previsao.vento} km/h; maxima {previsao.maxima} C, minima "
-            f"{previsao.minima} C, chance de chuva {previsao.chuva}%."
-        )
+        return f"Previsao indisponivel para {previsao.cidade} em {previsao.data_alvo.isoformat()}."
     return (
         f"Previsao para {previsao.cidade} em {previsao.data_alvo.isoformat()}: "
         f"temperatura prevista em torno de {previsao.temperatura_referencia} C, "

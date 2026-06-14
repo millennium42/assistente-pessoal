@@ -511,7 +511,9 @@ def test_formatar_noticias_exibe_interesse_quando_presente() -> None:
         grupo="tech",
     )
 
-    texto = formatar_noticias([noticia_interesse, noticia_normal], agora=datetime(2026, 6, 8, 13, 0))
+    texto = formatar_noticias(
+        [noticia_interesse, noticia_normal], agora=datetime(2026, 6, 8, 13, 0)
+    )
 
     assert "interesse: ia educacao" in texto
     assert texto.count("interesse:") == 1

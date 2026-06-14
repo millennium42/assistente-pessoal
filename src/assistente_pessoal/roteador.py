@@ -8,7 +8,6 @@ from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import ClienteNoticias, formatar_noticias
 
-
 PREFIXOS_MEMORIA = ("memorizar ", "anotar ", "lembrar ", "salvar ")
 PREFIXOS_BUSCA = ("buscar ", "procurar ", "pesquisar ", "encontrar ")
 
@@ -73,7 +72,7 @@ def _remover_prefixos(texto: str, prefixos: tuple[str, ...]) -> str:
     texto_lower = texto.lower()
     for prefixo in prefixos:
         if texto_lower.startswith(prefixo):
-            return texto[len(prefixo):].strip()
+            return texto[len(prefixo) :].strip()
     return texto.strip()
 
 

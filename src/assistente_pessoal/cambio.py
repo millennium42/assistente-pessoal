@@ -60,16 +60,9 @@ class ClienteCambio:
         Returns:
             Objeto CotacaoMoeda preenchido com os dados ou contendo um erro.
         """
-        item = None
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                try:
-                    item = _buscar_cotacao(client, "https://economia.awesomeapi.com.br/json/last/USD-BRL")
-                except httpx.HTTPError:
-                    item = None
-                
-                if not item:
-                    item = _buscar_cotacao(client, "https://economia.awesomeapi.com.br/json/USD-BRL")
+                item = _buscar_primeira_cotacao_disponivel(client)
         except (httpx.HTTPError, ValueError) as exc:
             return _cotacao_indisponivel(str(exc))
 
@@ -87,6 +80,26 @@ class ClienteCambio:
             horario=horario,
             fonte="AwesomeAPI",
         )
+
+
+def _buscar_primeira_cotacao_disponivel(client: httpx.Client) -> dict | None:
+    """Tenta os endpoints conhecidos da AwesomeAPI em ordem de preferencia."""
+    endpoints = (
+        "https://economia.awesomeapi.com.br/json/last/USD-BRL",
+        "https://economia.awesomeapi.com.br/json/USD-BRL",
+    )
+    erro_http: httpx.HTTPError | None = None
+    for url in endpoints:
+        try:
+            item = _buscar_cotacao(client, url)
+        except httpx.HTTPError as exc:
+            erro_http = exc
+            continue
+        if item:
+            return item
+    if erro_http:
+        raise erro_http
+    return None
 
 
 def _buscar_cotacao(client: httpx.Client, url: str) -> dict | None:

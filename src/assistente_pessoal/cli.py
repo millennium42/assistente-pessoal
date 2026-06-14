@@ -20,7 +20,6 @@ from assistente_pessoal.config import (
     caminho_config_padrao,
     carregar_config,
     criar_config_inicial,
-    criar_pastas_banco,
 )
 from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import avisar, console, erro, sucesso
@@ -30,7 +29,6 @@ from assistente_pessoal.noticias import (
     ClienteNoticias,
     formatar_noticias,
 )
-from assistente_pessoal.roteador import RoteadorComandos
 
 app = typer.Typer(
     help="Assistente pessoal modular em pt-BR.",
@@ -256,7 +254,6 @@ def memoria_info(ctx: typer.Context) -> None:
     tabela.add_column("Campo")
     tabela.add_column("Valor")
     tabela.add_row("Banco efetivo", estatisticas.db_path.as_posix())
-    tabela.add_row("Indice", estatisticas.indice_path.as_posix())
     tabela.add_row("Notas Markdown", str(estatisticas.quantidade_notas))
     console.print(tabela)
 
@@ -273,4 +270,3 @@ def _caminho_config(ctx: typer.Context) -> Path:
     if ctx.obj and ctx.obj.get("config_path"):
         return Path(ctx.obj["config_path"])
     return caminho_config_padrao()
-

@@ -548,10 +548,7 @@ def noticia_parece_local(titulo: str, link: str, palavras_chave: list[str]) -> b
     if not palavras_chave:
         return True
     universo = normalizar_texto_ascii(f"{titulo} {link}").lower()
-    return any(
-        normalizar_texto_ascii(palavra).lower() in universo
-        for palavra in palavras_chave
-    )
+    return any(normalizar_texto_ascii(palavra).lower() in universo for palavra in palavras_chave)
 
 
 def _url_google_news_interesse(termo: str) -> str:
@@ -564,10 +561,7 @@ def _url_google_news_interesse(termo: str) -> str:
         A url gerada para consumo via RSS.
     """
     consulta = quote_plus(f"{termo} when:1d")
-    return (
-        "https://news.google.com/rss/search?"
-        f"q={consulta}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-    )
+    return f"https://news.google.com/rss/search?q={consulta}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
 
 
 def _fonte_interesse(item: object, termo: str) -> str:

@@ -90,6 +90,22 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 - `assistente-pessoal ouvir`
 - `assistente-pessoal gui`
 
+## Dashboard grafico
+
+O dashboard local abre primeiro a interface e deixa as chamadas externas para a
+atualizacao feita na tela. Isso evita que RSS, clima ou cambio atrasem a abertura
+do servidor local.
+
+A GUI tem dois modos visuais:
+
+- `Limpa`: visao executiva, com KPIs maiores, menos detalhes secundarios e foco
+  no grafico semanal.
+- `Detalhada`: visao operacional, com grade tecnica, seis KPIs compactos,
+  distribuicao de noticias e metricas secundarias abertas.
+
+O tema claro foi ajustado para cards brancos, contraste mais forte e tabela
+legivel. Os controles usam icones pequenos para manter a interface mais limpa.
+
 ## Configuracao
 
 Estrutura resumida do `config.toml`:

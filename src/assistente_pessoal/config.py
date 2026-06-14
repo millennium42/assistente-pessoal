@@ -386,15 +386,13 @@ def ler_api_key(nome_variavel: str) -> str:
 
 
 def criar_pastas_banco(db_path: Path) -> None:
-    """Cria a pasta principal onde o banco de dados e arquivos locais ficarao armazenados.
+    """Cria as pastas auxiliares usadas ao redor do arquivo SQLite.
 
     Args:
-        db_path: O caminho raiz do banco de dados.
+        db_path: O caminho do arquivo SQLite.
     """
-    for pasta in PASTAS_VAULT:
-        (db_path / pasta).mkdir(parents=True, exist_ok=True)
-    # A pasta oculta guarda indices tecnicos.
-    (db_path / ".assistente").mkdir(parents=True, exist_ok=True)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    (db_path.parent / ".assistente").mkdir(parents=True, exist_ok=True)
 
 
 def _normalizar_path(caminho: Path) -> str:
