@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from assistente_pessoal.agenda_google import EventoGoogleAgenda, formatar_data_hora_google
@@ -52,6 +52,7 @@ class GeradorInsightsDashboard:
         noticias_por_grupo: dict[str, int],
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
+        clima_amanha: ResumoClimaDia | None,
         perfil_pessoal: str,
         interesses_usuario: list[str],
         noticias_relevantes: list[InteracaoNoticiaMemoria],
@@ -65,6 +66,7 @@ class GeradorInsightsDashboard:
             noticias_por_grupo=noticias_por_grupo,
             previsao=previsao,
             clima_ontem=clima_ontem,
+            clima_amanha=clima_amanha,
             perfil_pessoal=perfil_pessoal,
             interesses_usuario=interesses_usuario,
             noticias_relevantes=noticias_relevantes,
@@ -76,6 +78,7 @@ class GeradorInsightsDashboard:
             noticias_por_grupo=noticias_por_grupo,
             previsao=previsao,
             clima_ontem=clima_ontem,
+            clima_amanha=clima_amanha,
             atualizado_em=atualizado_em,
         )
         if self._cache_fingerprint == fingerprint and self._cache_resultado is not None:
@@ -91,6 +94,7 @@ class GeradorInsightsDashboard:
                 noticias_por_grupo=noticias_por_grupo,
                 previsao=previsao,
                 clima_ontem=clima_ontem,
+                clima_amanha=clima_amanha,
                 perfil_pessoal=perfil_pessoal,
                 interesses_usuario=interesses_usuario,
                 noticias_relevantes=noticias_relevantes,
@@ -111,6 +115,7 @@ class GeradorInsightsDashboard:
         noticias_por_grupo: dict[str, int],
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
+        clima_amanha: ResumoClimaDia | None,
         perfil_pessoal: str,
         interesses_usuario: list[str],
         noticias_relevantes: list[InteracaoNoticiaMemoria],
@@ -124,6 +129,7 @@ class GeradorInsightsDashboard:
             noticias_por_grupo=noticias_por_grupo,
             previsao=previsao,
             clima_ontem=clima_ontem,
+            clima_amanha=clima_amanha,
             perfil_pessoal=perfil_pessoal,
             interesses_usuario=interesses_usuario,
             noticias_relevantes=noticias_relevantes,
@@ -158,6 +164,7 @@ class GeradorInsightsDashboard:
         noticias_por_grupo: dict[str, int],
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
+        clima_amanha: ResumoClimaDia | None,
         perfil_pessoal: str,
         interesses_usuario: list[str],
         noticias_relevantes: list[InteracaoNoticiaMemoria],
@@ -178,7 +185,7 @@ class GeradorInsightsDashboard:
             interesses_usuario,
             noticias_relevantes,
         )
-        clima = _montar_card_clima(previsao, clima_ontem)
+        clima = _montar_card_clima(previsao, clima_ontem, clima_amanha)
         return DashboardInsights(
             agenda=agenda,
             noticias=noticias_card,
@@ -194,6 +201,7 @@ class GeradorInsightsDashboard:
         noticias_por_grupo: dict[str, int],
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
+        clima_amanha: ResumoClimaDia | None,
         perfil_pessoal: str,
         interesses_usuario: list[str],
         noticias_relevantes: list[InteracaoNoticiaMemoria],
@@ -238,6 +246,12 @@ class GeradorInsightsDashboard:
                 "minima": clima_ontem.minima if clima_ontem else None,
                 "chuva": clima_ontem.chuva if clima_ontem else None,
             },
+            "comparacao_amanha": {
+                "data": clima_amanha.data.isoformat() if clima_amanha else None,
+                "maxima": clima_amanha.maxima if clima_amanha else None,
+                "minima": clima_amanha.minima if clima_amanha else None,
+                "chuva": clima_amanha.chuva if clima_amanha else None,
+            },
         }
         guia_local = {
             "agenda": {
@@ -278,6 +292,7 @@ class GeradorInsightsDashboard:
         noticias_por_grupo: dict[str, int],
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
+        clima_amanha: ResumoClimaDia | None,
         atualizado_em: str,
     ) -> str:
         """Deriva um hash estavel dos dados relevantes para evitar recomputos."""
@@ -314,6 +329,16 @@ class GeradorInsightsDashboard:
                     "chuva": clima_ontem.chuva,
                 }
                 if clima_ontem
+                else None
+            ),
+            "clima_amanha": (
+                {
+                    "data": clima_amanha.data.isoformat(),
+                    "maxima": clima_amanha.maxima,
+                    "minima": clima_amanha.minima,
+                    "chuva": clima_amanha.chuva,
+                }
+                if clima_amanha
                 else None
             ),
             "atualizado_em": atualizado_em,
@@ -412,16 +437,25 @@ def _montar_card_noticias(
     return InsightCard(titulo="Panorama de noticias", resumo=resumo, bullets=bullets[:4])
 
 
-def _montar_card_clima(previsao: PrevisaoClima, clima_ontem: ResumoClimaDia | None) -> InsightCard:
-    comparacao = _comparacao_clima(previsao, clima_ontem)
+def _montar_card_clima(
+    previsao: PrevisaoClima,
+    clima_ontem: ResumoClimaDia | None,
+    clima_amanha: ResumoClimaDia | None,
+) -> InsightCard:
+    comparacao_hoje = _comparacao_hoje_ontem(previsao, clima_ontem)
+    comparacao_amanha = _comparacao_amanha_hoje(previsao, clima_amanha)
     roupa = _recomendacao_roupa(previsao)
     chuva = _recomendacao_chuva(previsao.chuva)
-    resumo = (
-        f"{comparacao} Maxima de {_temperatura(previsao.maxima)} e minima de "
+    faixa_termica = (
+        f"Maxima de {_temperatura(previsao.maxima)} e minima de "
         f"{_temperatura(previsao.minima)}."
     )
+    resumo = (
+        f"{comparacao_hoje} {comparacao_amanha} {faixa_termica}"
+    )
     bullets = [
-        f"Temperatura de referencia: {_temperatura(previsao.temperatura_referencia)}.",
+        f"Hoje vs ontem: {comparacao_hoje}",
+        f"Amanha vs hoje: {comparacao_amanha}",
         f"Roupas: {roupa}.",
         f"Chuva: {chuva}.",
     ]
@@ -455,7 +489,7 @@ def _rotulo_grupo(grupo: str) -> str:
     return rotulos.get(grupo, grupo.replace("_", " ").title())
 
 
-def _comparacao_clima(previsao: PrevisaoClima, clima_ontem: ResumoClimaDia | None) -> str:
+def _comparacao_hoje_ontem(previsao: PrevisaoClima, clima_ontem: ResumoClimaDia | None) -> str:
     if clima_ontem is None or previsao.maxima is None or clima_ontem.maxima is None:
         return "Hoje o clima pede atencao ao intervalo termico."
     diferenca = round(previsao.maxima - clima_ontem.maxima, 1)
@@ -464,6 +498,29 @@ def _comparacao_clima(previsao: PrevisaoClima, clima_ontem: ResumoClimaDia | Non
     if diferenca <= -2:
         return f"Hoje deve esfriar cerca de {abs(diferenca):g} C em relacao a ontem."
     return "Hoje deve seguir em faixa parecida com a de ontem."
+
+
+def _comparacao_amanha_hoje(
+    previsao: PrevisaoClima,
+    clima_amanha: ResumoClimaDia | None,
+) -> str:
+    if clima_amanha is None or previsao.maxima is None or clima_amanha.maxima is None:
+        return "Amanha ainda nao tem comparacao confiavel com hoje."
+    diferenca = round(clima_amanha.maxima - previsao.maxima, 1)
+    if diferenca >= 2:
+        return f"Amanha deve esquentar cerca de {diferenca:g} C em relacao a hoje."
+    if diferenca <= -2:
+        return f"Amanha deve esfriar cerca de {abs(diferenca):g} C em relacao a hoje."
+    return "Amanha deve seguir em faixa parecida com a de hoje."
+
+
+def resumo_clima_amanha(
+    resumo_semana: list[ResumoClimaDia],
+    data_hoje: date,
+) -> ResumoClimaDia | None:
+    """Extrai o primeiro resumo correspondente a amanha dentro da faixa semanal."""
+    data_amanha = data_hoje + timedelta(days=1)
+    return next((dia for dia in resumo_semana if dia.data == data_amanha), None)
 
 
 def _recomendacao_roupa(previsao: PrevisaoClima) -> str:

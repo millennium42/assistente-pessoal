@@ -15,7 +15,11 @@ from assistente_pessoal.agenda_google import (
 from assistente_pessoal.cambio import ClienteCambio, CotacaoMoeda
 from assistente_pessoal.clima import ClienteClima, PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig, renderizar_toml
-from assistente_pessoal.dashboard_insights import DashboardInsights, GeradorInsightsDashboard
+from assistente_pessoal.dashboard_insights import (
+    DashboardInsights,
+    GeradorInsightsDashboard,
+    resumo_clima_amanha,
+)
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
@@ -102,6 +106,7 @@ class DashboardService:
         ]
         contagem_grupos = Counter(noticia.grupo for noticia in noticias)
         clima_ontem = self._carregar_clima_ontem()
+        clima_amanha = resumo_clima_amanha(resumo_semana, previsao.data_alvo)
         atualizado_em = datetime.now().strftime("%H:%M:%S")
         insights = self.gerador_insights.gerar(
             agenda_google=agenda_google_futuros,
@@ -109,6 +114,7 @@ class DashboardService:
             noticias_por_grupo=dict(contagem_grupos),
             previsao=previsao,
             clima_ontem=clima_ontem,
+            clima_amanha=clima_amanha,
             perfil_pessoal=perfil_pessoal,
             interesses_usuario=interesses_usuario,
             noticias_relevantes=noticias_relevantes,

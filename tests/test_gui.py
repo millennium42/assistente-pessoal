@@ -248,6 +248,19 @@ def test_dashboard_service_gera_bullet_de_noticia_mais_recente(tmp_path: Path) -
     assert "Mais recente:" in snapshot.insights.noticias.bullets[0]
 
 
+def test_dashboard_service_compara_clima_hoje_ontem_e_amanha(tmp_path: Path) -> None:
+    """Resume o clima comparando hoje com ontem e amanha com hoje."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+
+    snapshot = servico.carregar()
+
+    assert "ontem" in snapshot.insights.clima.resumo.lower()
+    assert "amanha" in snapshot.insights.clima.resumo.lower()
+    assert any("Hoje vs ontem:" in bullet for bullet in snapshot.insights.clima.bullets)
+    assert any("Amanha vs hoje:" in bullet for bullet in snapshot.insights.clima.bullets)
+
+
 def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: Path) -> None:
     """Evita repetir chamadas externas quando a GUI refresca antes do TTL expirar."""
     config = AppConfig(db_path=tmp_path / "banco")
