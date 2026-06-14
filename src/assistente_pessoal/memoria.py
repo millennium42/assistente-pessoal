@@ -59,6 +59,19 @@ class EstatisticasMemoria:
     quantidade_notas: int
 
 
+@dataclass(frozen=True)
+class InteracaoNoticiaMemoria:
+    """Representa uma noticia relevante observada pela assistente."""
+
+    titulo: str
+    link: str
+    fonte: str
+    grupo: str
+    origem: str
+    contexto: str
+    registrado_em: str
+
+
 class Memoria:
     """Gerencia notas em banco de dados SQLite."""
 
@@ -76,6 +89,7 @@ class Memoria:
         """Cria as tabelas e o banco caso ainda nao existam."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute("PRAGMA foreign_keys = ON")
             conexao.execute(
                 """
                 CREATE TABLE IF NOT EXISTS documentos (
@@ -93,6 +107,38 @@ class Memoria:
                 """
                 CREATE VIRTUAL TABLE IF NOT EXISTS documentos_fts
                 USING fts5(titulo, caminho UNINDEXED, conteudo, tokenize='unicode61')
+                """
+            )
+            conexao.execute(
+                """
+                CREATE TABLE IF NOT EXISTS perfil_pessoal (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    conteudo TEXT NOT NULL,
+                    atualizado_em TEXT NOT NULL
+                )
+                """
+            )
+            conexao.execute(
+                """
+                CREATE TABLE IF NOT EXISTS interesses_usuario (
+                    interesse TEXT PRIMARY KEY,
+                    criado_em TEXT NOT NULL,
+                    atualizado_em TEXT NOT NULL
+                )
+                """
+            )
+            conexao.execute(
+                """
+                CREATE TABLE IF NOT EXISTS interacoes_noticias (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    titulo TEXT NOT NULL,
+                    link TEXT NOT NULL,
+                    fonte TEXT NOT NULL,
+                    grupo TEXT NOT NULL,
+                    origem TEXT NOT NULL,
+                    contexto TEXT NOT NULL,
+                    registrado_em TEXT NOT NULL
+                )
                 """
             )
 
@@ -196,6 +242,150 @@ class Memoria:
                 return linha[0] if linha else ""
         except sqlite3.OperationalError:
             return ""
+
+    def salvar_perfil_pessoal(self, conteudo: str) -> None:
+        """Persiste o perfil pessoal canonico em tabela estruturada."""
+        self.preparar()
+        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        conteudo_limpo = conteudo.strip() or "Perfil pessoal ainda nao preenchido."
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute(
+                """
+                INSERT INTO perfil_pessoal (id, conteudo, atualizado_em)
+                VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    conteudo = excluded.conteudo,
+                    atualizado_em = excluded.atualizado_em
+                """,
+                (conteudo_limpo, agora),
+            )
+
+    def obter_perfil_pessoal(self) -> str:
+        """Le o perfil pessoal; migra do modelo legado quando necessario."""
+        self.preparar()
+        with sqlite3.connect(self.db_path) as conexao:
+            linha = conexao.execute(
+                "SELECT conteudo FROM perfil_pessoal WHERE id = 1"
+            ).fetchone()
+        if linha and linha[0]:
+            return str(linha[0])
+        legado = self.ler_documento_fixo("10_memoria", "perfil-pessoal.md").strip()
+        if legado:
+            self.salvar_perfil_pessoal(legado)
+            return legado
+        return ""
+
+    def substituir_interesses(self, interesses: list[str]) -> None:
+        """Substitui a lista de interesses usada para personalizacao."""
+        self.preparar()
+        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        itens = [interesse.strip() for interesse in interesses if interesse.strip()]
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute("DELETE FROM interesses_usuario")
+            conexao.executemany(
+                """
+                INSERT INTO interesses_usuario (interesse, criado_em, atualizado_em)
+                VALUES (?, ?, ?)
+                """,
+                [(interesse, agora, agora) for interesse in itens],
+            )
+
+    def listar_interesses(self) -> list[str]:
+        """Retorna os interesses persistidos no banco estruturado."""
+        self.preparar()
+        with sqlite3.connect(self.db_path) as conexao:
+            linhas = conexao.execute(
+                "SELECT interesse FROM interesses_usuario ORDER BY rowid ASC"
+            ).fetchall()
+        if linhas:
+            return [str(linha[0]) for linha in linhas]
+        legado = self.ler_documento_fixo("10_memoria", "interesses-de-pesquisa.md")
+        interesses = [
+            linha.removeprefix("-").strip()
+            for linha in legado.splitlines()
+            if linha.strip().startswith("-")
+        ]
+        if interesses:
+            self.substituir_interesses(interesses)
+        return interesses
+
+    def registrar_interacao_noticia(
+        self,
+        *,
+        titulo: str,
+        link: str,
+        fonte: str,
+        grupo: str,
+        origem: str,
+        contexto: str = "",
+    ) -> None:
+        """Armazena uma noticia observada para orientar relevancia futura."""
+        self.preparar()
+        agora = datetime.now(ZoneInfo(self.timezone)).isoformat(timespec="seconds")
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute(
+                """
+                INSERT INTO interacoes_noticias (
+                    titulo,
+                    link,
+                    fonte,
+                    grupo,
+                    origem,
+                    contexto,
+                    registrado_em
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (titulo, link, fonte, grupo, origem, contexto, agora),
+            )
+
+    def listar_interacoes_noticias(self, limite: int = 20) -> list[InteracaoNoticiaMemoria]:
+        """Entrega o historico recente de noticias consideradas relevantes."""
+        self.preparar()
+        with sqlite3.connect(self.db_path) as conexao:
+            linhas = conexao.execute(
+                """
+                SELECT titulo, link, fonte, grupo, origem, contexto, registrado_em
+                FROM interacoes_noticias
+                ORDER BY registrado_em DESC, id DESC
+                LIMIT ?
+                """,
+                (limite,),
+            ).fetchall()
+        return [
+            InteracaoNoticiaMemoria(
+                titulo=titulo,
+                link=link,
+                fonte=fonte,
+                grupo=grupo,
+                origem=origem,
+                contexto=contexto,
+                registrado_em=registrado_em,
+            )
+            for titulo, link, fonte, grupo, origem, contexto, registrado_em in linhas
+        ]
+
+    def contexto_secretaria_virtual(self, limite_noticias: int = 12) -> str:
+        """Resume perfil, interesses e historico recente para a APPA."""
+        perfil = self.obter_perfil_pessoal().strip() or "Nao informado."
+        interesses = self.listar_interesses()
+        noticias = self.listar_interacoes_noticias(limite=limite_noticias)
+        linhas = [f"Perfil pessoal: {perfil}"]
+        if interesses:
+            linhas.append(f"Interesses atuais: {', '.join(interesses)}")
+        else:
+            linhas.append("Interesses atuais: nenhum interesse salvo.")
+        if noticias:
+            linhas.append("Noticias e sinais recentes de relevancia:")
+            for noticia in noticias:
+                detalhe_contexto = f" | contexto: {noticia.contexto}" if noticia.contexto else ""
+                linhas.append(
+                    f"- {noticia.titulo} [{noticia.grupo}] via {noticia.fonte} "
+                    f"(origem: {noticia.origem}){detalhe_contexto}"
+                )
+        else:
+            linhas.append("Noticias e sinais recentes de relevancia: nenhum registro ainda.")
+        return "\n".join(linhas)
 
     def buscar(self, consulta: str, limite: int = 5) -> list[ResultadoMemoria]:
         """Busca notas pelo indice FTS5.

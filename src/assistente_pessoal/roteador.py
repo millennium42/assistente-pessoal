@@ -58,6 +58,14 @@ class RoteadorComandos:
             linhas.append(f"- [{noticia.titulo}]({noticia.link})")
             linhas.append(f"  - Fonte: {noticia.fonte}")
             linhas.append(f"  - Grupo: {noticia.grupo}")
+            self.memoria.registrar_interacao_noticia(
+                titulo=noticia.titulo,
+                link=noticia.link,
+                fonte=noticia.fonte,
+                grupo=noticia.grupo,
+                origem="consulta",
+                contexto=consulta,
+            )
         caminho = self.memoria.salvar_nota(
             "Consulta de noticias",
             "\n".join(linhas),
@@ -79,4 +87,8 @@ def _remover_prefixos(texto: str, prefixos: tuple[str, ...]) -> str:
 def _contexto_memoria(memoria: Memoria, consulta: str) -> str:
     """Monta um contexto curto a partir das memorias mais parecidas."""
     resultados = memoria.buscar(consulta, limite=3)
-    return "\n".join(f"{item.titulo}: {item.trecho}" for item in resultados)
+    contexto_busca = "\n".join(f"{item.titulo}: {item.trecho}" for item in resultados)
+    contexto_secretaria = memoria.contexto_secretaria_virtual(limite_noticias=8)
+    if contexto_busca:
+        return f"{contexto_secretaria}\n\nMemorias relacionadas:\n{contexto_busca}"
+    return contexto_secretaria

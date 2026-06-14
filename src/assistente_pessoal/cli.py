@@ -34,7 +34,7 @@ app = typer.Typer(
     help="Assistente pessoal modular em pt-BR.",
     no_args_is_help=True,
 )
-memoria_app = typer.Typer(help="Comandos para memoria em Obsidian.")
+memoria_app = typer.Typer(help="Comandos para memoria em SQLite.")
 agenda_app = typer.Typer(help="Comandos para agenda local e Google Agenda.")
 app.add_typer(memoria_app, name="memoria")
 app.add_typer(agenda_app, name="agenda")
@@ -57,7 +57,7 @@ def inicializar(
     ctx: typer.Context,
     banco: Annotated[
         Path,
-        typer.Option("--banco", help="Pasta do banco dedicado do Obsidian."),
+        typer.Option("--banco", help="Pasta do banco SQLite da assistente."),
     ] = Path("banco/AssistentePessoal"),
     cidade: Annotated[
         str, typer.Option("--cidade", help="Cidade usada pelo clima.")

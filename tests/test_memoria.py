@@ -51,3 +51,26 @@ def test_salvar_documento_fixo(tmp_path: Path) -> None:
 
     assert caminho.name == "agenda-local.md"
     assert "Prova de algebra" in memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
+
+
+def test_memoria_structurada_para_secretaria_virtual(tmp_path: Path) -> None:
+    """Mantem perfil, interesses e noticias relevantes em tabelas SQLite proprias."""
+    memoria = Memoria(tmp_path / "banco")
+
+    memoria.salvar_perfil_pessoal("Sou professora e prefiro tarefas pela manha.")
+    memoria.substituir_interesses(["ia", "educacao"])
+    memoria.registrar_interacao_noticia(
+        titulo="Nova politica para educacao digital",
+        link="https://noticias.test/educacao-digital",
+        fonte="Fonte Teste",
+        grupo="interesses",
+        origem="clique",
+        contexto="usuario abriu a noticia",
+    )
+
+    contexto = memoria.contexto_secretaria_virtual()
+
+    assert "professora" in memoria.obter_perfil_pessoal()
+    assert memoria.listar_interesses() == ["ia", "educacao"]
+    assert memoria.listar_interacoes_noticias(limite=1)[0].origem == "clique"
+    assert "educacao digital" in contexto.lower()

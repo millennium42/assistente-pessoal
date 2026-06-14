@@ -2677,7 +2677,7 @@ def _salvar_perfil_pessoal_gui(
         status_label.text = f"Falha ao salvar perfil: {exc}"
         painel_status.text = status_label.text
         return False
-    status_label.text = f"Perfil salvo no banco em {caminho}."
+    status_label.text = f"Perfil salvo em {caminho}."
     painel_status.text = "Perfil pessoal atualizado; refinando os insights."
     return True
 
@@ -2687,13 +2687,13 @@ def _salvar_noticia_observada(
     dados_noticia,
     status_label,
 ) -> None:
-    """Registra uma noticia aberta ou marcada pelo usuario no Obsidian."""
+    """Registra uma noticia aberta ou marcada pelo usuario no SQLite."""
     noticia = _normalizar_evento_noticia(dados_noticia)
     if noticia is None:
         status_label.text = "Nao consegui identificar a noticia para salvar."
         return
     try:
-        caminho = servico.salvar_noticia_obsidian(noticia, origem="clique")
+        caminho = servico.salvar_noticia_relevante(noticia, origem="clique")
     except Exception as exc:  # pragma: no cover
         status_label.text = f"Falha ao salvar noticia: {exc}"
         return

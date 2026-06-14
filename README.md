@@ -4,7 +4,7 @@ Assistente pessoal modular, open source, em Python e em pt-BR. Esta versao combi
 
 ## O que mudou nesta versao
 
-- substituicao do vault do Obsidian por um banco de dados relacional SQLite;
+- persistencia centralizada em banco de dados relacional SQLite;
 - dashboard local com clima, noticias, notas rapidas, plano de estudos, agenda local e Google Agenda;
 - noticias priorizadas em grupos dinamicos:
   1. The News

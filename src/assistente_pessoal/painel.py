@@ -90,7 +90,9 @@ class DashboardService:
             self.memoria.caminho_relativo(caminho) for caminho in self.memoria.listar_recentes()
         ]
         agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
-        perfil_pessoal = self.memoria.ler_documento_fixo("10_memoria", "perfil-pessoal.md")
+        perfil_pessoal = self.memoria.obter_perfil_pessoal()
+        interesses_usuario = self.memoria.listar_interesses()
+        noticias_relevantes = self.memoria.listar_interacoes_noticias(limite=12)
         agenda_google_resultado = self._carregar_agenda_google()
         agenda_google = agenda_google_resultado.eventos
         agenda_google_futuros = [
@@ -108,6 +110,8 @@ class DashboardService:
             previsao=previsao,
             clima_ontem=clima_ontem,
             perfil_pessoal=perfil_pessoal,
+            interesses_usuario=interesses_usuario,
+            noticias_relevantes=noticias_relevantes,
             timezone=self.config.localizacao.timezone,
             atualizado_em=atualizado_em,
         )
@@ -241,11 +245,11 @@ class DashboardService:
                 existentes_casefold.add(interesse.casefold())
         self.config.fontes.noticias.interesses_busca = existentes
         self._persistir_config()
-        self._salvar_documento_interesses()
+        self.memoria.substituir_interesses(existentes)
         return existentes
 
-    def salvar_noticia_obsidian(self, noticia: Noticia | dict, origem: str = "clique") -> str:
-        """Guarda uma noticia relevante no banco de dados para leitura e busca futuras."""
+    def salvar_noticia_relevante(self, noticia: Noticia | dict, origem: str = "clique") -> str:
+        """Guarda uma noticia relevante em SQLite para orientar o que a APPA deve priorizar."""
         item = _normalizar_noticia_para_memoria(noticia)
         conteudo = "\n".join(
             [
@@ -263,6 +267,14 @@ class DashboardService:
         tags = ["noticia", "banco", _slug_tag(item["grupo"])]
         if origem:
             tags.append(_slug_tag(origem))
+        self.memoria.registrar_interacao_noticia(
+            titulo=item["titulo"],
+            link=item["link"],
+            fonte=item["fonte"],
+            grupo=item["grupo"],
+            origem=origem,
+            contexto="clique do usuario",
+        )
         caminho = self.memoria.salvar_nota(
             titulo=item["titulo"],
             conteudo=conteudo,
@@ -278,6 +290,14 @@ class DashboardService:
             linhas.append(f"- [{noticia.titulo}]({noticia.link})")
             linhas.append(f"  - Fonte: {noticia.fonte}")
             linhas.append(f"  - Grupo: {noticia.grupo}")
+            self.memoria.registrar_interacao_noticia(
+                titulo=noticia.titulo,
+                link=noticia.link,
+                fonte=noticia.fonte,
+                grupo=noticia.grupo,
+                origem="consulta",
+                contexto=consulta,
+            )
         caminho = self.memoria.salvar_nota(
             titulo="Consulta de noticias",
             conteudo="\n".join(linhas),
@@ -299,26 +319,8 @@ class DashboardService:
 
     def salvar_perfil_pessoal(self, conteudo: str) -> str:
         """Mantem um resumo pessoal canonico para personalizar o assistente."""
-        caminho = self.memoria.salvar_documento_fixo(
-            nome_arquivo="perfil-pessoal.md",
-            conteudo=conteudo.strip() or "Perfil pessoal ainda nao preenchido.",
-            pasta="10_memoria",
-            titulo="Perfil pessoal",
-            tags=["perfil", "pessoal", "assistente"],
-        )
-        return self.memoria.caminho_relativo(caminho)
-
-    def _salvar_documento_interesses(self) -> str:
-        interesses = self.config.fontes.noticias.interesses_busca
-        conteudo = "\n".join(f"- {interesse}" for interesse in interesses)
-        caminho = self.memoria.salvar_documento_fixo(
-            nome_arquivo="interesses-de-pesquisa.md",
-            conteudo=conteudo or "- Nenhum interesse cadastrado ainda.",
-            pasta="10_memoria",
-            titulo="Interesses de pesquisa",
-            tags=["perfil", "interesses", "busca"],
-        )
-        return self.memoria.caminho_relativo(caminho)
+        self.memoria.salvar_perfil_pessoal(conteudo)
+        return "sqlite://perfil_pessoal"
 
     def _persistir_config(self) -> None:
         caminho = self.config.config_path

@@ -12,6 +12,7 @@ from assistente_pessoal.agenda_google import EventoGoogleAgenda, formatar_data_h
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
 from assistente_pessoal.gemini import ClienteGemini
+from assistente_pessoal.memoria import InteracaoNoticiaMemoria
 from assistente_pessoal.noticias import Noticia, rotulo_tempo_publicacao
 
 
@@ -52,6 +53,8 @@ class GeradorInsightsDashboard:
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
         perfil_pessoal: str,
+        interesses_usuario: list[str],
+        noticias_relevantes: list[InteracaoNoticiaMemoria],
         timezone: str,
         atualizado_em: str,
     ) -> DashboardInsights:
@@ -63,6 +66,8 @@ class GeradorInsightsDashboard:
             previsao=previsao,
             clima_ontem=clima_ontem,
             perfil_pessoal=perfil_pessoal,
+            interesses_usuario=interesses_usuario,
+            noticias_relevantes=noticias_relevantes,
             timezone=timezone,
         )
         fingerprint = self._fingerprint(
@@ -87,6 +92,8 @@ class GeradorInsightsDashboard:
                 previsao=previsao,
                 clima_ontem=clima_ontem,
                 perfil_pessoal=perfil_pessoal,
+                interesses_usuario=interesses_usuario,
+                noticias_relevantes=noticias_relevantes,
                 timezone=timezone,
                 fallback=fallback,
             )
@@ -105,6 +112,8 @@ class GeradorInsightsDashboard:
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
         perfil_pessoal: str,
+        interesses_usuario: list[str],
+        noticias_relevantes: list[InteracaoNoticiaMemoria],
         timezone: str,
         fallback: DashboardInsights,
     ) -> DashboardInsights:
@@ -116,6 +125,8 @@ class GeradorInsightsDashboard:
             previsao=previsao,
             clima_ontem=clima_ontem,
             perfil_pessoal=perfil_pessoal,
+            interesses_usuario=interesses_usuario,
+            noticias_relevantes=noticias_relevantes,
             timezone=timezone,
             fallback=fallback,
         )
@@ -148,6 +159,8 @@ class GeradorInsightsDashboard:
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
         perfil_pessoal: str,
+        interesses_usuario: list[str],
+        noticias_relevantes: list[InteracaoNoticiaMemoria],
         timezone: str,
     ) -> DashboardInsights:
         """Gera um resumo local legivel para nao depender do LLM."""
@@ -158,7 +171,13 @@ class GeradorInsightsDashboard:
             if _evento_ainda_relevante(evento, timezone, agora)
         ]
         agenda = _montar_card_agenda(eventos_futuros, timezone)
-        noticias_card = _montar_card_noticias(noticias, noticias_por_grupo, timezone)
+        noticias_card = _montar_card_noticias(
+            noticias,
+            noticias_por_grupo,
+            timezone,
+            interesses_usuario,
+            noticias_relevantes,
+        )
         clima = _montar_card_clima(previsao, clima_ontem)
         return DashboardInsights(
             agenda=agenda,
@@ -176,6 +195,8 @@ class GeradorInsightsDashboard:
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
         perfil_pessoal: str,
+        interesses_usuario: list[str],
+        noticias_relevantes: list[InteracaoNoticiaMemoria],
         timezone: str,
         fallback: DashboardInsights,
     ) -> str:
@@ -192,6 +213,17 @@ class GeradorInsightsDashboard:
         manchetes: dict[str, list[str]] = {}
         for noticia in noticias[:18]:
             manchetes.setdefault(noticia.grupo or "geral", []).append(noticia.titulo)
+        noticias_memoria = [
+            {
+                "titulo": noticia.titulo,
+                "grupo": noticia.grupo,
+                "fonte": noticia.fonte,
+                "origem": noticia.origem,
+                "contexto": noticia.contexto,
+                "registrado_em": noticia.registrado_em,
+            }
+            for noticia in noticias_relevantes[:12]
+        ]
         clima_payload = {
             "cidade": previsao.cidade,
             "data": previsao.data_alvo.isoformat(),
@@ -225,8 +257,12 @@ class GeradorInsightsDashboard:
             "Voce resume um dashboard pessoal em portugues do Brasil. "
             "Seja concreto, util e curto. Nao invente fatos. "
             "Cada resumo deve ter no maximo 220 caracteres e cada bullet no maximo 120 caracteres. "
-            "Foque em rotina, prioridades e orientacao pratica.\n\n"
+            "Foque em rotina, prioridades e orientacao pratica. "
+            "Considere perfil, interesses salvos e noticias clicadas como sinais de relevancia.\n\n"
             f"Perfil pessoal persistido no banco: {perfil_pessoal or 'Nao informado.'}\n"
+            f"Interesses salvos: {json.dumps(interesses_usuario, ensure_ascii=False)}\n"
+            "Historico de noticias relevantes: "
+            f"{json.dumps(noticias_memoria, ensure_ascii=False)}\n"
             f"Agenda: {json.dumps(eventos, ensure_ascii=False)}\n"
             f"Noticias por grupo: {json.dumps(noticias_por_grupo, ensure_ascii=False)}\n"
             f"Manchetes por grupo: {json.dumps(manchetes, ensure_ascii=False)}\n"
@@ -335,6 +371,8 @@ def _montar_card_noticias(
     noticias: list[Noticia],
     noticias_por_grupo: dict[str, int],
     timezone: str,
+    interesses_usuario: list[str],
+    noticias_relevantes: list[InteracaoNoticiaMemoria],
 ) -> InsightCard:
     if not noticias:
         return InsightCard(
@@ -353,6 +391,14 @@ def _montar_card_noticias(
         titulo = next((n.titulo for n in noticias if n.grupo == grupo), "")
         if titulo:
             bullets.append(f"{_rotulo_grupo(grupo)}: {titulo}.")
+    if interesses_usuario:
+        bullets.append(f"Interesses salvos: {', '.join(interesses_usuario[:4])}.")
+    if noticias_relevantes:
+        ultima_relevante = noticias_relevantes[0]
+        rotulo_relevante = _rotulo_grupo(ultima_relevante.grupo)
+        bullets.append(
+            f"Ultimo sinal forte: {ultima_relevante.titulo} ({rotulo_relevante})."
+        )
     mais_recente = noticias[0]
     quando = rotulo_tempo_publicacao(mais_recente, timezone=timezone)
     resumo = (

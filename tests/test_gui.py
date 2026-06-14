@@ -228,7 +228,7 @@ def test_dashboard_service_salva_perfil_pessoal(tmp_path: Path) -> None:
     caminho = servico.salvar_perfil_pessoal("Sou professor, gosto de foco pela manhã.")
     snapshot = servico.carregar()
 
-    assert caminho == "10_memoria/perfil-pessoal.md"
+    assert caminho == "sqlite://perfil_pessoal"
     assert "professor" in snapshot.perfil_pessoal
     assert snapshot.insights.agenda.resumo
     assert snapshot.insights.noticias.resumo
@@ -268,12 +268,12 @@ def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: P
 
 
 def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
-    """Organiza interesses e noticias relevantes no banco Obsidian."""
+    """Organiza interesses e noticias relevantes no banco SQLite."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
 
     interesses = servico.adicionar_interesses("ia, economia; IA")
-    caminho_noticia = servico.salvar_noticia_obsidian(
+    caminho_noticia = servico.salvar_noticia_relevante(
         Noticia(
             titulo="IA chega ao mercado",
             link="https://noticias.test/ia",
@@ -285,7 +285,8 @@ def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
 
     assert interesses == ["ia", "economia"]
     assert caminho_noticia.startswith("40_noticias/")
-    assert servico.memoria.ler_documento_fixo("10_memoria", "interesses-de-pesquisa.md")
+    assert servico.memoria.listar_interesses() == ["ia", "economia"]
+    assert servico.memoria.listar_interacoes_noticias(limite=1)[0].titulo == "IA chega ao mercado"
     assert servico.memoria.buscar("IA chega ao mercado")
 
 
