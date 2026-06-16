@@ -42,7 +42,7 @@ O projeto foi organizado para manter responsabilidades pequenas, configuracao pr
 
 ## Fronteiras de privacidade
 
-- segredos nao pertencem ao `config.toml`
+- `config.toml` aceita `llm.api_key`, mas o caminho mais seguro continua sendo `llm.api_key_env`
 - tokens locais ficam fora de versionamento
 - LLM e APIs externas so recebem dados quando o modulo correspondente e usado
 - logs devem permanecer sem conteudo pessoal por padrao

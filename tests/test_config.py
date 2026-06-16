@@ -39,3 +39,21 @@ def test_carregar_config_inexistente_retorna_padrao(tmp_path: Path) -> None:
 
     assert config.localizacao.timezone == "America/Sao_Paulo"
     assert config.db_path == (tmp_path / "banco" / "AssistentePessoal").resolve()
+
+
+def test_carregar_api_key_literal_do_config(tmp_path: Path) -> None:
+    """Permite guardar a chave diretamente no bloco llm quando o usuario pedir isso."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[llm]
+api_key = "chave-teste"
+api_key_env = "GEMINI_API_KEY"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = carregar_config(config_path)
+
+    assert config.llm.api_key == "chave-teste"
+    assert config.llm.api_key_env == "GEMINI_API_KEY"

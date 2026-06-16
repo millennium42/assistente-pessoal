@@ -54,12 +54,12 @@ Motivo:
 
 ## LLM
 
-Escolha: cliente minimo compativel com Chat Completions
+Escolha: Gemini como trilha principal, com suporte adicional a Chat Completions
 
 Motivo:
 
-- permite Ollama, gateways OpenAI-compatibles e provedores remotos
-- evita acoplamento precoce a um unico backend
+- simplifica o uso do assistente pessoal sem exigir um gateway extra
+- permite Ollama e outros endpoints compativeis quando isso fizer sentido
 - mantem fallback local quando o LLM nao estiver configurado
 
 ## Privacidade

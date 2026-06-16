@@ -619,6 +619,29 @@ def _dashboard_css() -> str:
       text-transform: uppercase;
     }
 
+    .insight-wide {
+      min-height: 340px;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(20, 184, 166, 0.08),
+          rgba(96, 165, 250, 0.04) 55%,
+          transparent
+        ),
+        var(--appa-panel);
+      border: 1px solid var(--appa-line);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--appa-shadow);
+    }
+
+    .insight-wide-summary {
+      color: var(--appa-ink);
+      font-size: 1.08rem;
+      line-height: 1.7;
+      font-weight: 600;
+    }
+
     
 
     
@@ -2156,38 +2179,32 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
 
 
 def _render_insights(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
-    """Constroi os tres cards principais de resumo pessoal."""
+    """Constroi apenas o card principal da assistente virtual."""
     insights = snapshot.insights if snapshot else None
-    with ui.grid(columns=3).classes("insights-grid w-full gap-3"):
-        agenda = _criar_card_insight(
-            insights.agenda if insights else None,
-            "Agenda do dia",
-            "Sua agenda futura aparece aqui com contexto pessoal.",
-        )
-        noticias = _criar_card_insight(
-            insights.noticias if insights else None,
-            "Panorama de noticias",
-            "As noticias mais relevantes serao resumidas aqui.",
-        )
-        clima = _criar_card_insight(
-            insights.clima if insights else None,
-            "Leitura do clima",
-            "O clima vira um resumo pratico para sair de casa.",
+    with ui.column().classes("w-full gap-3"):
+        assistente = _criar_card_insight_amplo(
+            insights.assistente if insights else None,
+            "Sua secretaria virtual",
+            "Aqui eu vou te orientar sobre o seu dia com um olhar mais humano e prático.",
         )
     return {
-        "agenda": agenda,
-        "noticias": noticias,
-        "clima": clima,
+        "assistente": assistente,
     }
 
 
-def _criar_card_insight(card, titulo_padrao: str, resumo_padrao: str) -> dict[str, ui.element]:
-    """Cria um card de insight e devolve seus widgets mutaveis."""
-    with ui.element("div").classes("insight-card flex flex-col gap-3"):
-        kicker = ui.label(card.titulo if card else titulo_padrao).classes("insight-kicker")
-        resumo = ui.label(card.resumo if card else resumo_padrao).classes("insight-summary")
+def _criar_card_insight_amplo(
+    card,
+    titulo_padrao: str,
+    resumo_padrao: str,
+) -> dict[str, ui.element]:
+    """Cria o card narrativo principal da assistente, em largura total."""
+    with ui.element("div").classes("insight-wide w-full flex flex-col gap-3"):
+        with ui.row().classes("w-full items-center justify-between"):
+            kicker = ui.label(card.titulo if card else titulo_padrao).classes("insight-kicker")
+            ui.icon("tips_and_updates").classes("text-neon")
+        resumo = ui.label(card.resumo if card else resumo_padrao).classes("insight-wide-summary")
         bullets = ui.column().classes("insight-bullets")
-        _popular_bullets_insight(bullets, card.bullets if card else [])
+        _popular_bullets_insight(bullets, card.bullets if card else [], max_items=8)
     return {
         "kicker": kicker,
         "resumo": resumo,
@@ -2195,14 +2212,18 @@ def _criar_card_insight(card, titulo_padrao: str, resumo_padrao: str) -> dict[st
     }
 
 
-def _popular_bullets_insight(container: ui.element, bullets: list[str]) -> None:
+def _popular_bullets_insight(
+    container: ui.element,
+    bullets: list[str],
+    max_items: int = 4,
+) -> None:
     """Atualiza a lista curta de orientacoes do card."""
     container.clear()
     with container:
         if not bullets:
             ui.label("Sem detalhes extras no momento.").classes("insight-bullet")
             return
-        for bullet in bullets[:4]:
+        for bullet in bullets[:max_items]:
             ui.label(bullet).classes("insight-bullet")
 
 
@@ -2210,16 +2231,11 @@ def _atualizar_insights(
     widgets: dict[str, dict[str, ui.element]],
     snapshot: DashboardSnapshot,
 ) -> None:
-    """Sincroniza os cards principais com o snapshot mais recente."""
-    mapa = {
-        "agenda": snapshot.insights.agenda,
-        "noticias": snapshot.insights.noticias,
-        "clima": snapshot.insights.clima,
-    }
-    for chave, card in mapa.items():
-        widgets[chave]["kicker"].text = card.titulo
-        widgets[chave]["resumo"].text = card.resumo
-        _popular_bullets_insight(widgets[chave]["bullets"], card.bullets)
+    """Sincroniza o card principal com o snapshot mais recente."""
+    card = snapshot.insights.assistente
+    widgets["assistente"]["kicker"].text = card.titulo
+    widgets["assistente"]["resumo"].text = card.resumo
+    _popular_bullets_insight(widgets["assistente"]["bullets"], card.bullets, max_items=8)
 
 
 def _render_clima_resumo(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:

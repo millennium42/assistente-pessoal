@@ -12,7 +12,7 @@ Principais capacidades:
 - Dashboard local com modos visual `Limpa` e `Detalhada`.
 - Memoria persistente em SQLite com busca textual por FTS5.
 - Noticias organizadas por prioridades e interesses do usuario.
-- Integracao opcional com LLM compativel com Chat Completions.
+- Integracao opcional com Gemini ou com provedores compativeis com Chat Completions.
 - Integracao opcional com Google Agenda via OAuth local.
 
 ## Arquitetura em uma frase
@@ -90,13 +90,16 @@ O projeto usa `config.toml` como fonte principal de configuracao. Um exemplo atu
 Pontos importantes:
 
 - `db_path` define onde a memoria local sera persistida.
-- `llm.base_url` e `llm.modelo` habilitam o chat com um provedor compativel.
+- `llm.api_key` e `llm.modelo = "gemini-3.5-flash"` habilitam Gemini diretamente pelo `config.toml`.
+- `llm.api_key_env` permite usar uma variavel de ambiente no lugar da chave literal.
+- `llm.base_url` continua disponivel para provedores compativeis com Chat Completions.
 - `google_agenda.credentials_path` deve apontar para um arquivo OAuth local fora de versionamento.
-- chaves e tokens devem ficar em variaveis de ambiente ou em arquivos locais ignorados pelo Git.
+- chaves e tokens devem ficar em arquivos locais ignorados pelo Git ou em variaveis de ambiente.
 
 Variaveis de ambiente suportadas:
 
 ```dotenv
+GEMINI_API_KEY=
 OPENAI_API_KEY=
 ASSISTENTE_CONFIG=config.toml
 ```
@@ -106,7 +109,7 @@ ASSISTENTE_CONFIG=config.toml
 O repositório foi organizado para reforçar um modelo local-first e opt-in para integracoes externas.
 
 - dados pessoais e memoria ficam em SQLite local, inspecionavel e apagavel
-- nenhuma chave deve ser salva em `config.toml`
+- `config.toml` pode guardar `llm.api_key`, mas o mais seguro continua sendo usar `llm.api_key_env` ou variavel de ambiente
 - LLM, noticias, clima, musica e Google Agenda so enviam dados para fora quando configurados ou usados
 - arquivos OAuth e tokens locais nao devem ser versionados
 

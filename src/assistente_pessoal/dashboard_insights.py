@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -32,6 +33,7 @@ class DashboardInsights:
     agenda: InsightCard
     noticias: InsightCard
     clima: InsightCard
+    assistente: InsightCard
     motor: str
 
 
@@ -79,7 +81,7 @@ class GeradorInsightsDashboard:
             previsao=previsao,
             clima_ontem=clima_ontem,
             clima_amanha=clima_amanha,
-            atualizado_em=atualizado_em,
+            perfil_pessoal=perfil_pessoal,
         )
         if self._cache_fingerprint == fingerprint and self._cache_resultado is not None:
             return self._cache_resultado
@@ -141,6 +143,10 @@ class GeradorInsightsDashboard:
                 "agenda": {"resumo": "texto", "bullets": ["texto", "texto"]},
                 "noticias": {"resumo": "texto", "bullets": ["texto", "texto"]},
                 "clima": {"resumo": "texto", "bullets": ["texto", "texto"]},
+                "assistente": {
+                    "resumo": "texto longo e conversacional",
+                    "bullets": ["texto", "texto", "texto", "texto", "texto"],
+                },
             },
             ensure_ascii=True,
         )
@@ -148,11 +154,17 @@ class GeradorInsightsDashboard:
         return DashboardInsights(
             agenda=_normalizar_card("Agenda do dia", dados.get("agenda"), fallback.agenda),
             noticias=_normalizar_card(
-                "Panorama de noticias",
+                "Resumo das noticias",
                 dados.get("noticias"),
                 fallback.noticias,
             ),
-            clima=_normalizar_card("Leitura do clima", dados.get("clima"), fallback.clima),
+            clima=_normalizar_card("Comparativo do clima", dados.get("clima"), fallback.clima),
+            assistente=_normalizar_card(
+                "Sua secretaria virtual",
+                dados.get("assistente"),
+                fallback.assistente,
+                max_bullets=7,
+            ),
             motor="Gemini",
         )
 
@@ -186,10 +198,19 @@ class GeradorInsightsDashboard:
             noticias_relevantes,
         )
         clima = _montar_card_clima(previsao, clima_ontem, clima_amanha)
+        assistente = _montar_card_assistente(
+            agenda=agenda,
+            noticias=noticias_card,
+            clima=clima,
+            perfil_pessoal=perfil_pessoal,
+            interesses_usuario=interesses_usuario,
+            noticias_relevantes=noticias_relevantes,
+        )
         return DashboardInsights(
             agenda=agenda,
             noticias=noticias_card,
             clima=clima,
+            assistente=assistente,
             motor="Local",
         )
 
@@ -266,13 +287,45 @@ class GeradorInsightsDashboard:
                 "resumo": fallback.clima.resumo,
                 "bullets": fallback.clima.bullets,
             },
+            "assistente": {
+                "resumo": fallback.assistente.resumo,
+                "bullets": fallback.assistente.bullets,
+            },
         }
         return (
             "Voce resume um dashboard pessoal em portugues do Brasil. "
             "Seja concreto, util e curto. Nao invente fatos. "
-            "Cada resumo deve ter no maximo 220 caracteres e cada bullet no maximo 120 caracteres. "
+            "Os tres cards menores devem ter no maximo 220 caracteres no resumo. "
+            "O card amplo do assistente pode ter ate 1600 caracteres no resumo. "
+            "Cada bullet do card amplo pode ter ate 260 caracteres. "
             "Foque em rotina, prioridades e orientacao pratica. "
-            "Considere perfil, interesses salvos e noticias clicadas como sinais de relevancia.\n\n"
+            "Considere perfil, interesses salvos e noticias clicadas como sinais de relevancia. "
+            "No card de noticias, resuma temas e prioridades do feed sem listar manchetes. "
+            "No card de clima, mantenha o titulo diferente do resumo e foque em comparacoes. "
+            "No card amplo do assistente, entregue leitura util do dia com prioridades, alertas, "
+            "oportunidades e proximos passos simples. "
+            "Escreva esse card como uma secretaria eletronica cuidadosa, humana e conversacional. "
+            "Fale diretamente com a pessoa, como quem organiza o dia e antecipa o que vale saber. "
+            "Esse card deve soar como uma assistente virtual premium, no estilo Siri, "
+            "Google Assistant ou Jarvis, mas sem exagerar na ficcao: seja calorosa, "
+            "inteligente, proativa e clara. "
+            "Conecte agenda, clima, noticias relevantes e interesses pessoais "
+            "em uma leitura unica. "
+            "Aponte o que merece atencao primeiro, o que pode esperar, "
+            "o que combina com os interesses "
+            "da pessoa e quais sinais do dia podem afetar sua rotina. "
+            "Se houver noticias relevantes, traga-as como curadoria explicada, "
+            "nao como lista fria. "
+            "Esse card e o unico visivel na aba Insights, entao ele precisa ser "
+            "completo e sustentar "
+            "sozinho a leitura do dia. "
+            "Dedique espaco real para noticias relevantes, explicando por que elas "
+            "importam para a pessoa. "
+            "Nao se limite a mencionar que ha noticias: conecte o tema ao momento do usuario. "
+            "Se houver poucos dados, ainda assim fale como assistente e nao como sistema tecnico. "
+            "Nao repita no resumo a mesma frase usada nos bullets. "
+            "Use os bullets para complementar com faixa termica, roupas, chuva ou impacto pratico. "
+            "Evite bullets mecanicos como 'Hoje vs ontem' e 'Amanha vs hoje'.\n\n"
             f"Perfil pessoal persistido no banco: {perfil_pessoal or 'Nao informado.'}\n"
             f"Interesses salvos: {json.dumps(interesses_usuario, ensure_ascii=False)}\n"
             "Historico de noticias relevantes: "
@@ -293,7 +346,7 @@ class GeradorInsightsDashboard:
         previsao: PrevisaoClima,
         clima_ontem: ResumoClimaDia | None,
         clima_amanha: ResumoClimaDia | None,
-        atualizado_em: str,
+        perfil_pessoal: str,
     ) -> str:
         """Deriva um hash estavel dos dados relevantes para evitar recomputos."""
         payload = {
@@ -341,7 +394,7 @@ class GeradorInsightsDashboard:
                 if clima_amanha
                 else None
             ),
-            "atualizado_em": atualizado_em,
+            "perfil_pessoal": perfil_pessoal[:300],
         }
         bruto = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return hashlib.sha1(bruto.encode("utf-8")).hexdigest()
@@ -351,18 +404,22 @@ def _normalizar_card(
     titulo_padrao: str,
     dados: object,
     fallback: InsightCard,
+    *,
+    max_bullets: int = 4,
 ) -> InsightCard:
     """Aceita pequenos desvios do modelo sem quebrar a GUI."""
     if not isinstance(dados, dict):
         return fallback
     resumo = str(dados.get("resumo", "")).strip() or fallback.resumo
     bullets_brutos = dados.get("bullets")
-    bullets: list[str] = []
-    if isinstance(bullets_brutos, list):
-        bullets = [str(item).strip() for item in bullets_brutos if str(item).strip()]
+    bullets = _filtrar_bullets_distintos(
+        resumo,
+        bullets_brutos if isinstance(bullets_brutos, list) else [],
+    )
     if not bullets:
-        bullets = fallback.bullets
-    return InsightCard(titulo=titulo_padrao, resumo=resumo, bullets=bullets[:4])
+        bullets = _filtrar_bullets_distintos(fallback.resumo, fallback.bullets)
+    resumo = _evitar_resumo_igual_a_bullet(resumo, bullets, fallback.resumo)
+    return InsightCard(titulo=titulo_padrao, resumo=resumo, bullets=bullets[:max_bullets])
 
 
 def _montar_card_agenda(eventos: list[EventoGoogleAgenda], timezone: str) -> InsightCard:
@@ -401,7 +458,7 @@ def _montar_card_noticias(
 ) -> InsightCard:
     if not noticias:
         return InsightCard(
-            titulo="Panorama de noticias",
+            titulo="Resumo das noticias",
             resumo="O feed esta vazio agora, entao nao ha sinal suficiente para resumir.",
             bullets=["Nenhuma noticia carregada no momento."],
         )
@@ -411,30 +468,34 @@ def _montar_card_noticias(
         quantidade = noticias_por_grupo.get(grupo, 0)
         if quantidade:
             grupos.append(f"{_rotulo_grupo(grupo)}: {quantidade}")
-    bullets = []
-    for grupo in ("the_news", "santa_maria", "interesses"):
-        titulo = next((n.titulo for n in noticias if n.grupo == grupo), "")
-        if titulo:
-            bullets.append(f"{_rotulo_grupo(grupo)}: {titulo}.")
+    grupos_presentes = [
+        grupo
+        for grupo in ("the_news", "santa_maria", "interesses", "tech")
+        if noticias_por_grupo.get(grupo, 0)
+    ]
+    destaques = ", ".join(_rotulo_grupo(grupo) for grupo in grupos_presentes[:3]) or "fontes gerais"
+    bullets = [
+        f"O feed esta distribuido entre {destaques}.",
+        f"Volume atual: {total} item(ns), com {_resumo_grupos_noticias(noticias_por_grupo)}.",
+    ]
     if interesses_usuario:
-        bullets.append(f"Interesses salvos: {', '.join(interesses_usuario[:4])}.")
+        bullets.append(
+            f"Seus interesses ativos puxam leitura em {', '.join(interesses_usuario[:3])}."
+        )
     if noticias_relevantes:
         ultima_relevante = noticias_relevantes[0]
         rotulo_relevante = _rotulo_grupo(ultima_relevante.grupo)
         bullets.append(
-            f"Ultimo sinal forte: {ultima_relevante.titulo} ({rotulo_relevante})."
+            f"Historico recente reforca atencao em {rotulo_relevante.lower()}."
         )
     mais_recente = noticias[0]
     quando = rotulo_tempo_publicacao(mais_recente, timezone=timezone)
     resumo = (
-        f"Ha {total} noticia(s) no feed, com foco em "
-        f"{', '.join(grupos[:3]) if grupos else 'fontes gerais'}."
+        f"Ha {total} noticia(s) no radar agora, com maior peso em "
+        f"{', '.join(grupos[:3]) if grupos else 'fontes gerais'}, "
+        f"e atualizacao mais recente {quando}."
     )
-    bullets.insert(
-        0,
-        f"Mais recente: {mais_recente.titulo} ({quando}) via {mais_recente.fonte}.",
-    )
-    return InsightCard(titulo="Panorama de noticias", resumo=resumo, bullets=bullets[:4])
+    return InsightCard(titulo="Resumo das noticias", resumo=resumo, bullets=bullets[:4])
 
 
 def _montar_card_clima(
@@ -450,18 +511,118 @@ def _montar_card_clima(
         f"Maxima de {_temperatura(previsao.maxima)} e minima de "
         f"{_temperatura(previsao.minima)}."
     )
-    resumo = (
-        f"{comparacao_hoje} {comparacao_amanha} {faixa_termica}"
+    resumo = " ".join(
+        parte
+        for parte in (
+            _resumo_clima_narrativo(comparacao_hoje, comparacao_amanha),
+            f"Dia para {roupa}, com {chuva}.",
+        )
+        if parte
     )
     bullets = [
-        f"Hoje vs ontem: {comparacao_hoje}",
-        f"Amanha vs hoje: {comparacao_amanha}",
-        f"Roupas: {roupa}.",
-        f"Chuva: {chuva}.",
+        comparacao_hoje,
+        comparacao_amanha,
+        faixa_termica,
+        f"Vale sair com {roupa}; {chuva}.",
     ]
     if previsao.vento is not None:
         bullets.append(f"Vento em torno de {previsao.vento:g} km/h.")
-    return InsightCard(titulo="Leitura do clima", resumo=resumo, bullets=bullets[:4])
+    return InsightCard(titulo="Comparativo do clima", resumo=resumo, bullets=bullets[:4])
+
+
+def _montar_card_assistente(
+    *,
+    agenda: InsightCard,
+    noticias: InsightCard,
+    clima: InsightCard,
+    perfil_pessoal: str,
+    interesses_usuario: list[str],
+    noticias_relevantes: list[InteracaoNoticiaMemoria],
+) -> InsightCard:
+    perfil_curto = perfil_pessoal.strip() or "Sem perfil pessoal detalhado salvo ainda."
+    interesses_texto = ", ".join(interesses_usuario[:3]) if interesses_usuario else None
+    origem_relevante = (
+        _rotulo_grupo(noticias_relevantes[0].grupo)
+        if noticias_relevantes
+        else None
+    )
+    nome_foco_noticias = _extrair_foco_noticias(noticias.resumo)
+    abertura = (
+        "Revisei seu dia como uma assistente que tenta poupar a sua energia mental: organizei "
+        "o que pede acao, o que funciona como contexto e o que vale acompanhar sem deixar o "
+        "noticiario disputar espaco com o que realmente importa."
+    )
+    foco_agenda = _frase_curta(agenda.resumo)
+    foco_clima = _frase_curta(clima.resumo)
+    foco_noticias = _frase_curta(noticias.resumo)
+    leitura_noticias = (
+        f"No bloco de noticias, o sinal mais forte agora parece estar em {nome_foco_noticias}. "
+        "Meu papel aqui nao e despejar manchetes, e sim te entregar um filtro do que pode ser "
+        "relevante para suas decisoes, conversas e curiosidade de hoje."
+    )
+    leitura_interesses = (
+        f"Seus interesses ativos hoje puxam relevancia para {interesses_texto}."
+        if interesses_texto
+        else None
+    )
+    leitura_historico = (
+        f"Pelo seu historico recente, eu manteria atencao extra em {origem_relevante.lower()}."
+        if origem_relevante
+        else None
+    )
+    resumo = " ".join(
+        parte
+        for parte in [
+            abertura,
+            f"O primeiro eixo pratico do seu dia e este: {foco_agenda}",
+            f"No pano de fundo, {foco_clima.lower()}",
+            (
+                "E no noticiario, o que mais parece conversar com a sua rotina "
+                f"agora e isto: {foco_noticias}"
+            ),
+            leitura_noticias,
+            leitura_interesses or leitura_historico,
+            (
+                "Se eu resumisse a intencao deste painel em uma frase, seria esta: "
+                "te ajudar a entrar no dia com menos ruido e mais criterio sobre onde colocar "
+                "atencao, tempo e curiosidade."
+            ),
+        ]
+        if parte
+    )
+    bullets = [
+        f"Se eu tivesse que te orientar agora, eu começaria por isto: {foco_agenda}",
+        f"Na leitura do tempo, o ajuste mais importante para sua rotina e este: {foco_clima}",
+        f"Na curadoria de noticias, o que parece mais util para voce agora e isto: {foco_noticias}",
+        (
+            f"Meu destaque editorial do momento vai para {nome_foco_noticias}, "
+            "porque esse parece ser o assunto com mais chance de gerar contexto util para voce."
+        ),
+    ]
+    if interesses_texto:
+        bullets.append(
+            f"Seu radar pessoal segue inclinado para estes temas: {interesses_texto}. "
+            "Isso ajuda a separar informacao util de barulho."
+        )
+    elif origem_relevante:
+        bullets.append(
+            f"Seu historico recente indica que {origem_relevante.lower()} merece um olhar extra, "
+            "entao eu trataria esse tema como prioridade secundaria."
+        )
+    else:
+        bullets.append(
+            "Estou usando este contexto pessoal para calibrar meu jeito de te orientar: "
+            f"{perfil_curto[:170]}."
+        )
+    bullets.append(
+        "Se o seu foco de hoje mudou, vale atualizar perfil ou interesses: quanto melhor eu "
+        "entender o seu momento, mais eu consigo agir como uma assistente de verdade."
+    )
+    bullets.append(
+        "Use este card como uma triagem executiva do dia: ele junta o essencial, reduz dispersao "
+        "e tenta te mostrar primeiro o que tem impacto real."
+    )
+    return InsightCard(titulo="Sua secretaria virtual", resumo=resumo, bullets=bullets[:8])
 
 
 def _evento_ainda_relevante(
@@ -514,6 +675,20 @@ def _comparacao_amanha_hoje(
     return "Amanha deve seguir em faixa parecida com a de hoje."
 
 
+def _resumo_grupos_noticias(noticias_por_grupo: dict[str, int]) -> str:
+    """Resume os grupos mais fortes sem cair em listagem de manchetes."""
+    grupos_ordenados = sorted(
+        noticias_por_grupo.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    principais = [
+        f"{_rotulo_grupo(grupo)} ({quantidade})"
+        for grupo, quantidade in grupos_ordenados[:3]
+    ]
+    return ", ".join(principais) if principais else "sem distribuicao relevante"
+
+
 def resumo_clima_amanha(
     resumo_semana: list[ResumoClimaDia],
     data_hoje: date,
@@ -553,3 +728,70 @@ def _temperatura(valor: float | None) -> str:
     if valor is None:
         return "--"
     return f"{valor:g} C"
+
+
+def _resumo_clima_narrativo(comparacao_hoje: str, comparacao_amanha: str) -> str:
+    if "esfriar" in comparacao_hoje and "esquentar" in comparacao_amanha:
+        return "Hoje fica mais frio que ontem, mas amanha a temperatura tende a recuperar."
+    if "esquentar" in comparacao_hoje and "esfriar" in comparacao_amanha:
+        return "Hoje ganha temperatura em relacao a ontem, mas amanha o ritmo deve ceder."
+    if "parecida" in comparacao_hoje and "parecida" in comparacao_amanha:
+        return "O clima deve seguir estavel entre ontem, hoje e amanha."
+    return f"{comparacao_hoje} {comparacao_amanha}".strip()
+
+
+def _filtrar_bullets_distintos(resumo: str, bullets_brutos: list[object]) -> list[str]:
+    vistos: set[str] = set()
+    resumo_norm = _normalizar_texto_comparacao(resumo)
+    bullets: list[str] = []
+    for item in bullets_brutos:
+        bullet = str(item).strip()
+        if not bullet:
+            continue
+        bullet_norm = _normalizar_texto_comparacao(bullet)
+        if not bullet_norm or bullet_norm in vistos:
+            continue
+        if bullet_norm == resumo_norm:
+            continue
+        if resumo_norm and (bullet_norm in resumo_norm or resumo_norm in bullet_norm):
+            continue
+        vistos.add(bullet_norm)
+        bullets.append(bullet)
+    return bullets
+
+
+def _evitar_resumo_igual_a_bullet(resumo: str, bullets: list[str], fallback_resumo: str) -> str:
+    resumo_norm = _normalizar_texto_comparacao(resumo)
+    if not resumo_norm:
+        return fallback_resumo
+    bullets_norm = {_normalizar_texto_comparacao(bullet) for bullet in bullets}
+    if resumo_norm in bullets_norm:
+        return fallback_resumo
+    return resumo
+
+
+def _normalizar_texto_comparacao(texto: str) -> str:
+    texto_limpo = re.sub(r"[^a-z0-9\s]", " ", texto.lower())
+    return " ".join(texto_limpo.split())
+
+
+def _frase_curta(texto: str) -> str:
+    frase = " ".join(texto.strip().split())
+    if not frase:
+        return ""
+    return frase.rstrip(".") + "."
+
+
+def _extrair_foco_noticias(resumo_noticias: str) -> str:
+    texto = resumo_noticias.lower()
+    for termo in [
+        "the news",
+        "santa maria",
+        "interesses",
+        "tech",
+        "economia global",
+        "fontes gerais",
+    ]:
+        if termo in texto:
+            return termo
+    return "o eixo principal do feed"

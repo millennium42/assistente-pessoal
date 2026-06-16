@@ -58,16 +58,26 @@ O dashboard sobe primeiro e atualiza os blocos externos depois. Isso deixa a abe
 
 ## 7. Habilite o LLM apenas se quiser
 
+O caminho mais direto hoje e preencher o bloco `[llm]` com a chave do Gemini e um
+modelo estavel.
+
 Exemplo minimo no `config.toml`:
 
 ```toml
 [llm]
-base_url = "http://localhost:11434/v1"
-modelo = "llama3.2:3b"
-api_key_env = "OPENAI_API_KEY"
+modelo = "gemini-3.5-flash"
+api_key = "SUA_CHAVE_GEMINI"
+api_key_env = "GEMINI_API_KEY"
 ```
 
-Sem essa configuracao, o comando `chat` continua disponivel com fallback local.
+Se preferir nao gravar a chave no arquivo, deixe `api_key` vazio e defina apenas
+`GEMINI_API_KEY` no ambiente. O app tenta `llm.api_key` primeiro e depois usa
+`llm.api_key_env`.
+
+`gemini-3.5-flash` e o modelo estavel recomendado para producao. Os modelos
+`gemini-2.0-flash` foram descontinuados em 1 de junho de 2026.
+
+Se nenhuma das trilhas estiver configurada, o comando `chat` cai no fallback local.
 
 ## 8. Configure Google Agenda de forma segura
 
@@ -108,4 +118,18 @@ Isso normalmente significa uma destas situacoes:
 
 ### O chat diz que nao ha LLM configurado
 
-Esse comportamento e esperado quando `llm.base_url` ou `llm.modelo` estao vazios.
+Esse comportamento so e esperado quando as duas trilhas estao ausentes:
+
+- `llm.api_key` esta vazio e `GEMINI_API_KEY` nao esta definida
+- `llm.base_url` ou `llm.modelo` estao vazios para a trilha Chat Completions
+
+### O chat avisa que o Gemini atingiu o limite de uso
+
+Quando a API responde `429 Too Many Requests`, o app mostra uma mensagem amigavel
+em vez do traceback bruto e aguarda alguns minutos antes de insistir de novo.
+
+Se isso acontecer com frequencia, revise:
+
+- se a chave tem cota ativa no projeto Google AI Studio
+- se o modelo configurado ainda esta disponivel
+- se o dashboard esta fazendo chamadas repetidas demais por falta de cache

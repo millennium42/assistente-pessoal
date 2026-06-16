@@ -18,14 +18,14 @@ O projeto adota uma postura local-first, mas nao promete funcionamento totalment
 ## Diretrizes aplicadas no repositorio
 
 - minimizacao de dados por padrao
-- nenhuma chave em `config.toml`
+- preferencia por segredo fora de versionamento
 - tokens e arquivos OAuth fora de versionamento
 - transparencia documental sobre trafego externo
 - controle local sobre o banco e sua exclusao
 
 ## Recomendacoes operacionais
 
-- mantenha `config.toml` sem credenciais sensiveis
+- prefira `llm.api_key_env` ou `GEMINI_API_KEY` quando nao quiser guardar a chave no arquivo
 - guarde o arquivo OAuth apenas no ambiente local
 - revise o contexto enviado a provedores LLM externos
 - evite logs verbosos com conteudo pessoal

@@ -27,6 +27,7 @@ class LLMConfig(BaseModel):
 
     base_url: str = ""
     modelo: str = ""
+    api_key: str = ""
     api_key_env: str = "OPENAI_API_KEY"
 
     def habilitado(self) -> bool:
@@ -311,6 +312,7 @@ timezone = "{_escapar(config.localizacao.timezone)}"
 [llm]
 base_url = "{_escapar(config.llm.base_url)}"
 modelo = "{_escapar(config.llm.modelo)}"
+api_key = "{_escapar(config.llm.api_key)}"
 api_key_env = "{_escapar(config.llm.api_key_env)}"
 
 [google_agenda]
@@ -373,15 +375,19 @@ urls = [
 """
 
 
-def ler_api_key(nome_variavel: str) -> str:
+def ler_api_key(nome_variavel: str, valor_direto: str = "") -> str:
     """Le uma chave de API do ambiente sem expor o valor em logs ou arquivos.
 
     Args:
-        nome_variavel: O nome da variavel de ambiente que contem a chave (ex: 'OPENAI_API_KEY').
+        nome_variavel: O nome da variavel de ambiente que contem a chave
+            (ex: 'OPENAI_API_KEY' ou 'GEMINI_API_KEY').
+        valor_direto: Chave literal armazenada no config.toml, se existir.
 
     Returns:
         O valor da chave de API ou string vazia se nao existir.
     """
+    if valor_direto.strip():
+        return valor_direto
     return os.getenv(nome_variavel, "")
 
 

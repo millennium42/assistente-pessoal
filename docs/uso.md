@@ -49,7 +49,12 @@ Prioridade padrao do feed:
 assistente-pessoal chat "o que voce consegue fazer?"
 ```
 
-Com LLM configurado, o assistente usa um endpoint compativel com Chat Completions. Sem LLM, cai em fallback local.
+Com `llm.api_key` e `llm.modelo = "gemini-3.5-flash"` no `config.toml`, o chat usa
+Gemini diretamente. Se `api_key` estiver vazio, o app tenta a variavel definida em
+`llm.api_key_env`, como `GEMINI_API_KEY`.
+
+`llm.base_url` continua disponivel para endpoints compativeis com Chat Completions.
+Sem nenhuma configuracao valida, o comando cai em fallback local.
 
 ## Dashboard
 
@@ -59,6 +64,8 @@ assistente-pessoal gui
 
 O dashboard local oferece:
 
+- aba `Insights` como visao principal
+- resumo de agenda, noticias e clima com apoio do Gemini quando disponivel
 - clima atual e previsao
 - noticias priorizadas
 - nota rapida

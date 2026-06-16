@@ -10,9 +10,13 @@ longitude = -53.8149
 timezone = "America/Sao_Paulo"
 
 [llm]
+# Caminho recomendado para Gemini: preencha `api_key` ou deixe vazio e use
+# `api_key_env = "GEMINI_API_KEY"`.
+# `base_url` so e necessario para provedores compativeis com Chat Completions.
 base_url = ""
-modelo = ""
-api_key_env = "OPENAI_API_KEY"
+modelo = "gemini-3.5-flash"
+api_key = ""
+api_key_env = "GEMINI_API_KEY"
 
 [google_agenda]
 habilitado = false

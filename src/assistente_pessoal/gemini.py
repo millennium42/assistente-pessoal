@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 
 import httpx
 
 from assistente_pessoal.config import LLMConfig, ler_api_key
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODELO_PADRAO = "gemini-2.0-flash"
+GEMINI_MODELO_PADRAO = "gemini-3.5-flash"
 
 
 class ClienteGemini:
@@ -18,10 +19,11 @@ class ClienteGemini:
     def __init__(self, config: LLMConfig, timeout: float = 30.0) -> None:
         self.config = config
         self.timeout = timeout
+        self._indisponivel_ate: datetime | None = None
 
     def disponivel(self) -> bool:
         """Considera o Gemini disponivel quando a chave de API existe."""
-        return bool(self._ler_chave_api())
+        return bool(self._ler_chave_api()) and not self._em_cooldown()
 
     def gerar_json(
         self,
@@ -41,6 +43,19 @@ class ClienteGemini:
             return json.loads(_extrair_json(texto))
         except json.JSONDecodeError as exc:
             raise ValueError("Gemini retornou JSON invalido.") from exc
+
+    def gerar_texto(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.3,
+    ) -> str:
+        """Solicita uma resposta textual direta ao Gemini."""
+        return self._post_generate_content(
+            prompt,
+            temperature=temperature,
+            response_mime_type="text/plain",
+        )
 
     def _post_generate_content(
         self,
@@ -62,18 +77,23 @@ class ClienteGemini:
         if schema_hint:
             prompt_final = f"{prompt}\n\nEsquema esperado:\n{schema_hint}"
         with httpx.Client(timeout=self.timeout) as client:
-            resposta = client.post(
-                url,
-                headers={"X-goog-api-key": api_key},
-                json={
-                    "contents": [{"parts": [{"text": prompt_final}]}],
-                    "generationConfig": {
-                        "temperature": temperature,
-                        "response_mime_type": response_mime_type,
+            try:
+                resposta = client.post(
+                    url,
+                    headers={"X-goog-api-key": api_key},
+                    json={
+                        "contents": [{"parts": [{"text": prompt_final}]}],
+                        "generationConfig": {
+                            "temperature": temperature,
+                            "response_mime_type": response_mime_type,
+                        },
                     },
-                },
-            )
-            resposta.raise_for_status()
+                )
+                resposta.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429:
+                    self._indisponivel_ate = datetime.now() + timedelta(minutes=5)
+                raise
             dados = resposta.json()
         candidatos = dados.get("candidates") or []
         if not candidatos:
@@ -94,7 +114,13 @@ class ClienteGemini:
 
     def _ler_chave_api(self) -> str:
         """Aceita a variavel configurada e faz fallback para GEMINI_API_KEY."""
-        return ler_api_key(self.config.api_key_env) or ler_api_key("GEMINI_API_KEY")
+        return ler_api_key(self.config.api_key_env, self.config.api_key) or ler_api_key(
+            "GEMINI_API_KEY"
+        )
+
+    def _em_cooldown(self) -> bool:
+        """Evita insistir no Gemini logo apos um rate limit."""
+        return self._indisponivel_ate is not None and datetime.now() < self._indisponivel_ate
 
 
 def _extrair_json(texto: str) -> str:

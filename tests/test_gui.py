@@ -233,10 +233,11 @@ def test_dashboard_service_salva_perfil_pessoal(tmp_path: Path) -> None:
     assert snapshot.insights.agenda.resumo
     assert snapshot.insights.noticias.resumo
     assert snapshot.insights.clima.resumo
+    assert snapshot.insights.assistente.resumo
 
 
 def test_dashboard_service_gera_bullet_de_noticia_mais_recente(tmp_path: Path) -> None:
-    """Mantem o card de noticias dos insights sem quebrar ao formatar o tempo."""
+    """Mantem o card de noticias como resumo, sem reciclar manchetes em destaque."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
     servico.noticias = NoticiasFakeComPublicacao()
@@ -245,7 +246,9 @@ def test_dashboard_service_gera_bullet_de_noticia_mais_recente(tmp_path: Path) -
 
     assert snapshot.insights.noticias.resumo
     assert snapshot.insights.noticias.bullets
-    assert "Mais recente:" in snapshot.insights.noticias.bullets[0]
+    assert snapshot.insights.noticias.titulo == "Resumo das noticias"
+    assert "UFSM abre novo edital de pesquisa" not in snapshot.insights.noticias.bullets[0]
+    assert "feed" in snapshot.insights.noticias.bullets[0].lower()
 
 
 def test_dashboard_service_compara_clima_hoje_ontem_e_amanha(tmp_path: Path) -> None:
@@ -255,10 +258,84 @@ def test_dashboard_service_compara_clima_hoje_ontem_e_amanha(tmp_path: Path) -> 
 
     snapshot = servico.carregar()
 
+    assert snapshot.insights.clima.titulo == "Comparativo do clima"
     assert "ontem" in snapshot.insights.clima.resumo.lower()
     assert "amanha" in snapshot.insights.clima.resumo.lower()
-    assert any("Hoje vs ontem:" in bullet for bullet in snapshot.insights.clima.bullets)
-    assert any("Amanha vs hoje:" in bullet for bullet in snapshot.insights.clima.bullets)
+    assert not snapshot.insights.clima.bullets[0].startswith("Hoje vs ontem:")
+    assert not snapshot.insights.clima.bullets[1].startswith("Amanha vs hoje:")
+    assert any("Maxima de" in bullet for bullet in snapshot.insights.clima.bullets)
+    assert snapshot.insights.assistente.titulo == "Sua secretaria virtual"
+    assert len(snapshot.insights.assistente.bullets) >= 4
+    assert "orientar" in snapshot.insights.assistente.bullets[0].lower()
+    assert "noticiario" in snapshot.insights.assistente.resumo.lower()
+    assert "triagem executiva" in snapshot.insights.assistente.bullets[-1].lower()
+
+
+def test_dashboard_service_remove_repeticao_do_clima_via_gemini(tmp_path: Path) -> None:
+    """Evita que o resumo e os bullets de clima repitam exatamente a mesma ideia."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        servico.gerador_insights.gemini,
+        "disponivel",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        servico.gerador_insights.gemini,
+        "gerar_json",
+        lambda *args, **kwargs: {
+            "agenda": {"resumo": "Dia tranquilo", "bullets": ["Primeiro bloco livre"]},
+            "noticias": {"resumo": "Feed equilibrado", "bullets": ["Mais peso em Santa Maria"]},
+            "clima": {
+                "resumo": (
+                    "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
+                    "recuperar."
+                ),
+                "bullets": [
+                    (
+                        "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
+                        "recuperar."
+                    ),
+                    (
+                        "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
+                        "recuperar."
+                    ),
+                    "Maxima de 21 C e minima de 13 C.",
+                    (
+                        "Vale sair com camadas leves com casaco fino; vale levar "
+                        "guarda-chuva compacto."
+                    ),
+                ],
+            },
+            "assistente": {
+                "resumo": (
+                    "Dia bom para priorizar compromissos, observar o clima e filtrar o feed "
+                    "com mais calma para focar no que realmente importa."
+                ),
+                "bullets": [
+                    "Comece pelo compromisso mais cedo e ajuste a saida por causa do frio.",
+                    "O feed sugere menos volume e mais seletividade nas leituras de hoje.",
+                    "Se sobrar energia, vale revisar os temas que combinam com seus interesses.",
+                    "Mantenha atencao extra ao que pode influenciar sua rotina pratica hoje.",
+                    "Use este card como sintese do que merece mais energia ao longo do dia.",
+                ],
+            },
+        },
+    )
+
+    try:
+        snapshot = servico.carregar()
+    finally:
+        monkeypatch.undo()
+
+    assert snapshot.insights.motor == "Gemini"
+    assert snapshot.insights.clima.resumo
+    assert snapshot.insights.clima.bullets
+    assert len(snapshot.insights.clima.bullets) == len(set(snapshot.insights.clima.bullets))
+    assert snapshot.insights.clima.resumo not in snapshot.insights.clima.bullets
+    assert snapshot.insights.assistente.resumo.startswith("Dia bom para priorizar")
+    assert len(snapshot.insights.assistente.bullets) >= 5
 
 
 def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: Path) -> None:

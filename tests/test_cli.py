@@ -48,6 +48,31 @@ def test_cli_chat_sem_llm(tmp_path: Path) -> None:
     assert "LLM" in result.output
 
 
+def test_cli_chat_usa_gemini_quando_disponivel(monkeypatch, tmp_path: Path) -> None:
+    """Com Gemini disponivel, o comando chat nao deve cair no fallback local."""
+    runner = CliRunner()
+    config_path = tmp_path / "config.toml"
+    banco = tmp_path / "banco"
+    runner.invoke(app, ["--config", str(config_path), "init", "--banco", str(banco)])
+    monkeypatch.setattr(
+        "assistente_pessoal.llm.ClienteGemini.disponivel",
+        lambda self: True,
+    )
+    monkeypatch.setattr(
+        "assistente_pessoal.llm.ClienteGemini.gerar_texto",
+        lambda self, prompt, temperature=0.3: "Resposta via Gemini",
+    )
+    monkeypatch.setattr(
+        "assistente_pessoal.llm.ClienteGemini._modelo",
+        lambda self: "gemini-3.5-flash",
+    )
+
+    result = runner.invoke(app, ["--config", str(config_path), "chat", "oi"])
+
+    assert result.exit_code == 0
+    assert "Resposta via Gemini" in result.output
+
+
 def test_cli_clima_aceita_dia(monkeypatch, tmp_path: Path) -> None:
     """Propaga o argumento de dia para o cliente de clima."""
     runner = CliRunner()
