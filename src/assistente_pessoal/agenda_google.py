@@ -28,6 +28,7 @@ class EventoGoogleAgenda:
         link: URL para visualizar o evento na web.
         local: O local onde ocorrera o evento.
         origem: O email de quem organizou.
+        id: Identificador interno do evento no Google Agenda, usado para cancelamento.
     """
 
     titulo: str
@@ -36,6 +37,7 @@ class EventoGoogleAgenda:
     link: str
     local: str
     origem: str
+    id: str = ""
 
 
 @dataclass(frozen=True)
@@ -255,6 +257,39 @@ class ClienteGoogleAgenda:
             ) from exc
         return normalizar_evento_google(resposta)
 
+    def cancelar_evento(self, evento_id: str) -> None:
+        """Remove um evento do calendario configurado usando o ID oficial do Google.
+
+        Args:
+            evento_id: Identificador do evento recebido na listagem da Calendar API.
+
+        Raises:
+            RuntimeError: Em falhas de rede, credenciais ou configuracao.
+        """
+        if not self.config.habilitado:
+            raise RuntimeError("Google Agenda desabilitada no config.toml.")
+        if not evento_id.strip():
+            raise RuntimeError("Nao recebi o identificador do evento para cancelar.")
+        try:
+            credenciais = self._obter_credenciais()
+        except FileNotFoundError as exc:
+            raise RuntimeError("Arquivo de credenciais da Google Agenda nao encontrado.") from exc
+        if credenciais is None:
+            raise RuntimeError("Google Agenda ainda nao autenticada neste ambiente.")
+        build = _import_build()
+        try:
+            (
+                build("calendar", "v3", credentials=credenciais)
+                .events()
+                .delete(calendarId=self.config.calendar_id, eventId=evento_id)
+                .execute()
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Nao foi possivel cancelar o evento. "
+                "Verifique autenticacao e estabilidade da conexao."
+            ) from exc
+
     def _obter_credenciais(self):
         """Carrega, renova ou cria as credenciais OAuth conforme o estado local.
 
@@ -308,6 +343,7 @@ def normalizar_evento_google(item: dict) -> EventoGoogleAgenda:
         link=item.get("htmlLink", ""),
         local=item.get("location", ""),
         origem=item.get("organizer", {}).get("email", ""),
+        id=item.get("id", ""),
     )
 
 

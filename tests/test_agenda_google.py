@@ -191,6 +191,54 @@ def test_criar_evento_explica_credencial_ausente(tmp_path: Path) -> None:
         ClienteGoogleAgenda(config).criar_evento(evento)
 
 
+def test_cancelar_evento_envia_delete_para_google(monkeypatch, tmp_path: Path) -> None:
+    """Cancela evento pelo ID usando o endpoint oficial, sem rede."""
+    credenciais = tmp_path / "google-oauth-client.json"
+    credenciais.write_text("{}", encoding="utf-8")
+    config = GoogleAgendaConfig(
+        habilitado=True,
+        credentials_path=credenciais,
+        calendar_id="agenda-teste",
+    )
+    cliente = ClienteGoogleAgenda(config)
+    credenciais_fake = object()
+    requisicao: dict = {}
+
+    class EventosFake:
+        """Captura a chamada de delete."""
+
+        def delete(self, *, calendarId: str, eventId: str):
+            """Guarda os argumentos enviados para a API."""
+            requisicao["calendarId"] = calendarId
+            requisicao["eventId"] = eventId
+            return self
+
+        def execute(self) -> dict:
+            """Simula a resposta vazia da Calendar API."""
+            return {}
+
+    class ServicoFake:
+        """Expoe apenas o recurso de eventos usado pelo cliente."""
+
+        def events(self) -> EventosFake:
+            """Devolve o recurso fake de eventos."""
+            return EventosFake()
+
+    def build_fake(nome: str, versao: str, credentials):
+        """Confere a API solicitada e devolve o servico fake."""
+        assert nome == "calendar"
+        assert versao == "v3"
+        assert credentials is credenciais_fake
+        return ServicoFake()
+
+    monkeypatch.setattr(cliente, "_obter_credenciais", lambda: credenciais_fake)
+    monkeypatch.setattr(agenda_google, "_import_build", lambda: build_fake)
+
+    cliente.cancelar_evento("evt-123")
+
+    assert requisicao == {"calendarId": "agenda-teste", "eventId": "evt-123"}
+
+
 def test_token_antigo_nao_e_mascarado_por_escopo_novo(tmp_path: Path) -> None:
     """Recusa token somente leitura em vez de injeta-lo com permissoes novas."""
     token = tmp_path / "token.json"

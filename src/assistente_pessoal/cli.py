@@ -21,7 +21,6 @@ from assistente_pessoal.config import (
     carregar_config,
     criar_config_inicial,
 )
-from assistente_pessoal.llm import ClienteLLM, resposta_fallback
 from assistente_pessoal.logs import avisar, console, erro, sucesso
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
@@ -29,6 +28,7 @@ from assistente_pessoal.noticias import (
     ClienteNoticias,
     formatar_noticias,
 )
+from assistente_pessoal.roteador import RoteadorComandos
 
 app = typer.Typer(
     help="Assistente pessoal modular em pt-BR.",
@@ -96,15 +96,10 @@ def conversar(
     ctx: typer.Context,
     mensagem: Annotated[str, typer.Argument(help="Mensagem livre para o assistente.")],
 ) -> None:
-    """Conversa com o LLM configurado ou mostra o fallback local."""
+    """Conversa com a APPA, incluindo acoes locais de secretariado."""
     config = _carregar(ctx)
-    memoria = Memoria(config.db_path, config.localizacao.timezone)
-    llm = ClienteLLM(config.llm)
-    contexto = "\n".join(
-        f"{item.titulo}: {item.trecho}" for item in memoria.buscar(mensagem, limite=3)
-    )
-    resposta = llm.gerar(mensagem, contexto=contexto)
-    console.print(resposta.texto if resposta else resposta_fallback())
+    resposta = RoteadorComandos(config).executar(mensagem)
+    console.print(resposta)
 
 
 @app.command("noticias")

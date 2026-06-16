@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from assistente_pessoal.agenda_chat import AssistenteAgendaChat
 from assistente_pessoal.agenda_google import (
     ClienteGoogleAgenda,
     EventoGoogleAgenda,
@@ -20,12 +23,14 @@ from assistente_pessoal.dashboard_insights import (
     GeradorInsightsDashboard,
     resumo_clima_amanha,
 )
+from assistente_pessoal.gemini import ClienteGemini
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import (
     LIMITE_PADRAO_NOTICIAS,
     ClienteNoticias,
     Noticia,
 )
+from assistente_pessoal.roteador import RespostaRoteador, RoteadorComandos
 
 
 @dataclass(frozen=True)
@@ -71,6 +76,7 @@ class DashboardService:
         self.clima = ClienteClima()
         self.cambio = ClienteCambio()
         self.google_agenda = ClienteGoogleAgenda(config.google_agenda)
+        self.gemini_intencoes = ClienteGemini(config.llm)
         self.gerador_insights = GeradorInsightsDashboard(config)
         self._cache_clima: tuple[datetime, PrevisaoClima] | None = None
         self._cache_resumo_semana: tuple[datetime, list[ResumoClimaDia]] | None = None
@@ -78,6 +84,9 @@ class DashboardService:
         self._cache_noticias: tuple[datetime, list[Noticia]] | None = None
         self._cache_agenda_google: tuple[datetime, ResultadoGoogleAgenda] | None = None
         self._cache_clima_ontem: tuple[datetime, ResumoClimaDia | None] | None = None
+        self._agenda_chat: AssistenteAgendaChat | None = None
+        self.anotacoes_chat: list[str] = []
+        self._anotacao_em_andamento = False
 
     def carregar(
         self,
@@ -254,6 +263,22 @@ class DashboardService:
         self.memoria.substituir_interesses(existentes)
         return existentes
 
+    def remover_interesse(self, interesse: str) -> list[str]:
+        """Remove um termo de interesse e sincroniza config e banco de dados."""
+        termo = interesse.strip()
+        if not termo:
+            return list(self.config.fontes.noticias.interesses_busca)
+
+        existentes = [
+            item
+            for item in self.config.fontes.noticias.interesses_busca
+            if item.casefold() != termo.casefold()
+        ]
+        self.config.fontes.noticias.interesses_busca = existentes
+        self._persistir_config()
+        self.memoria.substituir_interesses(existentes)
+        return existentes
+
     def salvar_noticia_relevante(self, noticia: Noticia | dict, origem: str = "clique") -> str:
         """Guarda uma noticia relevante em SQLite para orientar o que a APPA deve priorizar."""
         item = _normalizar_noticia_para_memoria(noticia)
@@ -323,6 +348,75 @@ class DashboardService:
         )
         return self.memoria.caminho_relativo(caminho)
 
+    def conversar(self, mensagem: str) -> RespostaRoteador:
+        """Processa uma mensagem da APPA, incluindo comandos operacionais de agenda."""
+        if self._agenda_chat is None or self._agenda_chat.cliente_google is not self.google_agenda:
+            self._agenda_chat = AssistenteAgendaChat(
+                self.google_agenda,
+                self.config.localizacao.timezone,
+            )
+        destino = self._classificar_destino_chat(mensagem)
+        if self._agenda_chat.pedido_pendente is None and destino != "agenda":
+            resposta_anotacao = self._tentar_anotacao_chat(mensagem)
+            if resposta_anotacao is not None:
+                return resposta_anotacao
+        resposta = RoteadorComandos(
+            self.config,
+            memoria=self.memoria,
+            google_agenda=self.google_agenda,
+            agenda_chat=self._agenda_chat,
+        ).executar_interacao(mensagem)
+        if resposta.agenda_alterada:
+            self._cache_agenda_google = None
+        return resposta
+
+    def _classificar_destino_chat(self, mensagem: str) -> str:
+        if self._agenda_chat is not None and self._agenda_chat.pedido_pendente is not None:
+            return "agenda"
+        normalizado = _normalizar_chat(mensagem)
+        if self._anotacao_em_andamento and not _parece_pedido_agenda(normalizado):
+            return "anotacao"
+        if self.gemini_intencoes.disponivel():
+            try:
+                dados = self.gemini_intencoes.gerar_json(
+                    _prompt_classificacao_chat(mensagem),
+                    temperature=0.0,
+                    schema_hint=(
+                        '{"destino":"agenda|anotacao|outro",'
+                        '"motivo":"justificativa curta"}'
+                    ),
+                )
+            except Exception:
+                return _classificar_destino_local(mensagem)
+            destino = str(dados.get("destino", "")).strip().lower()
+            if destino in {"agenda", "anotacao", "outro"}:
+                return destino
+        return _classificar_destino_local(mensagem)
+
+    def _tentar_anotacao_chat(self, mensagem: str) -> RespostaRoteador | None:
+        normalizado = _normalizar_chat(mensagem)
+        if self._anotacao_em_andamento:
+            if _confirma_fim_anotacao(normalizado):
+                self._anotacao_em_andamento = False
+                return RespostaRoteador("Combinado. Fechei essa anotacao por enquanto.")
+            if _parece_pedido_agenda(normalizado):
+                return None
+            conteudo_extra = _limpar_texto_anotacao(mensagem)
+            if conteudo_extra:
+                self.anotacoes_chat.append(conteudo_extra)
+                return RespostaRoteador(
+                    "Anotei tambem. Seria apenas isso?",
+                    anotacoes_alteradas=True,
+                )
+            return RespostaRoteador("Nao peguei o complemento. Pode repetir?")
+
+        conteudo = _extrair_inicio_anotacao(mensagem)
+        if not conteudo:
+            return None
+        self.anotacoes_chat.append(conteudo)
+        self._anotacao_em_andamento = True
+        return RespostaRoteador("Anotei. Mais alguma coisa?", anotacoes_alteradas=True)
+
     def salvar_perfil_pessoal(self, conteudo: str) -> str:
         """Mantem um resumo pessoal canonico para personalizar o assistente."""
         self.memoria.salvar_perfil_pessoal(conteudo)
@@ -346,6 +440,84 @@ def normalizar_lista_interesses(texto: str) -> list[str]:
             interesses.append(interesse)
             interesses_casefold.add(interesse.casefold())
     return interesses
+
+
+def _prompt_classificacao_chat(mensagem: str) -> str:
+    return (
+        "Voce classifica mensagens para uma secretaria virtual pessoal em pt-BR.\n"
+        "Escolha exatamente um destino:\n"
+        "- agenda: compromissos, consultas, reunioes, eventos, cancelar ou alterar calendario.\n"
+        "- anotacao: listas, lembretes soltos, compras, ideias ou informacoes sem data/hora.\n"
+        "- outro: conversa geral, clima, noticias, busca ou comandos que nao criam dado novo.\n"
+        "Se a pessoa disser 'anote na minha agenda', use agenda. "
+        "Se disser apenas 'anote que...', use anotacao, exceto quando houver compromisso "
+        "com data ou horario.\n\n"
+        f"Mensagem: {mensagem!r}\n"
+        'Responda somente JSON como {"destino":"agenda","motivo":"..."}'
+    )
+
+
+def _classificar_destino_local(mensagem: str) -> str:
+    normalizado = _normalizar_chat(mensagem)
+    if _parece_pedido_agenda(normalizado):
+        return "agenda"
+    if _extrair_inicio_anotacao(mensagem):
+        return "anotacao"
+    return "outro"
+
+
+def _extrair_inicio_anotacao(mensagem: str) -> str:
+    normalizado = _normalizar_chat(mensagem)
+    if "agenda" in normalizado:
+        return ""
+    match = re.search(
+        r"(?i)\b(?:appa\s+)?anote(?:\s+que|:)?\s+(.+)$",
+        mensagem.strip(),
+    )
+    if not match:
+        return ""
+    return _limpar_texto_anotacao(match.group(1))
+
+
+def _limpar_texto_anotacao(texto: str) -> str:
+    limpo = re.sub(r"(?i)\b(?:tamb[eé]m|por favor|favor)\b", " ", texto)
+    limpo = re.sub(r"(?i)^\s*que\s+", " ", limpo)
+    limpo = " ".join(limpo.strip(" -:,.").split())
+    if not limpo:
+        return ""
+    return limpo[:1].upper() + limpo[1:]
+
+
+def _normalizar_chat(texto: str) -> str:
+    sem_acentos = "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFD", texto.lower())
+        if unicodedata.category(caractere) != "Mn"
+    )
+    return " ".join(sem_acentos.split())
+
+
+def _confirma_fim_anotacao(texto_normalizado: str) -> bool:
+    return texto_normalizado in {
+        "sim",
+        "s",
+        "isso",
+        "apenas isso",
+        "so isso",
+        "seria isso",
+        "e isso",
+    }
+
+
+def _parece_pedido_agenda(texto_normalizado: str) -> bool:
+    if "agenda" in texto_normalizado:
+        return True
+    return bool(
+        re.search(
+            r"\b(marque|marcar|agende|agendar|desmarque|desmarcar|cancele|cancelar)\b",
+            texto_normalizado,
+        )
+    )
 
 
 def _normalizar_noticia_para_memoria(noticia: Noticia | dict) -> dict[str, str]:

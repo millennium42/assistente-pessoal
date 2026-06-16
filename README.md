@@ -10,6 +10,8 @@ Principais capacidades:
 
 - CLI para operacoes rapidas de memoria, clima, noticias, agenda e chat.
 - Dashboard local com modos visual `Limpa` e `Detalhada`.
+- Chat operacional da APPA na janela de Insights para conversar e acionar a agenda.
+- Card de Anotações na janela de Insights alimentado pelo chat da APPA.
 - Memoria persistente em SQLite com busca textual por FTS5.
 - Noticias organizadas por prioridades e interesses do usuario.
 - Integracao opcional com Gemini ou com provedores compativeis com Chat Completions.
@@ -78,6 +80,8 @@ Guia detalhado: [docs/primeiro-uso.md](docs/primeiro-uso.md)
 - `assistente-pessoal clima --dia amanha`
 - `assistente-pessoal noticias`
 - `assistente-pessoal chat "mensagem"`
+- `assistente-pessoal chat "marque consulta amanha as 14h no consultorio"`
+- `assistente-pessoal chat "desmarque consulta amanha"`
 - `assistente-pessoal gui`
 - `assistente-pessoal agenda google-auth`
 - `assistente-pessoal agenda google-listar`

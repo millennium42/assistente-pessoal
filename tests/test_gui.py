@@ -188,6 +188,22 @@ class GoogleAgendaContador(GoogleAgendaFake):
         return super().obter_eventos_mes(referencia, *_args, **_kwargs)
 
 
+class GeminiIntencoesFake:
+    """Classificador Gemini fake para validar o roteamento do chat."""
+
+    def __init__(self, destinos: list[str]) -> None:
+        self.destinos = destinos
+        self.prompts: list[str] = []
+
+    def disponivel(self) -> bool:
+        return True
+
+    def gerar_json(self, prompt: str, **_kwargs) -> dict:
+        self.prompts.append(prompt)
+        destino = self.destinos.pop(0) if self.destinos else "outro"
+        return {"destino": destino, "motivo": "teste"}
+
+
 class LabelFake:
     """Objeto minimo com atributo text, como os labels da NiceGUI."""
 
@@ -218,6 +234,57 @@ def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
     assert snapshot.cotacao_dolar.valor == 5.25
     assert snapshot.insights.motor == "Local"
     assert snapshot.clima_ontem is not None
+
+
+def test_dashboard_service_conversa_operacional_marca_evento(tmp_path: Path) -> None:
+    """Chat do painel usa o roteador operacional para criar eventos."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+
+    resposta = servico.conversar("marque consulta em 2099-06-08 as 14h no consultorio")
+
+    assert resposta.agenda_alterada is True
+    assert servico.google_agenda.evento_criado is not None
+    assert servico.google_agenda.evento_criado.titulo == "Consulta"
+
+
+def test_dashboard_service_usa_gemini_para_anotacoes_em_turnos(tmp_path: Path) -> None:
+    """Gemini decide que o pedido vai para o card de anotacoes."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    gemini = GeminiIntencoesFake(["anotacao"])
+    servico.gemini_intencoes = gemini
+
+    primeira = servico.conversar("Appa anote que eu preciso passar no mercado pegar frutas")
+    segunda = servico.conversar("Sabonete também por favor")
+    final = servico.conversar("Sim")
+
+    assert primeira.anotacoes_alteradas is True
+    assert primeira.texto == "Anotei. Mais alguma coisa?"
+    assert segunda.anotacoes_alteradas is True
+    assert segunda.texto == "Anotei tambem. Seria apenas isso?"
+    assert final.texto == "Combinado. Fechei essa anotacao por enquanto."
+    assert servico.anotacoes_chat == [
+        "Eu preciso passar no mercado pegar frutas",
+        "Sabonete",
+    ]
+    assert gemini.prompts
+
+
+def test_dashboard_service_usa_gemini_para_agenda_em_turnos(tmp_path: Path) -> None:
+    """Gemini decide que o pedido vai para agenda e o rascunho e completado depois."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    servico.gemini_intencoes = GeminiIntencoesFake(["agenda"])
+
+    pergunta = servico.conversar("Appa anote na minha agenda psicologo amanha")
+    resposta = servico.conversar("15h30 no Henrique Ballen, na vitta ceter")
+
+    assert pergunta.texto == "Que horas e onde?"
+    assert resposta.agenda_alterada is True
+    assert servico.google_agenda.evento_criado is not None
+    assert servico.google_agenda.evento_criado.titulo == "Psicologo"
+    assert servico.google_agenda.evento_criado.local == "Henrique Ballen, na vitta ceter"
 
 
 def test_dashboard_service_salva_perfil_pessoal(tmp_path: Path) -> None:
@@ -379,10 +446,17 @@ def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
     assert servico.memoria.listar_interacoes_noticias(limite=1)[0].titulo == "IA chega ao mercado"
     assert servico.memoria.buscar("IA chega ao mercado")
 
+    interesses = servico.remover_interesse("IA")
+
+    assert interesses == ["economia"]
+    assert servico.config.fontes.noticias.interesses_busca == ["economia"]
+    assert servico.memoria.listar_interesses() == ["economia"]
+
 
 def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     """Constroi a arvore principal da GUI para capturar erros imediatos de import/layout."""
     config = AppConfig(db_path=tmp_path / "banco")
+    config.fontes.noticias.interesses_busca = ["ia", "economia"]
     Memoria(config.db_path).salvar_nota("Teste", "Conteudo")
 
     construir_dashboard(_servico_sem_rede(config))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import hashlib
 import socket
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
@@ -642,6 +643,173 @@ def _dashboard_css() -> str:
       font-weight: 600;
     }
 
+    .insight-workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .appa-notes-card {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      min-height: 340px;
+      border: 1px solid var(--appa-line);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--appa-panel);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.32), var(--appa-shadow);
+    }
+
+    .appa-notes-chip {
+      border: 1px solid var(--appa-line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: var(--appa-muted);
+      background: var(--appa-card-subtle);
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .appa-notes-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .appa-note-item {
+      border: 1px solid var(--appa-line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--appa-ink);
+      background: var(--appa-card-subtle);
+      font-size: 0.88rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .appa-notes-empty {
+      color: var(--appa-muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .appa-chat-shell {
+      display: grid;
+      gap: 12px;
+      border: 1px solid var(--appa-line);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--appa-panel);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.32), var(--appa-shadow);
+    }
+
+    .appa-chat-state {
+      border: 1px solid var(--appa-line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: var(--appa-muted);
+      background: var(--appa-card-subtle);
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .appa-chat-log {
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      min-height: 240px;
+      max-height: 360px;
+      overflow-y: auto;
+      border: 1px solid var(--appa-line);
+      border-radius: 10px;
+      padding: 10px;
+      background: var(--appa-card-subtle);
+    }
+
+    .appa-chat-row {
+      display: flex;
+      width: 100%;
+    }
+
+    .appa-chat-row.is-user {
+      justify-content: flex-end;
+    }
+
+    .appa-chat-bubble {
+      max-width: min(760px, 84%);
+      border: 1px solid var(--appa-line);
+      border-radius: 10px;
+      padding: 9px 11px;
+      color: var(--appa-ink);
+      background: var(--appa-card-bg);
+      font-size: 0.9rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .appa-chat-markdown,
+    .appa-chat-markdown p,
+    .appa-chat-markdown ul,
+    .appa-chat-markdown ol {
+      margin: 0;
+      color: inherit;
+    }
+
+    .appa-chat-markdown ul,
+    .appa-chat-markdown ol {
+      padding-left: 1.1rem;
+      margin-top: 0.25rem;
+    }
+
+    .appa-chat-markdown strong {
+      color: inherit;
+      font-weight: 900;
+    }
+
+    .appa-chat-markdown a {
+      color: color-mix(in srgb, var(--appa-accent) 80%, white);
+      text-decoration: underline;
+    }
+
+    .appa-chat-row.is-user .appa-chat-bubble {
+      color: var(--appa-button-ink);
+      background: var(--appa-accent);
+      border-color: color-mix(in srgb, var(--appa-accent) 78%, white);
+    }
+
+    .appa-chat-author {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--appa-muted);
+      font-size: 0.66rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .appa-chat-row.is-user .appa-chat-author {
+      color: color-mix(in srgb, var(--appa-button-ink) 78%, transparent);
+    }
+
+    .appa-chat-compose {
+      flex-wrap: nowrap;
+    }
+
+    .appa-chat-input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .appa-chat-send {
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      background: var(--appa-accent) !important;
+      color: var(--appa-button-ink) !important;
+    }
+
     
 
     
@@ -1073,8 +1241,35 @@ def _dashboard_css() -> str:
       padding: 5px 9px;
       background: rgba(34, 211, 238, 0.10);
       color: var(--appa-ink);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 0.78rem;
       font-weight: 700;
+      max-width: 100%;
+    }
+
+    .interest-chip--editable {
+      padding: 4px 5px 4px 9px;
+    }
+
+    .interest-chip__label {
+      max-width: min(190px, 58vw);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .interest-chip__remove {
+      color: var(--appa-muted) !important;
+      min-height: 22px !important;
+      min-width: 22px !important;
+      padding: 0 !important;
+    }
+
+    .interest-chip__remove:hover {
+      background: rgba(34, 211, 238, 0.16) !important;
+      color: var(--appa-ink) !important;
     }
 
     .news-live-count {
@@ -1340,6 +1535,10 @@ def _dashboard_css() -> str:
       }
 
       .agenda-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .insight-workspace {
         grid-template-columns: 1fr;
       }
     }
@@ -1741,7 +1940,12 @@ def construir_dashboard(
                     insight_motor = ui.label(
                         snapshot_inicial.insights.motor if snapshot_inicial else "Local"
                     ).classes("insight-chip")
-                insights_widgets = _render_insights(snapshot_inicial)
+                insights_widgets = _render_insights(
+                    snapshot_inicial,
+                    servico,
+                    status,
+                    lambda: atualizar(),
+                )
 
             with ui.tab_panel(tab_visao_geral).classes("p-0 gap-3 flex flex-col"):
                 kpi_cards = _criar_kpis(snapshot_inicial)
@@ -1935,15 +2139,29 @@ def construir_dashboard(
                     with ui.element("div").classes("expansion-shell p-3"):
                         ui.label("Interesses de Pesquisa").classes("section-title mb-2")
                         interesses_container = ui.element("div").classes("interest-list")
-                        _popular_interesses(
-                            interesses_container,
-                            servico.config.fontes.noticias.interesses_busca,
-                        )
                         interesse_texto = ui.textarea("Adicionar interesses (vírgula)").classes(
                             "w-full mt-3"
                         )
                         interesse_texto.props("rows=3")
                         interesses_status = ui.label("").classes("text-sm text-slate-500")
+
+                        def renderizar_interesses(interesses: list[str]) -> None:
+                            _popular_interesses(
+                                interesses_container,
+                                interesses,
+                                on_remove=lambda interesse: (
+                                    _excluir_interesse_gui(
+                                        servico,
+                                        interesse,
+                                        renderizar_interesses,
+                                        interesses_status,
+                                        status,
+                                    )
+                                    and atualizar()
+                                ),
+                            )
+
+                        renderizar_interesses(servico.config.fontes.noticias.interesses_busca)
                         ui.button(
                             "Salvar interesses",
                             icon="save",
@@ -1951,7 +2169,7 @@ def construir_dashboard(
                                 _adicionar_interesses_gui(
                                     servico,
                                     interesse_texto,
-                                    interesses_container,
+                                    renderizar_interesses,
                                     interesses_status,
                                     status,
                                 )
@@ -2178,18 +2396,135 @@ def _detalhe_dolar(snapshot: DashboardSnapshot) -> str:
     return " | ".join(partes)
 
 
-def _render_insights(snapshot: DashboardSnapshot | None) -> dict[str, ui.element]:
-    """Constroi apenas o card principal da assistente virtual."""
+def _render_insights(
+    snapshot: DashboardSnapshot | None,
+    servico: DashboardService,
+    status_label,
+    atualizar_callback,
+) -> dict[str, ui.element]:
+    """Constroi o card principal e o chat operacional da assistente virtual."""
     insights = snapshot.insights if snapshot else None
     with ui.column().classes("w-full gap-3"):
-        assistente = _criar_card_insight_amplo(
-            insights.assistente if insights else None,
-            "Sua secretaria virtual",
-            "Aqui eu vou te orientar sobre o seu dia com um olhar mais humano e prático.",
-        )
+        with ui.element("div").classes("insight-workspace w-full"):
+            assistente = _criar_card_insight_amplo(
+                insights.assistente if insights else None,
+                "Sua secretaria virtual",
+                "Aqui eu vou te orientar sobre o seu dia com um olhar mais humano e prático.",
+            )
+            anotacoes = _criar_card_anotacoes(servico)
+        _criar_chat_insights(servico, status_label, atualizar_callback, anotacoes)
     return {
         "assistente": assistente,
+        "anotacoes": anotacoes,
     }
+
+
+def _criar_card_anotacoes(servico: DashboardService):
+    """Cria o card de anotacoes vivas alimentado pelo chat."""
+    with ui.element("div").classes("appa-notes-card w-full"):
+        with ui.row().classes("w-full items-center justify-between"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("sticky_note_2").classes("text-neon")
+                ui.label("Anotações").classes("section-title")
+            ui.label("chat").classes("appa-notes-chip")
+        lista = ui.column().classes("appa-notes-list w-full")
+        _popular_anotacoes(lista, servico.anotacoes_chat)
+    return lista
+
+
+def _popular_anotacoes(container: ui.element, anotacoes: list[str]) -> None:
+    """Atualiza os itens visiveis no card de anotacoes."""
+    container.clear()
+    with container:
+        if not anotacoes:
+            ui.label("Sem anotações por enquanto.").classes("appa-notes-empty")
+            return
+        for anotacao in anotacoes:
+            ui.label(anotacao).classes("appa-note-item")
+
+
+def _criar_chat_insights(
+    servico: DashboardService,
+    status_label,
+    atualizar_callback,
+    anotacoes_container,
+) -> dict[str, ui.element]:
+    """Cria o chat principal da APPA dentro da aba de insights."""
+    with ui.element("div").classes("appa-chat-shell w-full"):
+        with ui.row().classes("w-full items-center justify-between"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("support_agent").classes("text-neon")
+                ui.label("APPA").classes("section-title")
+            estado = ui.label("online").classes("appa-chat-state")
+        historico = ui.column().classes("appa-chat-log w-full")
+        historico.props("data-appa-chat-log")
+        _adicionar_bolha_chat(historico, "appa", "Estou por aqui.")
+        with ui.row().classes("appa-chat-compose w-full items-end gap-2"):
+            entrada = ui.textarea("Mensagem para a APPA").classes("appa-chat-input")
+            entrada.props("outlined dense autogrow rows=2")
+            ui.button(
+                icon="send",
+                on_click=lambda: _enviar_chat_insights(
+                    servico,
+                    entrada,
+                    historico,
+                    estado,
+                    status_label,
+                    atualizar_callback,
+                    anotacoes_container,
+                ),
+            ).props("round unelevated").classes("appa-chat-send")
+    return {"historico": historico, "entrada": entrada, "estado": estado}
+
+
+def _enviar_chat_insights(
+    servico: DashboardService,
+    entrada,
+    historico,
+    estado,
+    status_label,
+    atualizar_callback,
+    anotacoes_container,
+) -> None:
+    """Envia uma mensagem do painel para o roteador operacional da APPA."""
+    mensagem = (entrada.value or "").strip()
+    if not mensagem:
+        estado.text = "aguardando mensagem"
+        return
+    _adicionar_bolha_chat(historico, "usuario", mensagem)
+    entrada.value = ""
+    entrada.update()
+    estado.text = "processando"
+    status_label.text = "APPA processando sua mensagem."
+    try:
+        resposta = servico.conversar(mensagem)
+    except Exception as exc:  # pragma: no cover
+        estado.text = "erro"
+        status_label.text = f"Falha no chat da APPA: {exc}"
+        _adicionar_bolha_chat(historico, "appa", f"Nao consegui concluir isso agora: {exc}")
+        return
+    _adicionar_bolha_chat(historico, "appa", resposta.texto)
+    estado.text = "online"
+    status_label.text = "APPA respondeu."
+    if resposta.anotacoes_alteradas:
+        _popular_anotacoes(anotacoes_container, servico.anotacoes_chat)
+    if resposta.agenda_alterada:
+        atualizar_callback()
+    _executar_javascript(
+        "const chat = document.querySelector('[data-appa-chat-log]');"
+        "if (chat) chat.scrollTop = chat.scrollHeight;"
+    )
+
+
+def _adicionar_bolha_chat(container: ui.element, papel: str, texto: str) -> None:
+    """Adiciona uma mensagem ao historico visual do chat."""
+    classe = "is-user" if papel == "usuario" else "is-appa"
+    rotulo = "Voce" if papel == "usuario" else "APPA"
+    with container:
+        with ui.element("div").classes(f"appa-chat-row {classe}"):
+            with ui.element("div").classes("appa-chat-bubble"):
+                ui.label(rotulo).classes("appa-chat-author")
+                ui.markdown(texto).classes("appa-chat-markdown")
 
 
 def _criar_card_insight_amplo(
@@ -2643,21 +2978,43 @@ def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:
                 ui.label(nota).classes("text-sm font-medium text-slate-700")
 
 
-def _popular_interesses(container: ui.element, interesses: list[str]) -> None:
-    """Renderiza os interesses cadastrados como chips simples."""
+def _popular_interesses(
+    container: ui.element,
+    interesses: list[str],
+    on_remove: Callable[[str], bool] | None = None,
+) -> None:
+    """Renderiza os interesses cadastrados como chips."""
     container.clear()
     with container:
         if not interesses:
             ui.html('<span class="section-subtitle">Nenhum interesse cadastrado.</span>')
             return
+
+        def acao_excluir(interesse_selecionado: str) -> Callable[[], bool]:
+            return lambda: bool(on_remove and on_remove(interesse_selecionado))
+
         for interesse in interesses:
-            ui.html(f'<span class="interest-chip">{escape(interesse)}</span>')
+            if on_remove is None:
+                ui.html(
+                    '<span class="interest-chip">'
+                    f'<span class="interest-chip__label">{escape(interesse)}</span>'
+                    "</span>"
+                )
+                continue
+            with ui.element("div").classes("interest-chip interest-chip--editable"):
+                ui.label(interesse).classes("interest-chip__label")
+                botao = ui.button(icon="close", on_click=acao_excluir(interesse)).props(
+                    "flat round dense size=sm"
+                )
+                botao.classes("interest-chip__remove")
+                with botao:
+                    ui.tooltip(f"Excluir {interesse}")
 
 
 def _adicionar_interesses_gui(
     servico: DashboardService,
     campo_interesses,
-    interesses_container: ui.element,
+    renderizar_interesses: Callable[[list[str]], None],
     status_label,
     painel_status,
 ) -> bool:
@@ -2673,8 +3030,28 @@ def _adicionar_interesses_gui(
         painel_status.text = status_label.text
         return False
     campo_interesses.value = ""
-    _popular_interesses(interesses_container, interesses)
+    renderizar_interesses(interesses)
     status_label.text = "Interesses salvos. Buscando noticias relacionadas..."
+    painel_status.text = "Interesses atualizados; atualizando o feed."
+    return True
+
+
+def _excluir_interesse_gui(
+    servico: DashboardService,
+    interesse: str,
+    renderizar_interesses: Callable[[list[str]], None],
+    status_label,
+    painel_status,
+) -> bool:
+    """Remove um interesse do painel e refaz os chips editaveis."""
+    try:
+        interesses = servico.remover_interesse(interesse)
+    except Exception as exc:  # pragma: no cover
+        status_label.text = f"Falha ao excluir interesse: {exc}"
+        painel_status.text = status_label.text
+        return False
+    renderizar_interesses(interesses)
+    status_label.text = f"Interesse excluido: {interesse}."
     painel_status.text = "Interesses atualizados; atualizando o feed."
     return True
 
