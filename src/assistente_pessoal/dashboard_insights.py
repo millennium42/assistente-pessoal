@@ -16,6 +16,8 @@ from assistente_pessoal.gemini import ClienteGemini
 from assistente_pessoal.memoria import InteracaoNoticiaMemoria
 from assistente_pessoal.noticias import Noticia, rotulo_tempo_publicacao
 
+DASHBOARD_GEMINI_TIMEOUT = 12.0
+
 
 @dataclass(frozen=True)
 class InsightCard:
@@ -42,7 +44,7 @@ class GeradorInsightsDashboard:
 
     def __init__(self, config: AppConfig, cliente_gemini: ClienteGemini | None = None) -> None:
         self.config = config
-        self.gemini = cliente_gemini or ClienteGemini(config.llm)
+        self.gemini = cliente_gemini or ClienteGemini(config.llm, timeout=DASHBOARD_GEMINI_TIMEOUT)
         self._cache_fingerprint: str | None = None
         self._cache_resultado: DashboardInsights | None = None
 

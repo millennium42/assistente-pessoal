@@ -74,22 +74,10 @@ $Ferramentas = @(
         Fallbacks = @("$env:LocalAppData\Microsoft\WinGet\Links\uv.exe")
     },
     @{
-        Nome = "Git"
-        Id = "Git.Git"
-        Comando = "git"
-        Fallbacks = @("C:\Program Files\Git\cmd\git.exe")
-    },
-    @{
         Nome = "FFmpeg"
         Id = "Gyan.FFmpeg"
         Comando = "ffmpeg"
         Fallbacks = @("$env:LocalAppData\Microsoft\WinGet\Links\ffmpeg.exe")
-    },
-    @{
-        Nome = "GitHub CLI"
-        Id = "GitHub.cli"
-        Comando = "gh"
-        Fallbacks = @("C:\Program Files\GitHub CLI\gh.exe")
     }
 )
 
@@ -126,4 +114,3 @@ if ($InstalarDependenciasProjeto) {
 
 Write-Host ""
 Write-Host "Bootstrap concluido. Se algum comando nao aparecer no PATH, reinicie o terminal." -ForegroundColor Green
-

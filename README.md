@@ -1,15 +1,15 @@
-# Assistente Pessoal 0.2.1
+# Assistente Pessoal 0.3.0
 
 Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e integracao opcional com LLM.
 
 ## Visao geral
 
-Esta versao `0.2.1` marca a v2 do alpha: a base continua simples de executar localmente, mas agora com uma estrutura mais consistente para memoria, painel, privacidade e extensao por IA.
+Esta versao `0.3.0` consolida a APPA como um assistente pessoal local-first, com dashboard responsivo, memoria em SQLite, agenda acionavel e integracoes externas opt-in.
 
 Principais capacidades:
 
 - CLI para operacoes rapidas de memoria, clima, noticias, agenda e chat.
-- Dashboard local com modos visual `Limpa` e `Detalhada`.
+- Dashboard local com Insights, visao geral, explorador de noticias, agenda e configuracoes.
 - Chat operacional da APPA na janela de Insights para conversar e acionar a agenda.
 - Card de Anotações na janela de Insights alimentado pelo chat da APPA.
 - Memoria persistente em SQLite com busca textual por FTS5.
@@ -98,7 +98,7 @@ Pontos importantes:
 - `llm.api_key_env` permite usar uma variavel de ambiente no lugar da chave literal.
 - `llm.base_url` continua disponivel para provedores compativeis com Chat Completions.
 - `google_agenda.credentials_path` deve apontar para um arquivo OAuth local fora de versionamento.
-- chaves e tokens devem ficar em arquivos locais ignorados pelo Git ou em variaveis de ambiente.
+- chaves e tokens devem ficar em arquivos locais fora de versionamento ou em variaveis de ambiente.
 
 Variaveis de ambiente suportadas:
 
@@ -114,7 +114,7 @@ O repositório foi organizado para reforçar um modelo local-first e opt-in para
 
 - dados pessoais e memoria ficam em SQLite local, inspecionavel e apagavel
 - `config.toml` pode guardar `llm.api_key`, mas o mais seguro continua sendo usar `llm.api_key_env` ou variavel de ambiente
-- LLM, noticias, clima, musica e Google Agenda so enviam dados para fora quando configurados ou usados
+- LLM, noticias, clima e Google Agenda so enviam dados para fora quando configurados ou usados
 - arquivos OAuth e tokens locais nao devem ser versionados
 
 Leitura dedicada: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)

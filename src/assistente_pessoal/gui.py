@@ -8,10 +8,11 @@ import socket
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from html import escape
+from inspect import isawaitable
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from nicegui import app, core, ui
+from nicegui import app, core, run, ui
 
 from assistente_pessoal.agenda_google import (
     EventoGoogleAgenda,
@@ -1662,7 +1663,7 @@ def _dashboard_js() -> str:
         });
       };
 
-      appa.newsReadKey = 'appa-news-read-v2';
+      appa.newsReadKey = 'appa-news-read-v3';
 
       appa.readNewsIds = function () {
         try {
@@ -2145,36 +2146,38 @@ def construir_dashboard(
                         interesse_texto.props("rows=3")
                         interesses_status = ui.label("").classes("text-sm text-slate-500")
 
+                        async def remover_interesse_painel(interesse: str) -> None:
+                            if _excluir_interesse_gui(
+                                servico,
+                                interesse,
+                                renderizar_interesses,
+                                interesses_status,
+                                status,
+                            ):
+                                await atualizar()
+
                         def renderizar_interesses(interesses: list[str]) -> None:
                             _popular_interesses(
                                 interesses_container,
                                 interesses,
-                                on_remove=lambda interesse: (
-                                    _excluir_interesse_gui(
-                                        servico,
-                                        interesse,
-                                        renderizar_interesses,
-                                        interesses_status,
-                                        status,
-                                    )
-                                    and atualizar()
-                                ),
+                                on_remove=remover_interesse_painel,
                             )
+
+                        async def salvar_interesses_painel() -> None:
+                            if _adicionar_interesses_gui(
+                                servico,
+                                interesse_texto,
+                                renderizar_interesses,
+                                interesses_status,
+                                status,
+                            ):
+                                await atualizar()
 
                         renderizar_interesses(servico.config.fontes.noticias.interesses_busca)
                         ui.button(
                             "Salvar interesses",
                             icon="save",
-                            on_click=lambda: (
-                                _adicionar_interesses_gui(
-                                    servico,
-                                    interesse_texto,
-                                    renderizar_interesses,
-                                    interesses_status,
-                                    status,
-                                )
-                                and atualizar()
-                            ),
+                            on_click=salvar_interesses_painel,
                         ).classes("w-full mt-2")
                 with ui.element("div").classes("expansion-shell p-3"):
                     ui.label("Perfil pessoal da assistente").classes("section-title mb-2")
@@ -2190,81 +2193,97 @@ def construir_dashboard(
                         snapshot_inicial.perfil_pessoal if snapshot_inicial else ""
                     )
                     perfil_status = ui.label("").classes("text-sm text-slate-500")
+
+                    async def salvar_perfil_painel() -> None:
+                        if _salvar_perfil_pessoal_gui(
+                            servico,
+                            perfil_pessoal,
+                            perfil_status,
+                            status,
+                        ):
+                            await atualizar()
+
                     ui.button(
                         "Salvar perfil pessoal",
                         icon="person",
-                        on_click=lambda: (
-                            _salvar_perfil_pessoal_gui(
-                                servico,
-                                perfil_pessoal,
-                                perfil_status,
-                                status,
-                            )
-                            and atualizar()
-                        ),
+                        on_click=salvar_perfil_painel,
                     ).classes("w-full mt-2")
 
-        def atualizar() -> None:
-            try:
-                snapshot = servico.carregar(
-                    limite_noticias=int(limite_noticias.value or LIMITE_PADRAO_NOTICIAS),
+        cliente_dashboard = ui.context.client
+        refresh_estado = {"em_andamento": False}
+
+        def aplicar_snapshot(snapshot: DashboardSnapshot) -> None:
+            """Atualiza widgets com dados carregados fora do loop da UI."""
+            if not cliente_dashboard.has_socket_connection:
+                return
+            with cliente_dashboard:
+                _atualizar_kpis(kpi_cards, snapshot)
+                _atualizar_insights(insights_widgets, snapshot)
+                insight_motor.text = snapshot.insights.motor
+                _atualizar_clima_resumo(clima_resumo, snapshot)
+                _atualizar_grafico_clima(grafico_clima, snapshot.resumo_semana)
+                _atualizar_grafico_noticias(grafico_noticias, snapshot.noticias_por_grupo)
+
+                _popular_santa_maria_em_foco(
+                    santa_maria_cards,
+                    snapshot.santa_maria_em_foco,
+                    servico.config.localizacao.timezone,
+                    servico,
+                    status,
                 )
+
+                novas_noticias = _noticias_sem_santa_maria(snapshot.noticias)
+                tabela_noticias.options["rowData"] = _linhas_noticias_aggrid(
+                    novas_noticias, servico.config.localizacao.timezone
+                )
+                tabela_noticias.update()
+
+                noticias_total.text = (
+                    f"{_resumo_feed_noticias(novas_noticias)} | atualizado {snapshot.atualizado_em}"
+                )
+                _popular_agenda_google(
+                    calendario_google,
+                    google_lista,
+                    agenda_erro,
+                    agenda_mes_titulo,
+                    snapshot.agenda_google_resultado,
+                    servico.config.localizacao.timezone,
+                )
+                _executar_javascript(
+                    "const alvo = document.querySelector('[data-appa-updated]');"
+                    f"if (alvo) alvo.textContent = '{snapshot.atualizado_em}';"
+                )
+                status.text = f"Painel atualizado as {snapshot.atualizado_em}."
+
+        async def atualizar() -> None:
+            if refresh_estado["em_andamento"]:
+                status.text = "Atualizacao ja em andamento."
+                return
+            refresh_estado["em_andamento"] = True
+            status.text = "Atualizando painel..."
+            try:
+                limite = int(limite_noticias.value or LIMITE_PADRAO_NOTICIAS)
+                snapshot = await run.io_bound(servico.carregar, limite_noticias=limite)
             except Exception as exc:
                 status.text = f"Falha ao carregar painel: {exc}"
                 return
-
-            _atualizar_kpis(kpi_cards, snapshot)
-            _atualizar_insights(insights_widgets, snapshot)
-            insight_motor.text = snapshot.insights.motor
-            _atualizar_clima_resumo(clima_resumo, snapshot)
-            _atualizar_grafico_clima(grafico_clima, snapshot.resumo_semana)
-            _atualizar_grafico_noticias(grafico_noticias, snapshot.noticias_por_grupo)
-
-            _popular_santa_maria_em_foco(
-                santa_maria_cards,
-                snapshot.santa_maria_em_foco,
-                servico.config.localizacao.timezone,
-                servico,
-                status,
-            )
-
-            novas_noticias = _noticias_sem_santa_maria(snapshot.noticias)
-            tabela_noticias.options["rowData"] = _linhas_noticias_aggrid(
-                novas_noticias, servico.config.localizacao.timezone
-            )
-            tabela_noticias.update()
-
-            noticias_total.text = (
-                f"{_resumo_feed_noticias(novas_noticias)} | atualizado {snapshot.atualizado_em}"
-            )
-            _popular_agenda_google(
-                calendario_google,
-                google_lista,
-                agenda_erro,
-                agenda_mes_titulo,
-                snapshot.agenda_google_resultado,
-                servico.config.localizacao.timezone,
-            )
-            _executar_javascript(
-                "const alvo = document.querySelector('[data-appa-updated]');"
-                f"if (alvo) alvo.textContent = '{snapshot.atualizado_em}';"
-            )
-            status.text = f"Painel atualizado as {snapshot.atualizado_em}."
+            finally:
+                refresh_estado["em_andamento"] = False
+            aplicar_snapshot(snapshot)
 
         noticias_total.text = _resumo_feed_noticias(
             _noticias_sem_santa_maria(snapshot_inicial.noticias if snapshot_inicial else [])
         )
         if snapshot_inicial is None:
-            atualizar()
-        cliente_dashboard = ui.context.client
+            status.text = "Carregando dados iniciais..."
+            ui.timer(0.1, atualizar, once=True)
 
-        def atualizar_automaticamente() -> None:
+        async def atualizar_automaticamente() -> None:
             if not atualizacao_auto.value or not cliente_dashboard.has_socket_connection:
                 return
-            with cliente_dashboard:
-                atualizar()
+            await atualizar()
 
-        timer_atualizacao = app.timer(
+        timer_atualizacao = ui.timer(
             float(servico.config.dashboard.intervalo_atualizacao_segundos),
             atualizar_automaticamente,
             immediate=False,
@@ -2462,9 +2481,9 @@ def _criar_chat_insights(
         with ui.row().classes("appa-chat-compose w-full items-end gap-2"):
             entrada = ui.textarea("Mensagem para a APPA").classes("appa-chat-input")
             entrada.props("outlined dense autogrow rows=2")
-            ui.button(
-                icon="send",
-                on_click=lambda: _enviar_chat_insights(
+
+            async def enviar_chat() -> None:
+                await _enviar_chat_insights(
                     servico,
                     entrada,
                     historico,
@@ -2472,12 +2491,28 @@ def _criar_chat_insights(
                     status_label,
                     atualizar_callback,
                     anotacoes_container,
+                )
+
+            entrada.on(
+                "keydown.enter",
+                handler=enviar_chat,
+                js_handler=(
+                    "(event) => {"
+                    " if (!event.shiftKey) {"
+                    " event.preventDefault();"
+                    " emit();"
+                    " }"
+                    "}"
                 ),
+            )
+            ui.button(
+                icon="send",
+                on_click=enviar_chat,
             ).props("round unelevated").classes("appa-chat-send")
     return {"historico": historico, "entrada": entrada, "estado": estado}
 
 
-def _enviar_chat_insights(
+async def _enviar_chat_insights(
     servico: DashboardService,
     entrada,
     historico,
@@ -2497,7 +2532,7 @@ def _enviar_chat_insights(
     estado.text = "processando"
     status_label.text = "APPA processando sua mensagem."
     try:
-        resposta = servico.conversar(mensagem)
+        resposta = await run.io_bound(servico.conversar, mensagem)
     except Exception as exc:  # pragma: no cover
         estado.text = "erro"
         status_label.text = f"Falha no chat da APPA: {exc}"
@@ -2509,7 +2544,9 @@ def _enviar_chat_insights(
     if resposta.anotacoes_alteradas:
         _popular_anotacoes(anotacoes_container, servico.anotacoes_chat)
     if resposta.agenda_alterada:
-        atualizar_callback()
+        resultado = atualizar_callback()
+        if isawaitable(resultado):
+            await resultado
     _executar_javascript(
         "const chat = document.querySelector('[data-appa-chat-log]');"
         "if (chat) chat.scrollTop = chat.scrollHeight;"
@@ -2981,7 +3018,7 @@ def _popular_notas_recentes(container: ui.column, notas: list[str]) -> None:
 def _popular_interesses(
     container: ui.element,
     interesses: list[str],
-    on_remove: Callable[[str], bool] | None = None,
+    on_remove: Callable[[str], object] | None = None,
 ) -> None:
     """Renderiza os interesses cadastrados como chips."""
     container.clear()
@@ -2990,8 +3027,16 @@ def _popular_interesses(
             ui.html('<span class="section-subtitle">Nenhum interesse cadastrado.</span>')
             return
 
-        def acao_excluir(interesse_selecionado: str) -> Callable[[], bool]:
-            return lambda: bool(on_remove and on_remove(interesse_selecionado))
+        def acao_excluir(interesse_selecionado: str) -> Callable[[], object]:
+            async def excluir() -> bool:
+                if on_remove is None:
+                    return False
+                resultado = on_remove(interesse_selecionado)
+                if isawaitable(resultado):
+                    resultado = await resultado
+                return bool(resultado)
+
+            return excluir
 
         for interesse in interesses:
             if on_remove is None:

@@ -6,7 +6,7 @@ O projeto adota uma postura local-first, mas nao promete funcionamento totalment
 
 - banco SQLite com memoria e documentos canonicos
 - configuracao estrutural do projeto
-- agenda local e plano de estudos
+- perfil, interesses, anotacoes e documentos locais do assistente
 
 ## O que pode sair da maquina
 

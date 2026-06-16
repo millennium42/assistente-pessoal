@@ -81,7 +81,7 @@ Se nenhuma das trilhas estiver configurada, o comando `chat` cai no fallback loc
 
 ## 8. Configure Google Agenda de forma segura
 
-Use um arquivo OAuth local, fora de versionamento, e mantenha o token em uma pasta local ignorada pelo Git.
+Use um arquivo OAuth local, fora de versionamento, e mantenha o token em uma pasta local tambem fora de versionamento.
 
 Exemplo:
 

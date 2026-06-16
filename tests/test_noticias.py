@@ -230,6 +230,34 @@ class FeedInteresseFake:
     ]
 
 
+class RespostaFeedFake:
+    """Resposta HTTP minima para fontes RSS."""
+
+    content = b"<rss />"
+
+    def raise_for_status(self) -> None:
+        """Simula resposta valida."""
+
+
+class ClienteHttpFeedFake:
+    """Cliente HTTP fake que registra URLs de feeds consultadas."""
+
+    urls_recebidas: list[str] = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Aceita a assinatura de httpx.Client."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args) -> None:
+        """Fecha o context manager fake."""
+
+    def get(self, url: str, headers: dict) -> RespostaFeedFake:
+        self.urls_recebidas.append(url)
+        return RespostaFeedFake()
+
+
 def test_organiza_noticias_por_publicacao_mais_recente() -> None:
     """Monta o feed final do item mais novo para o mais antigo."""
     config = NoticiasConfig(
@@ -309,12 +337,12 @@ def test_cliente_noticias_busca_por_interesses_configurados() -> None:
 
 def test_fonte_interesses_consulta_rss_de_noticias(monkeypatch) -> None:
     """Busca cada interesse em RSS de noticias e normaliza o portal retornado."""
-    urls = []
+    ClienteHttpFeedFake.urls_recebidas = []
 
-    def parse_fake(url: str) -> FeedInteresseFake:
-        urls.append(url)
+    def parse_fake(_conteudo: bytes) -> FeedInteresseFake:
         return FeedInteresseFake()
 
+    monkeypatch.setattr("assistente_pessoal.fontes_noticias.httpx.Client", ClienteHttpFeedFake)
     monkeypatch.setattr("assistente_pessoal.fontes_noticias.feedparser.parse", parse_fake)
 
     noticias = InterestNewsSource().listar(
@@ -325,8 +353,8 @@ def test_fonte_interesses_consulta_rss_de_noticias(monkeypatch) -> None:
         apenas_dia_atual=True,
     )
 
-    assert "news.google.com/rss/search" in urls[0]
-    assert "ia+educacao" in urls[0]
+    assert "news.google.com/rss/search" in ClienteHttpFeedFake.urls_recebidas[0]
+    assert "ia+educacao" in ClienteHttpFeedFake.urls_recebidas[0]
     assert noticias[0].grupo == "interesses"
     assert noticias[0].fonte == "Portal Teste"
 

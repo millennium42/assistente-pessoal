@@ -12,8 +12,6 @@ config.toml
 .assistente/
 google-oauth-client*.json
 google-calendar-token*.json
-googleAgenda*.json
-vault/
 banco/
 *.db
 *.sqlite

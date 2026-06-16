@@ -65,18 +65,13 @@ assistente-pessoal gui
 O dashboard local oferece:
 
 - aba `Insights` como visao principal
+- chat operacional da APPA dentro de `Insights`
+- card de anotacoes alimentado pelo chat
 - resumo de agenda, noticias e clima com apoio do Gemini quando disponivel
 - clima atual e previsao
 - noticias priorizadas
-- nota rapida
-- plano de estudos
-- agenda local
+- interesses e perfil pessoal editaveis pela interface
 - Google Agenda
-
-Modos visuais:
-
-- `Limpa`: foco em leitura rapida
-- `Detalhada`: foco em operacao e contexto
 
 ## Google Agenda
 

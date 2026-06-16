@@ -8,6 +8,7 @@ as prioridades tematicas configuradas.
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -91,10 +92,27 @@ class ClienteNoticias:
         data_alvo = data_referencia or hoje_local(config.timezone)
         noticias: list[Noticia] = []
         limite_normalizado = max(limite, 1)
-        for grupo in config.prioridades:
-            itens = self._listar_grupo(grupo, config, limite_normalizado, data_alvo)
-            noticias.extend(itens)
-        noticias.extend(self._listar_interesses(config, limite_normalizado, data_alvo))
+        total_fontes = len(config.prioridades) + 1
+        with ThreadPoolExecutor(max_workers=max(1, min(5, total_fontes))) as executor:
+            futuros_grupos = [
+                executor.submit(self._listar_grupo, grupo, config, limite_normalizado, data_alvo)
+                for grupo in config.prioridades
+            ]
+            futuro_interesses = executor.submit(
+                self._listar_interesses,
+                config,
+                limite_normalizado,
+                data_alvo,
+            )
+            for futuro in futuros_grupos:
+                try:
+                    noticias.extend(futuro.result())
+                except Exception:
+                    continue
+            try:
+                noticias.extend(futuro_interesses.result())
+            except Exception:
+                pass
         noticias = deduplicar_noticias(noticias)
         noticias_ordenadas = ordenar_noticias_por_data(noticias, config.timezone)
         noticias_priorizadas = priorizar_noticias_por_interesses(

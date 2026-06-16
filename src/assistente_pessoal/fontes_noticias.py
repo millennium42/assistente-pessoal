@@ -41,6 +41,7 @@ THE_NEWS_CATEGORIAS_GERAIS = (
     "esportes",
     "variedades",
 )
+TIMEOUT_PADRAO_NOTICIAS = 6.0
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,7 @@ class ItemFonteNoticia:
 class TheNewsSource:
     """Le artigos do The News usando a API publica consumida pelo proprio portal."""
 
-    def __init__(self, timeout: float = 15.0) -> None:
+    def __init__(self, timeout: float = TIMEOUT_PADRAO_NOTICIAS) -> None:
         """Define timeout conservador para nao travar a aplicacao.
 
         Args:
@@ -161,6 +162,9 @@ class TheNewsSource:
 class RssNewsSource:
     """Le feeds RSS/Atom e padroniza os itens para o dominio da aplicacao."""
 
+    def __init__(self, timeout: float = TIMEOUT_PADRAO_NOTICIAS) -> None:
+        self.timeout = timeout
+
     def listar(
         self,
         grupo: str,
@@ -186,42 +190,51 @@ class RssNewsSource:
         if not config.habilitado or not config.rss:
             return []
         noticias: list[ItemFonteNoticia] = []
-        for url in config.rss:
-            feed = feedparser.parse(url)
-            fonte = feed.feed.get("title", config.titulo_fonte or url)
-            for item in feed.entries[: max(limite * 3, 20)]:
-                titulo = item.get("title", "Sem titulo")
-                link = item.get("link", "")
-                if config.palavras_chave and not noticia_parece_local(
-                    titulo,
-                    link,
-                    config.palavras_chave,
-                ):
+        with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+            for url in config.rss:
+                try:
+                    resposta = client.get(url, headers={"User-Agent": USER_AGENT})
+                    resposta.raise_for_status()
+                except httpx.HTTPError:
                     continue
-                publicado_em = extrair_data_rss(item)
-                if apenas_dia_atual and not publicado_no_dia(
-                    publicado_em, data_referencia, timezone
-                ):
-                    continue
-                noticias.append(
-                    ItemFonteNoticia(
-                        titulo=titulo,
-                        link=link,
-                        fonte=fonte,
-                        publicado=item.get("published") or item.get("updated") or "",
-                        publicado_em=publicado_em,
-                        grupo=grupo,
+                feed = feedparser.parse(resposta.content)
+                fonte = feed.feed.get("title", config.titulo_fonte or url)
+                for item in feed.entries[: max(limite * 3, 20)]:
+                    titulo = item.get("title", "Sem titulo")
+                    link = item.get("link", "")
+                    if config.palavras_chave and not noticia_parece_local(
+                        titulo,
+                        link,
+                        config.palavras_chave,
+                    ):
+                        continue
+                    publicado_em = extrair_data_rss(item)
+                    if apenas_dia_atual and not publicado_no_dia(
+                        publicado_em, data_referencia, timezone
+                    ):
+                        continue
+                    noticias.append(
+                        ItemFonteNoticia(
+                            titulo=titulo,
+                            link=link,
+                            fonte=fonte,
+                            publicado=item.get("published") or item.get("updated") or "",
+                            publicado_em=publicado_em,
+                            grupo=grupo,
+                        )
                     )
-                )
+                    if len(noticias) >= limite:
+                        break
                 if len(noticias) >= limite:
                     break
-            if len(noticias) >= limite:
-                break
         return noticias
 
 
 class InterestNewsSource:
     """Busca noticias por tags de interesse em agregadores RSS de portais."""
+
+    def __init__(self, timeout: float = TIMEOUT_PADRAO_NOTICIAS) -> None:
+        self.timeout = timeout
 
     def listar(
         self,
@@ -249,45 +262,51 @@ class InterestNewsSource:
         noticias: list[ItemFonteNoticia] = []
         vistos: set[str] = set()
         limite_por_termo = max(8, min(24, limite // max(len(termos), 1) + 4))
-        for termo in termos[:12]:
-            url = _url_google_news_interesse(termo)
-            feed = feedparser.parse(url)
-            for item in feed.entries[: max(limite_por_termo * 2, 16)]:
-                titulo = item.get("title", "Sem titulo")
-                link = item.get("link", "")
-                publicado_em = extrair_data_rss(item)
-                if apenas_dia_atual and not publicado_no_dia(
-                    publicado_em,
-                    data_referencia,
-                    timezone,
-                ):
+        with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+            for termo in termos[:12]:
+                url = _url_google_news_interesse(termo)
+                try:
+                    resposta = client.get(url, headers={"User-Agent": USER_AGENT})
+                    resposta.raise_for_status()
+                except httpx.HTTPError:
                     continue
-                chave = _chave_noticia(titulo, link)
-                if chave in vistos:
-                    continue
-                vistos.add(chave)
-                noticias.append(
-                    ItemFonteNoticia(
-                        titulo=titulo,
-                        link=link,
-                        fonte=_fonte_interesse(item, termo),
-                        publicado=item.get("published") or item.get("updated") or "",
-                        publicado_em=publicado_em,
-                        grupo="interesses",
-                        interesse=termo,
+                feed = feedparser.parse(resposta.content)
+                for item in feed.entries[: max(limite_por_termo * 2, 16)]:
+                    titulo = item.get("title", "Sem titulo")
+                    link = item.get("link", "")
+                    publicado_em = extrair_data_rss(item)
+                    if apenas_dia_atual and not publicado_no_dia(
+                        publicado_em,
+                        data_referencia,
+                        timezone,
+                    ):
+                        continue
+                    chave = _chave_noticia(titulo, link)
+                    if chave in vistos:
+                        continue
+                    vistos.add(chave)
+                    noticias.append(
+                        ItemFonteNoticia(
+                            titulo=titulo,
+                            link=link,
+                            fonte=_fonte_interesse(item, termo),
+                            publicado=item.get("published") or item.get("updated") or "",
+                            publicado_em=publicado_em,
+                            grupo="interesses",
+                            interesse=termo,
+                        )
                     )
-                )
+                    if len(noticias) >= limite:
+                        break
                 if len(noticias) >= limite:
                     break
-            if len(noticias) >= limite:
-                break
         return ordenar_itens_por_publicacao(noticias)[:limite]
 
 
 class HtmlJsonLdNewsSource:
     """Extrai noticias de paginas HTML que expoem JSON-LD de artigos."""
 
-    def __init__(self, timeout: float = 15.0) -> None:
+    def __init__(self, timeout: float = TIMEOUT_PADRAO_NOTICIAS) -> None:
         """Define timeout conservador para consultas HTML.
 
         Args:

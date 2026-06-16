@@ -2,5 +2,5 @@
 
 __all__ = ["__version__", "USER_AGENT"]
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 USER_AGENT = f"assistente-pessoal/{__version__}"

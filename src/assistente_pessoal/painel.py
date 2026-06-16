@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -31,6 +32,8 @@ from assistente_pessoal.noticias import (
     Noticia,
 )
 from assistente_pessoal.roteador import RespostaRoteador, RoteadorComandos
+
+GEMINI_INTENCAO_CHAT_TIMEOUT = 8.0
 
 
 @dataclass(frozen=True)
@@ -76,7 +79,7 @@ class DashboardService:
         self.clima = ClienteClima()
         self.cambio = ClienteCambio()
         self.google_agenda = ClienteGoogleAgenda(config.google_agenda)
-        self.gemini_intencoes = ClienteGemini(config.llm)
+        self.gemini_intencoes = ClienteGemini(config.llm, timeout=GEMINI_INTENCAO_CHAT_TIMEOUT)
         self.gerador_insights = GeradorInsightsDashboard(config)
         self._cache_clima: tuple[datetime, PrevisaoClima] | None = None
         self._cache_resumo_semana: tuple[datetime, list[ResumoClimaDia]] | None = None
@@ -94,19 +97,31 @@ class DashboardService:
         limite_noticias: int = LIMITE_PADRAO_NOTICIAS,
     ) -> DashboardSnapshot:
         """Monta um snapshot unico para reduzir chamadas espalhadas na interface."""
-        previsao = self._carregar_previsao(dia_clima)
-        resumo_semana = self._carregar_resumo_semana()
-        cotacao_dolar = self._carregar_cotacao_dolar()
-        noticias = self._carregar_noticias(limite_noticias)
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futuro_previsao = executor.submit(self._carregar_previsao, dia_clima)
+            futuro_resumo_semana = executor.submit(self._carregar_resumo_semana)
+            futuro_cotacao_dolar = executor.submit(self._carregar_cotacao_dolar)
+            futuro_noticias = executor.submit(self._carregar_noticias, limite_noticias)
+            futuro_agenda_google = executor.submit(self._carregar_agenda_google)
+            futuro_clima_ontem = executor.submit(self._carregar_clima_ontem)
+
+            notas = [
+                self.memoria.caminho_relativo(caminho)
+                for caminho in self.memoria.listar_recentes()
+            ]
+            agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
+            perfil_pessoal = self.memoria.obter_perfil_pessoal()
+            interesses_usuario = self.memoria.listar_interesses()
+            noticias_relevantes = self.memoria.listar_interacoes_noticias(limite=12)
+
+            previsao = futuro_previsao.result()
+            resumo_semana = futuro_resumo_semana.result()
+            cotacao_dolar = futuro_cotacao_dolar.result()
+            noticias = futuro_noticias.result()
+            agenda_google_resultado = futuro_agenda_google.result()
+            clima_ontem = futuro_clima_ontem.result()
+
         santa_maria_em_foco = self._carregar_santa_maria_em_foco(noticias)
-        notas = [
-            self.memoria.caminho_relativo(caminho) for caminho in self.memoria.listar_recentes()
-        ]
-        agenda_local = self.memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
-        perfil_pessoal = self.memoria.obter_perfil_pessoal()
-        interesses_usuario = self.memoria.listar_interesses()
-        noticias_relevantes = self.memoria.listar_interacoes_noticias(limite=12)
-        agenda_google_resultado = self._carregar_agenda_google()
         agenda_google = agenda_google_resultado.eventos
         agenda_google_futuros = [
             evento
@@ -114,7 +129,6 @@ class DashboardService:
             if evento_google_ainda_futuro(evento, self.config.localizacao.timezone)
         ]
         contagem_grupos = Counter(noticia.grupo for noticia in noticias)
-        clima_ontem = self._carregar_clima_ontem()
         clima_amanha = resumo_clima_amanha(resumo_semana, previsao.data_alvo)
         atualizado_em = datetime.now().strftime("%H:%M:%S")
         insights = self.gerador_insights.gerar(

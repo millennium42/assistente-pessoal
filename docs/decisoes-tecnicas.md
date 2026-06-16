@@ -1,6 +1,6 @@
 # Decisoes tecnicas
 
-Este documento resume as escolhas centrais da versao `0.2.1`.
+Este documento resume as escolhas centrais da versao `0.3.0`.
 
 ## Interface
 
