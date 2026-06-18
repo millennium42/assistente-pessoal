@@ -49,12 +49,11 @@ Prioridade padrao do feed:
 assistente-pessoal chat "o que voce consegue fazer?"
 ```
 
-Com `llm.api_key` e `llm.modelo = "gemini-3.5-flash"` no `config.toml`, o chat usa
+Com `llm.api_key` e `llm.modelo = "gemini-3.1-flash-lite"` no `config.toml`, o chat usa
 Gemini diretamente. Se `api_key` estiver vazio, o app tenta a variavel definida em
 `llm.api_key_env`, como `GEMINI_API_KEY`.
 
-`llm.base_url` continua disponivel para endpoints compativeis com Chat Completions.
-Sem nenhuma configuracao valida, o comando cai em fallback local.
+Sem Gemini operacional, a APPA entra em modo bloqueado.
 
 ## Dashboard
 
@@ -67,7 +66,7 @@ O dashboard local oferece:
 - aba `Insights` como visao principal
 - chat operacional da APPA dentro de `Insights`
 - card de anotacoes alimentado pelo chat
-- resumo de agenda, noticias e clima com apoio do Gemini quando disponivel
+- resumo de agenda, noticias e clima gerado pelo Gemini
 - clima atual e previsao
 - noticias priorizadas
 - interesses e perfil pessoal editaveis pela interface

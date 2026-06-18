@@ -1939,7 +1939,7 @@ def construir_dashboard(
                 with ui.row().classes("w-full items-center justify-between"):
                     ui.label("Resumo pessoal com contexto do banco").classes("section-title")
                     insight_motor = ui.label(
-                        snapshot_inicial.insights.motor if snapshot_inicial else "Local"
+                        snapshot_inicial.insights.motor if snapshot_inicial else "Gemini"
                     ).classes("insight-chip")
                 insights_widgets = _render_insights(
                     snapshot_inicial,
@@ -2423,6 +2423,7 @@ def _render_insights(
 ) -> dict[str, ui.element]:
     """Constroi o card principal e o chat operacional da assistente virtual."""
     insights = snapshot.insights if snapshot else None
+    bloqueado = bool(insights and insights.motor == "Bloqueado")
     with ui.column().classes("w-full gap-3"):
         with ui.element("div").classes("insight-workspace w-full"):
             assistente = _criar_card_insight_amplo(
@@ -2431,7 +2432,13 @@ def _render_insights(
                 "Aqui eu vou te orientar sobre o seu dia com um olhar mais humano e prático.",
             )
             anotacoes = _criar_card_anotacoes(servico)
-        _criar_chat_insights(servico, status_label, atualizar_callback, anotacoes)
+        _criar_chat_insights(
+            servico,
+            status_label,
+            atualizar_callback,
+            anotacoes,
+            bloqueado=bloqueado,
+        )
     return {
         "assistente": assistente,
         "anotacoes": anotacoes,
@@ -2467,22 +2474,37 @@ def _criar_chat_insights(
     status_label,
     atualizar_callback,
     anotacoes_container,
+    bloqueado: bool = False,
 ) -> dict[str, ui.element]:
     """Cria o chat principal da APPA dentro da aba de insights."""
+    mensagem_inicial = (
+        "Configure a GEMINI_API_KEY para liberar o chat e as automacoes da APPA."
+        if bloqueado
+        else "Estou por aqui. Me diga o que voce quer organizar e eu cuido disso com voce."
+    )
+    if not servico.chat_historico:
+        servico.chat_historico.append(("appa", mensagem_inicial))
     with ui.element("div").classes("appa-chat-shell w-full"):
         with ui.row().classes("w-full items-center justify-between"):
             with ui.row().classes("items-center gap-2"):
                 ui.icon("support_agent").classes("text-neon")
                 ui.label("APPA").classes("section-title")
-            estado = ui.label("online").classes("appa-chat-state")
+            estado = ui.label("bloqueado" if bloqueado else "online").classes("appa-chat-state")
         historico = ui.column().classes("appa-chat-log w-full")
         historico.props("data-appa-chat-log")
-        _adicionar_bolha_chat(historico, "appa", "Estou por aqui.")
+        for papel, texto in servico.chat_historico:
+            _adicionar_bolha_chat(historico, papel, texto)
         with ui.row().classes("appa-chat-compose w-full items-end gap-2"):
             entrada = ui.textarea("Mensagem para a APPA").classes("appa-chat-input")
-            entrada.props("outlined dense autogrow rows=2")
+            entrada.props("outlined dense autogrow rows=2" + (" disable" if bloqueado else ""))
+            entrada.bind_value(servico, "chat_rascunho")
 
             async def enviar_chat() -> None:
+                if bloqueado:
+                    status_label.text = (
+                        "APPA bloqueada: configure a GEMINI_API_KEY para liberar o chat."
+                    )
+                    return
                 await _enviar_chat_insights(
                     servico,
                     entrada,
@@ -2497,18 +2519,15 @@ def _criar_chat_insights(
                 "keydown.enter",
                 handler=enviar_chat,
                 js_handler=(
-                    "(event) => {"
-                    " if (!event.shiftKey) {"
-                    " event.preventDefault();"
-                    " emit();"
-                    " }"
-                    "}"
+                    "(event) => { if (!event.shiftKey) { event.preventDefault(); emit(); }}"
                 ),
             )
             ui.button(
                 icon="send",
                 on_click=enviar_chat,
-            ).props("round unelevated").classes("appa-chat-send")
+            ).props("round unelevated" + (" disable" if bloqueado else "")).classes(
+                "appa-chat-send"
+            )
     return {"historico": historico, "entrada": entrada, "estado": estado}
 
 
@@ -2522,25 +2541,43 @@ async def _enviar_chat_insights(
     anotacoes_container,
 ) -> None:
     """Envia uma mensagem do painel para o roteador operacional da APPA."""
+    if not servico.gemini_intencoes.disponivel():
+        estado.text = "bloqueado"
+        status_label.text = "APPA bloqueada: configure a GEMINI_API_KEY para continuar."
+        mensagem_bloqueio = (
+            "Nao posso operar sem Gemini ativo. Configure a GEMINI_API_KEY e tente de novo."
+        )
+        servico.chat_historico.append(("appa", mensagem_bloqueio))
+        _adicionar_bolha_chat(historico, "appa", mensagem_bloqueio)
+        return
     mensagem = (entrada.value or "").strip()
     if not mensagem:
         estado.text = "aguardando mensagem"
         return
+    servico.chat_historico.append(("usuario", mensagem))
     _adicionar_bolha_chat(historico, "usuario", mensagem)
     entrada.value = ""
+    servico.chat_rascunho = ""
     entrada.update()
     estado.text = "processando"
-    status_label.text = "APPA processando sua mensagem."
+    status_label.text = "Pensando no melhor jeito de te ajudar agora."
     try:
         resposta = await run.io_bound(servico.conversar, mensagem)
     except Exception as exc:  # pragma: no cover
         estado.text = "erro"
         status_label.text = f"Falha no chat da APPA: {exc}"
-        _adicionar_bolha_chat(historico, "appa", f"Nao consegui concluir isso agora: {exc}")
+        mensagem_erro = f"Nao consegui concluir isso agora: {exc}"
+        servico.chat_historico.append(("appa", mensagem_erro))
+        _adicionar_bolha_chat(historico, "appa", mensagem_erro)
         return
+    servico.chat_historico.append(("appa", resposta.texto))
     _adicionar_bolha_chat(historico, "appa", resposta.texto)
-    estado.text = "online"
-    status_label.text = "APPA respondeu."
+    if not servico.gemini_intencoes.disponivel() or "bloquead" in resposta.texto.lower():
+        estado.text = "bloqueado"
+        status_label.text = "APPA bloqueada: configure a GEMINI_API_KEY para continuar."
+    else:
+        estado.text = "online"
+        status_label.text = "Conversa atualizada."
     if resposta.anotacoes_alteradas:
         _popular_anotacoes(anotacoes_container, servico.anotacoes_chat)
     if resposta.agenda_alterada:
@@ -3131,12 +3168,12 @@ def _salvar_noticia_observada(
         status_label.text = "Nao consegui identificar a noticia para salvar."
         return
     try:
-        caminho = servico.salvar_noticia_relevante(noticia, origem="clique")
+        servico.salvar_noticia_relevante(noticia, origem="clique")
     except Exception as exc:  # pragma: no cover
         status_label.text = f"Falha ao salvar noticia: {exc}"
         return
-    status_label.text = f"Noticia salva no banco em {caminho}."
-    ui.notify("Noticia salva no banco.", type="positive")
+    status_label.text = "Noticia salva na memoria da APPA."
+    ui.notify("Noticia salva na memoria da APPA.", type="positive")
 
 
 def _normalizar_evento_noticia(dados_noticia):
@@ -3263,6 +3300,10 @@ def _criar_evento_google(
     agenda_mes_titulo,
 ) -> None:
     """Cria um evento simples na Google Agenda e atualiza o calendario mensal."""
+    if not servico.gemini_intencoes.disponivel():
+        status_label.text = "A automacao da agenda depende do Gemini ativo."
+        painel_status.text = "Configure a GEMINI_API_KEY para liberar a APPA."
+        return
     if not titulo.strip() or not data_texto.strip() or not hora_texto.strip():
         status_label.text = "Preencha titulo, data e hora para criar o evento."
         return

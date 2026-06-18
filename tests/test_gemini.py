@@ -3,6 +3,8 @@
 import json
 from datetime import datetime
 
+import httpx
+
 from assistente_pessoal.config import LLMConfig
 from assistente_pessoal.gemini import ClienteGemini
 
@@ -25,17 +27,7 @@ class RespostaGeminiFake:
                 },
             }
         )
-        return {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": texto}
-                        ]
-                    }
-                }
-            ]
-        }
+        return {"candidates": [{"content": {"parts": [{"text": texto}]}}]}
 
 
 class ClientFake:
@@ -82,6 +74,63 @@ class ClientRateLimitFake(ClientFake):
         return RespostaRateLimitFake()
 
 
+class RespostaAuthFake:
+    """Resposta fake que simula erro de autenticacao no Gemini."""
+
+    def __init__(self, status_code: int) -> None:
+        self.request = httpx.Request("POST", "https://generativelanguage.googleapis.com/test")
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        response = httpx.Response(self.status_code, request=self.request)
+        raise httpx.HTTPStatusError("auth error", request=self.request, response=response)
+
+    def json(self) -> dict:
+        return {}
+
+
+class ClientAuthFake(ClientFake):
+    """Cliente fake que devolve 401 ou 403."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__()
+        self.status_code = status_code
+
+    def post(self, *args, **kwargs) -> RespostaAuthFake:
+        return RespostaAuthFake(self.status_code)
+
+
+class ClientServerErrorFake(ClientFake):
+    """Cliente fake que devolve erro 503 do Gemini."""
+
+    def post(self, *args, **kwargs) -> RespostaAuthFake:
+        return RespostaAuthFake(503)
+
+
+class ClientTimeoutFake(ClientFake):
+    """Cliente fake que simula timeout do Gemini."""
+
+    def post(self, *args, **kwargs):
+        raise httpx.ReadTimeout("timeout")
+
+
+class RespostaJsonInvalidoFake:
+    """Resposta fake com texto nao parseavel como JSON."""
+
+    def raise_for_status(self) -> None:
+        """Simula sucesso HTTP."""
+
+    def json(self) -> dict:
+        return {"candidates": [{"content": {"parts": [{"text": "{invalido"}]}}]}
+
+
+class ClientJsonInvalidoFake(ClientFake):
+    """Cliente fake que devolve JSON invalido no corpo textual."""
+
+    def post(self, *args, **kwargs) -> RespostaJsonInvalidoFake:
+        return RespostaJsonInvalidoFake()
+
+
 def test_gemini_desabilitado_sem_chave(monkeypatch) -> None:
     """Sem chave no ambiente o cliente nao fica disponivel."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -116,3 +165,62 @@ def test_gemini_entra_em_cooldown_apos_rate_limit(monkeypatch) -> None:
     assert cliente.disponivel() is False
     assert cliente._indisponivel_ate is not None
     assert cliente._indisponivel_ate > datetime.now()
+
+
+def test_gemini_entra_em_cooldown_apos_erro_401(monkeypatch) -> None:
+    """Erros de autenticacao tambem bloqueiam a operacao do app temporariamente."""
+    monkeypatch.setenv("GEMINI_API_KEY", "teste")
+    monkeypatch.setattr(
+        "assistente_pessoal.gemini.httpx.Client",
+        lambda *args, **kwargs: ClientAuthFake(401),
+    )
+    cliente = ClienteGemini(LLMConfig(api_key_env="GEMINI_API_KEY"))
+
+    try:
+        cliente.gerar_texto("oi")
+    except httpx.HTTPStatusError:
+        pass
+
+    assert cliente.disponivel() is False
+
+
+def test_gemini_entra_em_cooldown_apos_timeout(monkeypatch) -> None:
+    """Timeout do Gemini deve empurrar o app de volta para estado bloqueado."""
+    monkeypatch.setenv("GEMINI_API_KEY", "teste")
+    monkeypatch.setattr("assistente_pessoal.gemini.httpx.Client", ClientTimeoutFake)
+    cliente = ClienteGemini(LLMConfig(api_key_env="GEMINI_API_KEY"))
+
+    try:
+        cliente.gerar_texto("oi")
+    except httpx.TimeoutException:
+        pass
+
+    assert cliente.disponivel() is False
+
+
+def test_gemini_entra_em_cooldown_apos_erro_503(monkeypatch) -> None:
+    """Erros 5xx do Gemini devem bloquear novas tentativas temporariamente."""
+    monkeypatch.setenv("GEMINI_API_KEY", "teste")
+    monkeypatch.setattr("assistente_pessoal.gemini.httpx.Client", ClientServerErrorFake)
+    cliente = ClienteGemini(LLMConfig(api_key_env="GEMINI_API_KEY"))
+
+    try:
+        cliente.gerar_texto("oi")
+    except httpx.HTTPStatusError:
+        pass
+
+    assert cliente.disponivel() is False
+
+
+def test_gemini_entra_em_cooldown_apos_json_invalido(monkeypatch) -> None:
+    """Resposta textual invalida tambem desabilita a operacao estruturada."""
+    monkeypatch.setenv("GEMINI_API_KEY", "teste")
+    monkeypatch.setattr("assistente_pessoal.gemini.httpx.Client", ClientJsonInvalidoFake)
+    cliente = ClienteGemini(LLMConfig(api_key_env="GEMINI_API_KEY"))
+
+    try:
+        cliente.gerar_json("oi")
+    except ValueError:
+        pass
+
+    assert cliente.disponivel() is False

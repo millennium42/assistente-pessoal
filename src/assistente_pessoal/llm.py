@@ -1,9 +1,4 @@
-"""Cliente pequeno para provedores compativeis com Chat Completions.
-
-Fornece uma interface simplificada para comunicar com modelos de linguagem
-(LLMs) usando a API padrao da OpenAI, permitindo integrar ferramentas locais
-(como Ollama) ou servicos remotos.
-"""
+"""Cliente enxuto que delega todas as respostas ao Gemini."""
 
 from __future__ import annotations
 
@@ -11,7 +6,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from assistente_pessoal.config import LLMConfig, ler_api_key
+from assistente_pessoal.config import LLMConfig
 from assistente_pessoal.gemini import ClienteGemini
 
 
@@ -29,13 +24,13 @@ class RespostaLLM:
 
 
 class ClienteLLM:
-    """Encapsula chamadas HTTP para um endpoint compativel com OpenAI."""
+    """Camada fina mantida por compatibilidade sobre o cliente Gemini."""
 
     def __init__(self, config: LLMConfig, timeout: float = 45.0) -> None:
         """Inicializa o cliente LLM.
 
         Args:
-            config: Objeto com a configuracao do modelo, base_url, etc.
+            config: Objeto com a configuracao do Gemini.
             timeout: Tempo limite em segundos para aguardar a resposta da API.
         """
         self.config = config
@@ -43,12 +38,8 @@ class ClienteLLM:
         self.gemini = ClienteGemini(config, timeout=timeout)
 
     def disponivel(self) -> bool:
-        """Verifica se ha informacoes suficientes (URL e modelo) para chamada.
-
-        Returns:
-            True se o cliente estiver pronto para uso, False caso contrario.
-        """
-        return self.config.habilitado() or self.gemini.disponivel()
+        """Verifica se o Gemini esta pronto para responder."""
+        return self.gemini.disponivel()
 
     def gerar(self, mensagem: str, contexto: str | None = None) -> RespostaLLM | None:
         """Envia uma mensagem ao LLM e retorna a resposta gerada.
@@ -58,32 +49,18 @@ class ClienteLLM:
             contexto: Informacao opcional de contexto (dados, historico) para o prompt.
 
         Returns:
-            Um objeto RespostaLLM com a resposta textual, ou None se o LLM nao estiver configurado.
+            Um objeto RespostaLLM com a resposta textual, ou None se o Gemini nao
+            estiver configurado.
         """
         if not self.disponivel():
             return None
         try:
-            if not self.config.habilitado() and self.gemini.disponivel():
-                resposta = self._gerar_via_gemini(mensagem, contexto=contexto)
-                return RespostaLLM(texto=resposta, modelo=self.gemini._modelo())
-            mensagens = [
-                {
-                    "role": "system",
-                    "content": (
-                        "Voce e um assistente pessoal em pt-BR. Seja direto, util e explique "
-                        "quando estiver usando memoria ou fontes externas."
-                    ),
-                }
-            ]
-            if contexto:
-                mensagens.append({"role": "system", "content": f"Contexto local:\n{contexto}"})
-            mensagens.append({"role": "user", "content": mensagem})
-            resposta = self._post_chat(mensagens)
-            return RespostaLLM(texto=resposta, modelo=self.config.modelo)
+            resposta = self._gerar_via_gemini(mensagem, contexto=contexto)
+            return RespostaLLM(texto=resposta, modelo=self.gemini._modelo())
         except httpx.HTTPStatusError as exc:
             return RespostaLLM(
                 texto=_mensagem_erro_http_llm(exc),
-                modelo=self._modelo_ativo(),
+                modelo=self.gemini._modelo(),
             )
         except httpx.HTTPError:
             return RespostaLLM(
@@ -91,11 +68,11 @@ class ClienteLLM:
                     "Nao consegui falar com o provedor de IA agora por um problema de rede. "
                     "Tente novamente em instantes."
                 ),
-                modelo=self._modelo_ativo(),
+                modelo=self.gemini._modelo(),
             )
 
     def _gerar_via_gemini(self, mensagem: str, contexto: str | None = None) -> str:
-        """Usa Gemini como fallback quando nao ha endpoint Chat Completions configurado."""
+        """Envia a mensagem ao Gemini com um prompt curto de assistente pessoal."""
         prompt = (
             "Voce e um assistente pessoal em pt-BR. "
             "Seja direto, util e explique quando estiver usando memoria ou fontes externas.\n\n"
@@ -105,37 +82,6 @@ class ClienteLLM:
         prompt += f"Mensagem do usuario:\n{mensagem}"
         return self.gemini.gerar_texto(prompt, temperature=0.3)
 
-    def _post_chat(self, mensagens: list[dict[str, str]]) -> str:
-        """Executa a requisicao HTTP de chat para a API do provedor e extrai o conteudo.
-
-        Args:
-            mensagens: Lista de dicionarios contendo o historico do chat.
-
-        Returns:
-            A string com a resposta gerada pelo modelo.
-
-        Raises:
-            httpx.HTTPStatusError: Caso ocorra erro na comunicacao com a API.
-        """
-        base_url = self.config.base_url.rstrip("/")
-        url = f"{base_url}/chat/completions"
-        api_key = ler_api_key(self.config.api_key_env, self.config.api_key) or "ollama"
-        with httpx.Client(timeout=self.timeout) as client:
-            resposta = client.post(
-                url,
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": self.config.modelo, "messages": mensagens, "temperature": 0.3},
-            )
-            resposta.raise_for_status()
-            dados = resposta.json()
-        return dados["choices"][0]["message"]["content"].strip()
-
-    def _modelo_ativo(self) -> str:
-        """Informa qual provedor/modelo estava sendo tentado na chamada atual."""
-        if not self.config.habilitado() and self.gemini.disponivel():
-            return self.gemini._modelo()
-        return self.config.modelo or "llm"
-
 
 def resposta_fallback() -> str:
     """Mensagem de fallback padrao quando a geracao por LLM nao e possivel.
@@ -144,9 +90,8 @@ def resposta_fallback() -> str:
         Um texto explicando as capacidades locais disponiveis sem IA.
     """
     return (
-        "Ainda nao ha LLM configurado. Defina GEMINI_API_KEY para usar Gemini sem preencher "
-        "[llm], ou configure um endpoint compativel com Chat Completions. "
-        "Enquanto isso, posso executar comandos locais: clima, noticias, memoria e agenda."
+        "A APPA 0.3.1 exige o modelo Gemini (LLM) operante. O sistema esta bloqueado ate "
+        "que a chave GEMINI_API_KEY seja configurada e validada."
     )
 
 

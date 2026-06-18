@@ -1,7 +1,7 @@
 [project]
 name = "assistente-pessoal"
-version = "0.3.0"
-description = "Assistente pessoal local-first em Python com dashboard NiceGUI, memoria em SQLite e LLM opcional."
+version = "0.3.1"
+description = "Assistente pessoal local-first em Python com dashboard NiceGUI, memoria em SQLite e Gemini obrigatorio."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"

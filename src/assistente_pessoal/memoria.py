@@ -141,6 +141,18 @@ class Memoria:
                 )
                 """
             )
+            conexao.execute(
+                """
+                CREATE TABLE IF NOT EXISTS memoria_comportamental (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tipo TEXT NOT NULL,
+                    conteudo TEXT NOT NULL,
+                    nivel_confianca TEXT NOT NULL,
+                    criado_em TEXT NOT NULL,
+                    atualizado_em TEXT NOT NULL
+                )
+                """
+            )
             _sincronizar_documentos_canonicos_estruturados(conexao)
 
     def salvar_nota(
@@ -283,6 +295,18 @@ class Memoria:
                 [(interesse, agora, agora) for interesse in itens],
             )
 
+    def adicionar_interesses(self, interesses: list[str]) -> list[str]:
+        """Mescla interesses inferidos com a lista atual sem perder o historico ativo."""
+        atuais = self.listar_interesses()
+        atuais_casefold = {interesse.casefold() for interesse in atuais}
+        for interesse in interesses:
+            termo = interesse.strip()
+            if termo and termo.casefold() not in atuais_casefold:
+                atuais.append(termo)
+                atuais_casefold.add(termo.casefold())
+        self.substituir_interesses(atuais)
+        return atuais
+
     def listar_interesses(self) -> list[str]:
         """Retorna os interesses persistidos no banco estruturado."""
         self.preparar()
@@ -348,6 +372,39 @@ class Memoria:
             for titulo, link, fonte, grupo, origem, contexto, registrado_em in linhas
         ]
 
+    def registrar_comportamento(
+        self, tipo: str, conteudo: str, nivel_confianca: str = "medio"
+    ) -> None:
+        """Registra um comportamento, habito ou preferencia para uso adaptativo."""
+        self.preparar()
+        agora = _agora_iso(self.timezone)
+        with sqlite3.connect(self.db_path) as conexao:
+            conexao.execute(
+                """
+                INSERT INTO memoria_comportamental (
+                    tipo, conteudo, nivel_confianca, criado_em, atualizado_em
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (tipo, conteudo, nivel_confianca, agora, agora),
+            )
+
+    def listar_comportamentos(self, limite: int = 15) -> list[dict]:
+        """Recupera comportamentos adaptativos mapeados recentes."""
+        self.preparar()
+        with sqlite3.connect(self.db_path) as conexao:
+            try:
+                linhas = conexao.execute(
+                    """
+                    SELECT tipo, conteudo, nivel_confianca FROM memoria_comportamental
+                    ORDER BY atualizado_em DESC LIMIT ?
+                    """,
+                    (limite,),
+                ).fetchall()
+                return [{"tipo": t, "conteudo": c, "nivel_confianca": n} for t, c, n in linhas]
+            except sqlite3.OperationalError:
+                return []
+
     def contexto_secretaria_virtual(self, limite_noticias: int = 12) -> str:
         """Resume perfil, interesses e historico recente para a APPA."""
         perfil = self.obter_perfil_pessoal().strip() or "Nao informado."
@@ -368,6 +425,14 @@ class Memoria:
                 )
         else:
             linhas.append("Noticias e sinais recentes de relevancia: nenhum registro ainda.")
+
+        comportamentos = self.listar_comportamentos()
+        if comportamentos:
+            linhas.append("\nComportamentos, hábitos e preferências mapeadas:")
+            for comp in comportamentos:
+                linhas.append(
+                    f"- [{comp['tipo']}] {comp['conteudo']} (confiança: {comp['nivel_confianca']})"
+                )
         return "\n".join(linhas)
 
     def buscar(self, consulta: str, limite: int = 5) -> list[ResultadoMemoria]:

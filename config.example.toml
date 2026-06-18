@@ -10,11 +10,10 @@ longitude = -53.8149
 timezone = "America/Sao_Paulo"
 
 [llm]
-# Caminho recomendado para Gemini: preencha `api_key` ou deixe vazio e use
-# `api_key_env = "GEMINI_API_KEY"`.
-# `base_url` so e necessario para provedores compativeis com Chat Completions.
+# A APPA 0.3.1 depende do Gemini para operar.
+# Preencha `api_key` ou deixe vazio e use `api_key_env = "GEMINI_API_KEY"`.
 base_url = ""
-modelo = "gemini-3.5-flash"
+modelo = "gemini-3.1-flash-lite"
 api_key = ""
 api_key_env = "GEMINI_API_KEY"
 

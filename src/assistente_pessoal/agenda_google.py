@@ -257,6 +257,54 @@ class ClienteGoogleAgenda:
             ) from exc
         return normalizar_evento_google(resposta)
 
+    def atualizar_evento(
+        self,
+        evento_id: str,
+        evento: NovoEventoGoogleAgenda,
+    ) -> EventoGoogleAgenda:
+        """Atualiza um evento existente usando o ID oficial do Google Agenda."""
+        if not self.config.habilitado:
+            raise RuntimeError("Google Agenda desabilitada no config.toml.")
+        if not evento_id.strip():
+            raise RuntimeError("Nao recebi o identificador do evento para atualizar.")
+        try:
+            credenciais = self._obter_credenciais()
+        except FileNotFoundError as exc:
+            raise RuntimeError("Arquivo de credenciais da Google Agenda nao encontrado.") from exc
+        if credenciais is None:
+            raise RuntimeError("Google Agenda ainda nao autenticada neste ambiente.")
+        build = _import_build()
+        try:
+            servico = build("calendar", "v3", credentials=credenciais)
+            timezone = evento.inicio.tzinfo.key if hasattr(evento.inicio.tzinfo, "key") else "UTC"
+            resposta = (
+                servico.events()
+                .patch(
+                    calendarId=self.config.calendar_id,
+                    eventId=evento_id,
+                    body={
+                        "summary": evento.titulo,
+                        "location": evento.local,
+                        "description": evento.descricao,
+                        "start": {
+                            "dateTime": evento.inicio.isoformat(),
+                            "timeZone": timezone,
+                        },
+                        "end": {
+                            "dateTime": evento.fim.isoformat(),
+                            "timeZone": timezone,
+                        },
+                    },
+                )
+                .execute()
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Nao foi possivel atualizar o evento. "
+                "Verifique autenticacao e estabilidade da conexao."
+            ) from exc
+        return normalizar_evento_google(resposta)
+
     def cancelar_evento(self, evento_id: str) -> None:
         """Remove um evento do calendario configurado usando o ID oficial do Google.
 

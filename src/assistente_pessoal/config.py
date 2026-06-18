@@ -23,16 +23,16 @@ class LocalizacaoConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """Configuracao de um provedor compativel com a API de chat da OpenAI."""
+    """Configuracao do Gemini usado como cerebro obrigatorio da APPA."""
 
     base_url: str = ""
-    modelo: str = ""
+    modelo: str = "gemini-3.1-flash-lite"
     api_key: str = ""
-    api_key_env: str = "OPENAI_API_KEY"
+    api_key_env: str = "GEMINI_API_KEY"
 
     def habilitado(self) -> bool:
-        """Indica se ha informacao suficiente para chamar um LLM externo ou local."""
-        return bool(self.base_url.strip() and self.modelo.strip())
+        """Indica se ha modelo e chave suficientes para operar o Gemini."""
+        return bool(self.modelo.strip() and ler_api_key(self.api_key_env, self.api_key))
 
 
 class GoogleAgendaConfig(BaseModel):
@@ -380,7 +380,7 @@ def ler_api_key(nome_variavel: str, valor_direto: str = "") -> str:
 
     Args:
         nome_variavel: O nome da variavel de ambiente que contem a chave
-            (ex: 'OPENAI_API_KEY' ou 'GEMINI_API_KEY').
+            (ex: 'GEMINI_API_KEY').
         valor_direto: Chave literal armazenada no config.toml, se existir.
 
     Returns:

@@ -11,7 +11,12 @@ from assistente_pessoal.agenda_google import EventoGoogleAgenda, ResultadoGoogle
 from assistente_pessoal.cambio import CotacaoMoeda
 from assistente_pessoal.clima import PrevisaoClima, ResumoClimaDia
 from assistente_pessoal.config import AppConfig
-from assistente_pessoal.gui import _criar_evento_google, _dashboard_js, construir_dashboard
+from assistente_pessoal.gui import (
+    _criar_evento_google,
+    _dashboard_js,
+    _salvar_noticia_observada,
+    construir_dashboard,
+)
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import Noticia
 from assistente_pessoal.painel import DashboardService
@@ -200,8 +205,14 @@ class GeminiIntencoesFake:
 
     def gerar_json(self, prompt: str, **_kwargs) -> dict:
         self.prompts.append(prompt)
-        destino = self.destinos.pop(0) if self.destinos else "outro"
-        return {"destino": destino, "motivo": "teste"}
+        destino = self.destinos.pop(0) if self.destinos else "conversa"
+        return {
+            "acao": "criar" if destino != "conversa" else "responder",
+            "destino": destino,
+            "mensagem_ao_usuario": "Ok",
+            "conteudo": "teste",
+            "precisa_confirmacao": False,
+        }
 
 
 class LabelFake:
@@ -220,26 +231,11 @@ def _servico_sem_rede(config: AppConfig) -> DashboardService:
     return servico
 
 
-def test_dashboard_service_salva_documentos_fixos(tmp_path: Path) -> None:
-    """Permite que GUI grave plano e agenda nos caminhos esperados do banco."""
-    config = AppConfig(db_path=tmp_path / "banco")
-    servico = _servico_sem_rede(config)
-
-    caminho_agenda = servico.salvar_agenda_local("10h - monitoria")
-
-    assert caminho_agenda == "61_agenda_local/agenda-local.md"
-    snapshot = servico.carregar()
-    assert snapshot.indicadores.eventos_google == 1
-    assert len(snapshot.resumo_semana) == 7
-    assert snapshot.cotacao_dolar.valor == 5.25
-    assert snapshot.insights.motor == "Local"
-    assert snapshot.clima_ontem is not None
-
-
 def test_dashboard_service_conversa_operacional_marca_evento(tmp_path: Path) -> None:
     """Chat do painel usa o roteador operacional para criar eventos."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
+    servico.gemini_intencoes = GeminiIntencoesFake(["agenda_google"])
 
     resposta = servico.conversar("marque consulta em 2099-06-08 as 14h no consultorio")
 
@@ -252,22 +248,13 @@ def test_dashboard_service_usa_gemini_para_anotacoes_em_turnos(tmp_path: Path) -
     """Gemini decide que o pedido vai para o card de anotacoes."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
-    gemini = GeminiIntencoesFake(["anotacao"])
+    gemini = GeminiIntencoesFake(["anotacoes"])
     servico.gemini_intencoes = gemini
 
     primeira = servico.conversar("Appa anote que eu preciso passar no mercado pegar frutas")
-    segunda = servico.conversar("Sabonete também por favor")
-    final = servico.conversar("Sim")
 
     assert primeira.anotacoes_alteradas is True
-    assert primeira.texto == "Anotei. Mais alguma coisa?"
-    assert segunda.anotacoes_alteradas is True
-    assert segunda.texto == "Anotei tambem. Seria apenas isso?"
-    assert final.texto == "Combinado. Fechei essa anotacao por enquanto."
-    assert servico.anotacoes_chat == [
-        "Eu preciso passar no mercado pegar frutas",
-        "Sabonete",
-    ]
+    assert primeira.texto == "Ok"
     assert gemini.prompts
 
 
@@ -275,12 +262,12 @@ def test_dashboard_service_usa_gemini_para_agenda_em_turnos(tmp_path: Path) -> N
     """Gemini decide que o pedido vai para agenda e o rascunho e completado depois."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
-    servico.gemini_intencoes = GeminiIntencoesFake(["agenda"])
+    servico.gemini_intencoes = GeminiIntencoesFake(["agenda_google", "agenda_google"])
 
     pergunta = servico.conversar("Appa anote na minha agenda psicologo amanha")
     resposta = servico.conversar("15h30 no Henrique Ballen, na vitta ceter")
 
-    assert pergunta.texto == "Que horas e onde?"
+    assert pergunta.texto == "Que horario voce quer usar?"
     assert resposta.agenda_alterada is True
     assert servico.google_agenda.evento_criado is not None
     assert servico.google_agenda.evento_criado.titulo == "Psicologo"
@@ -303,39 +290,130 @@ def test_dashboard_service_salva_perfil_pessoal(tmp_path: Path) -> None:
     assert snapshot.insights.assistente.resumo
 
 
-def test_dashboard_service_gera_bullet_de_noticia_mais_recente(tmp_path: Path) -> None:
-    """Mantem o card de noticias como resumo, sem reciclar manchetes em destaque."""
-    config = AppConfig(db_path=tmp_path / "banco")
-    servico = _servico_sem_rede(config)
-    servico.noticias = NoticiasFakeComPublicacao()
-
-    snapshot = servico.carregar()
-
-    assert snapshot.insights.noticias.resumo
-    assert snapshot.insights.noticias.bullets
-    assert snapshot.insights.noticias.titulo == "Resumo das noticias"
-    assert "UFSM abre novo edital de pesquisa" not in snapshot.insights.noticias.bullets[0]
-    assert "feed" in snapshot.insights.noticias.bullets[0].lower()
-
-
-def test_dashboard_service_compara_clima_hoje_ontem_e_amanha(tmp_path: Path) -> None:
-    """Resume o clima comparando hoje com ontem e amanha com hoje."""
+def test_dashboard_service_exibe_bloqueio_sem_gemini(tmp_path: Path) -> None:
+    """O dashboard mostra estado bloqueado caso o Gemini nao esteja configurado."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
 
     snapshot = servico.carregar()
 
-    assert snapshot.insights.clima.titulo == "Comparativo do clima"
-    assert "ontem" in snapshot.insights.clima.resumo.lower()
-    assert "amanha" in snapshot.insights.clima.resumo.lower()
-    assert not snapshot.insights.clima.bullets[0].startswith("Hoje vs ontem:")
-    assert not snapshot.insights.clima.bullets[1].startswith("Amanha vs hoje:")
-    assert any("Maxima de" in bullet for bullet in snapshot.insights.clima.bullets)
-    assert snapshot.insights.assistente.titulo == "Sua secretaria virtual"
-    assert len(snapshot.insights.assistente.bullets) >= 4
-    assert "orientar" in snapshot.insights.assistente.bullets[0].lower()
-    assert "noticiario" in snapshot.insights.assistente.resumo.lower()
-    assert "triagem executiva" in snapshot.insights.assistente.bullets[-1].lower()
+    assert snapshot.insights.motor == "Bloqueado"
+    assert snapshot.insights.agenda.titulo == "Aguardando IA"
+    assert snapshot.insights.noticias.titulo == "Aguardando IA"
+    assert snapshot.insights.clima.titulo == "Aguardando IA"
+    assert snapshot.insights.assistente.titulo == "Sistema bloqueado"
+    assert "Gemini" in snapshot.insights.assistente.resumo
+
+
+def test_dashboard_service_omite_erro_http_cru_do_gemini(tmp_path: Path) -> None:
+    """Falhas 5xx devem virar bloqueio limpo, sem vazar a excecao bruta na GUI."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(servico.gerador_insights.gemini, "disponivel", lambda: True)
+    monkeypatch.setattr(
+        servico.gerador_insights.gemini,
+        "gerar_json",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("Server error 503")),
+    )
+
+    try:
+        snapshot = servico.carregar()
+    finally:
+        monkeypatch.undo()
+
+    assert snapshot.insights.motor == "Bloqueado"
+    assert snapshot.insights.assistente.titulo == "Sistema bloqueado"
+    assert "ficou indisponivel" in snapshot.insights.assistente.resumo.lower()
+    assert "503" not in snapshot.insights.assistente.resumo
+
+
+def test_dashboard_service_nao_confunde_eventos_da_semana_com_hoje(tmp_path: Path) -> None:
+    """Se hoje nao tiver compromissos, o contexto factual de hoje deve ir vazio ao Gemini."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    capturado: dict[str, str] = {}
+    monkeypatch = pytest.MonkeyPatch()
+
+    class GoogleAgendaSoFuturo(GoogleAgendaFake):
+        def obter_eventos_mes(self, referencia=None, *_args, **_kwargs) -> ResultadoGoogleAgenda:
+            return ResultadoGoogleAgenda(
+                eventos=[
+                    EventoGoogleAgenda(
+                        titulo="Reuniao da semana",
+                        inicio="2099-06-09T11:00:00-03:00",
+                        fim="2099-06-09T12:00:00-03:00",
+                        link="",
+                        local="",
+                        origem="",
+                    )
+                ],
+                mes_referencia=referencia,
+            )
+
+    class DateTimeHojeFixo(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = cls(2099, 6, 8, 9, 0, 0)
+            return base if tz is None else base.astimezone(tz)
+
+    servico.google_agenda = GoogleAgendaSoFuturo()
+    monkeypatch.setattr("assistente_pessoal.painel.datetime", DateTimeHojeFixo)
+    monkeypatch.setattr(servico.gerador_insights.gemini, "disponivel", lambda: True)
+
+    def fake_gerar_json(prompt: str, **_kwargs) -> dict:
+        capturado["prompt"] = prompt
+        return {
+            "agenda": {"resumo": "Sem compromissos hoje", "bullets": []},
+            "noticias": {"resumo": "Feed sob controle", "bullets": []},
+            "clima": {"resumo": "Clima estavel", "bullets": []},
+            "assistente": {"resumo": "Dia sem agenda hoje", "bullets": []},
+        }
+
+    monkeypatch.setattr(servico.gerador_insights.gemini, "gerar_json", fake_gerar_json)
+
+    try:
+        snapshot = servico.carregar()
+    finally:
+        monkeypatch.undo()
+
+    assert snapshot.insights.agenda.resumo == "Sem compromissos hoje"
+    assert '"Agenda de Hoje: []"' not in capturado["prompt"]
+    assert "Agenda de Hoje: []" in capturado["prompt"]
+    assert "Reuniao da semana" in capturado["prompt"]
+
+
+def test_dashboard_service_leva_comportamento_recorrente_para_os_insights(tmp_path: Path) -> None:
+    """Comportamentos persistidos precisam voltar como contexto factual para o Gemini."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    servico.memoria.registrar_comportamento(
+        "habito",
+        "Costuma concentrar tarefas profundas pela manha.",
+        "alto",
+    )
+    capturado: dict[str, str] = {}
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(servico.gerador_insights.gemini, "disponivel", lambda: True)
+
+    def fake_gerar_json(prompt: str, **_kwargs) -> dict:
+        capturado["prompt"] = prompt
+        return {
+            "agenda": {"resumo": "Dia organizado", "bullets": []},
+            "noticias": {"resumo": "Feed sob controle", "bullets": []},
+            "clima": {"resumo": "Clima estavel", "bullets": []},
+            "assistente": {"resumo": "Mantive seu habito da manha em mente.", "bullets": []},
+        }
+
+    monkeypatch.setattr(servico.gerador_insights.gemini, "gerar_json", fake_gerar_json)
+
+    try:
+        snapshot = servico.carregar()
+    finally:
+        monkeypatch.undo()
+
+    assert snapshot.insights.assistente.resumo == "Mantive seu habito da manha em mente."
+    assert "Costuma concentrar tarefas profundas pela manha." in capturado["prompt"]
 
 
 def test_dashboard_service_remove_repeticao_do_clima_via_gemini(tmp_path: Path) -> None:
@@ -356,18 +434,11 @@ def test_dashboard_service_remove_repeticao_do_clima_via_gemini(tmp_path: Path) 
             "noticias": {"resumo": "Feed equilibrado", "bullets": ["Mais peso em Santa Maria"]},
             "clima": {
                 "resumo": (
-                    "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
-                    "recuperar."
+                    "Hoje fica mais frio que ontem, mas amanha a temperatura tende a recuperar."
                 ),
                 "bullets": [
-                    (
-                        "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
-                        "recuperar."
-                    ),
-                    (
-                        "Hoje fica mais frio que ontem, mas amanha a temperatura tende a "
-                        "recuperar."
-                    ),
+                    ("Hoje fica mais frio que ontem, mas amanha a temperatura tende a recuperar."),
+                    ("Hoje fica mais frio que ontem, mas amanha a temperatura tende a recuperar."),
                     "Maxima de 21 C e minima de 13 C.",
                     (
                         "Vale sair com camadas leves com casaco fino; vale levar "
@@ -396,7 +467,7 @@ def test_dashboard_service_remove_repeticao_do_clima_via_gemini(tmp_path: Path) 
     finally:
         monkeypatch.undo()
 
-    assert snapshot.insights.motor == "Gemini"
+    assert snapshot.insights.motor == "Gemini 3.1 Flash-Lite"
     assert snapshot.insights.clima.resumo
     assert snapshot.insights.clima.bullets
     assert len(snapshot.insights.clima.bullets) == len(set(snapshot.insights.clima.bullets))
@@ -453,6 +524,37 @@ def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
     assert servico.memoria.listar_interesses() == ["economia"]
 
 
+def test_salvar_noticia_observada_usa_mensagem_da_memoria_appa(tmp_path: Path) -> None:
+    """A GUI nao deve sugerir caminho markdown ao confirmar noticia salva."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    status = LabelFake()
+    avisos: list[tuple[str, str | None]] = []
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "assistente_pessoal.gui.ui.notify",
+        lambda texto, type=None: avisos.append((texto, type)),
+    )
+
+    try:
+        _salvar_noticia_observada(
+            servico,
+            Noticia(
+                titulo="Carga especial chama atencao",
+                link="https://noticias.test/carga",
+                fonte="Fonte",
+                publicado="",
+                grupo="santa_maria",
+            ),
+            status,
+        )
+    finally:
+        monkeypatch.undo()
+
+    assert status.text == "Noticia salva na memoria da APPA."
+    assert avisos == [("Noticia salva na memoria da APPA.", "positive")]
+
+
 def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     """Constroi a arvore principal da GUI para capturar erros imediatos de import/layout."""
     config = AppConfig(db_path=tmp_path / "banco")
@@ -460,6 +562,21 @@ def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:
     Memoria(config.db_path).salvar_nota("Teste", "Conteudo")
 
     construir_dashboard(_servico_sem_rede(config))
+
+
+def test_construir_dashboard_reaproveita_estado_do_chat(tmp_path: Path) -> None:
+    """O refresh da pagina nao deve reiniciar a conversa nem duplicar a saudacao."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+
+    construir_dashboard(servico)
+    primeira_rodada = list(servico.chat_historico)
+    servico.chat_rascunho = "rascunho em andamento"
+    construir_dashboard(servico)
+
+    assert len(primeira_rodada) == 1
+    assert servico.chat_historico == primeira_rodada
+    assert servico.chat_rascunho == "rascunho em andamento"
 
 
 def test_dashboard_js_do_tema_e_sintaticamente_valido() -> None:
@@ -485,6 +602,7 @@ def test_criar_evento_google_na_gui_usa_servico_sem_api_real(monkeypatch, tmp_pa
     """Valida o fluxo do botao de agenda sem criar evento real."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
+    servico.gemini_intencoes = GeminiIntencoesFake(["agenda_google"])
     atualizacoes = []
 
     def popular_fake(*args) -> None:
@@ -528,6 +646,7 @@ def test_criar_evento_google_na_gui_valida_data_hora(tmp_path: Path) -> None:
     """Impede chamada ao Google quando a data ou hora esta em formato invalido."""
     config = AppConfig(db_path=tmp_path / "banco")
     servico = _servico_sem_rede(config)
+    servico.gemini_intencoes = GeminiIntencoesFake(["agenda_google"])
     status = LabelFake()
 
     _criar_evento_google(

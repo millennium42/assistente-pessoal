@@ -36,7 +36,7 @@ def test_cli_init_e_memoria(tmp_path: Path) -> None:
 
 
 def test_cli_chat_sem_llm(tmp_path: Path) -> None:
-    """Chat sem LLM configurado mostra fallback local."""
+    """Chat sem Gemini configurado mostra a mensagem de bloqueio da APPA."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
     banco = tmp_path / "banco"
@@ -49,7 +49,7 @@ def test_cli_chat_sem_llm(tmp_path: Path) -> None:
 
 
 def test_cli_chat_usa_gemini_quando_disponivel(monkeypatch, tmp_path: Path) -> None:
-    """Com Gemini disponivel, o comando chat nao deve cair no fallback local."""
+    """Com Gemini disponivel, o comando chat usa o payload estruturado do roteador."""
     runner = CliRunner()
     config_path = tmp_path / "config.toml"
     banco = tmp_path / "banco"
@@ -59,12 +59,20 @@ def test_cli_chat_usa_gemini_quando_disponivel(monkeypatch, tmp_path: Path) -> N
         lambda self: True,
     )
     monkeypatch.setattr(
-        "assistente_pessoal.llm.ClienteGemini.gerar_texto",
-        lambda self, prompt, temperature=0.3: "Resposta via Gemini",
+        "assistente_pessoal.llm.ClienteGemini.gerar_json",
+        lambda self, prompt, schema_hint=None: {
+            "acao": "responder",
+            "destino": "conversa",
+            "conteudo": "",
+            "campos_estruturados": {},
+            "nivel_confianca": "alto",
+            "precisa_confirmacao": False,
+            "mensagem_ao_usuario": "Resposta via Gemini",
+        },
     )
     monkeypatch.setattr(
         "assistente_pessoal.llm.ClienteGemini._modelo",
-        lambda self: "gemini-3.5-flash",
+        lambda self: "gemini-3.1-flash-lite",
     )
 
     result = runner.invoke(app, ["--config", str(config_path), "chat", "oi"])

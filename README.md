@@ -1,10 +1,10 @@
-# Assistente Pessoal 0.3.0
+# Assistente Pessoal 0.3.1
 
-Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e integracao opcional com LLM.
+Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e Gemini obrigatorio.
 
 ## Visao geral
 
-Esta versao `0.3.0` consolida a APPA como um assistente pessoal local-first, com dashboard responsivo, memoria em SQLite, agenda acionavel e integracoes externas opt-in.
+Esta versao `0.3.1` consolida a APPA com o modelo Gemini obrigatório, atuando como cérebro central para memória adaptativa, insights do dashboard e orquestração de rotinas.
 
 Principais capacidades:
 
@@ -12,9 +12,9 @@ Principais capacidades:
 - Dashboard local com Insights, visao geral, explorador de noticias, agenda e configuracoes.
 - Chat operacional da APPA na janela de Insights para conversar e acionar a agenda.
 - Card de Anotações na janela de Insights alimentado pelo chat da APPA.
-- Memoria persistente em SQLite com busca textual por FTS5.
+- Memoria persistente em SQLite com busca textual por FTS5 e aprendizado de comportamentos adaptativos.
 - Noticias organizadas por prioridades e interesses do usuario.
-- Integracao opcional com Gemini ou com provedores compativeis com Chat Completions.
+- Motor Gemini obrigatório orquestrando insights, comportamento e classificacao estruturada.
 - Integracao opcional com Google Agenda via OAuth local.
 
 ## Arquitetura em uma frase
@@ -94,9 +94,9 @@ O projeto usa `config.toml` como fonte principal de configuracao. Um exemplo atu
 Pontos importantes:
 
 - `db_path` define onde a memoria local sera persistida.
-- `llm.api_key` e `llm.modelo = "gemini-3.5-flash"` habilitam Gemini diretamente pelo `config.toml`.
+- `llm.api_key` e `llm.modelo = "gemini-3.1-flash-lite"` habilitam Gemini diretamente pelo `config.toml`.
 - `llm.api_key_env` permite usar uma variavel de ambiente no lugar da chave literal.
-- `llm.base_url` continua disponivel para provedores compativeis com Chat Completions.
+- sem Gemini operacional, a APPA sobe em modo bloqueado.
 - `google_agenda.credentials_path` deve apontar para um arquivo OAuth local fora de versionamento.
 - chaves e tokens devem ficar em arquivos locais fora de versionamento ou em variaveis de ambiente.
 
@@ -104,17 +104,16 @@ Variaveis de ambiente suportadas:
 
 ```dotenv
 GEMINI_API_KEY=
-OPENAI_API_KEY=
 ASSISTENTE_CONFIG=config.toml
 ```
 
 ## Privacidade e LGPD
 
-O repositório foi organizado para reforçar um modelo local-first e opt-in para integracoes externas.
+O repositorio foi organizado para reforcar um modelo local-first, com Gemini obrigatorio e integracoes externas delimitadas.
 
 - dados pessoais e memoria ficam em SQLite local, inspecionavel e apagavel
 - `config.toml` pode guardar `llm.api_key`, mas o mais seguro continua sendo usar `llm.api_key_env` ou variavel de ambiente
-- LLM, noticias, clima e Google Agenda so enviam dados para fora quando configurados ou usados
+- Gemini, noticias, clima e Google Agenda so enviam dados para fora quando configurados ou usados
 - arquivos OAuth e tokens locais nao devem ser versionados
 
 Leitura dedicada: [docs/lgpd-privacidade.md](docs/lgpd-privacidade.md)

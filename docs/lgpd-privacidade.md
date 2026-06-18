@@ -2,6 +2,8 @@
 
 O projeto adota uma postura local-first, mas nao promete funcionamento totalmente offline. Sempre que uma integracao externa e usada, existe trafego de dados correspondente.
 
+A partir da versão `0.3.1`, o Gemini é o motor cognitivo obrigatório. Interações do dia a dia serão interpretadas e enviadas ao provedor de IA.
+
 ## O que permanece local
 
 - banco SQLite com memoria e documentos canonicos
@@ -12,7 +14,8 @@ O projeto adota uma postura local-first, mas nao promete funcionamento totalment
 
 - clima: coordenadas e timezone para a Open-Meteo
 - noticias: consultas HTTP para The News, RSS, HTML e interesses
-- chat: mensagem e contexto local para o endpoint LLM configurado
+- chat: toda a intenção de roteamento depende de payloads JSON estruturados pelo Gemini
+- memória viva: sinais, interesses e comportamentos aprendidos podem ser processados pela API antes de serem persistidos
 - Google Agenda: leitura e criacao de eventos via OAuth
 
 ## Diretrizes aplicadas no repositorio

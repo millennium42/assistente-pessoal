@@ -1,6 +1,6 @@
 # Decisoes tecnicas
 
-Este documento resume as escolhas centrais da versao `0.3.0`.
+Este documento resume as escolhas centrais da versao `0.3.1`.
 
 ## Interface
 
@@ -14,7 +14,7 @@ Motivo:
 
 ## Memoria
 
-Escolha: SQLite com FTS5
+Escolha: SQLite com FTS5 + Memoria Adaptativa
 
 Motivo:
 
@@ -44,23 +44,23 @@ Motivo:
 
 ## Agenda
 
-Escolha: agenda local + Google Agenda opcional
+Escolha: Google Agenda opcional como calendario operacional
 
 Motivo:
 
-- preserva um nucleo funcional mesmo sem conta Google
-- reduz dependencias obrigatorias
+- evita duplicar calendarios manuais e operacionais
+- reduz ambiguidade sobre onde um compromisso deve viver
 - mantem criacao e leitura de eventos reais quando habilitado
 
 ## LLM
 
-Escolha: Gemini como trilha principal, com suporte adicional a Chat Completions
+Escolha: Gemini como cerebro obrigatorio
 
 Motivo:
 
-- simplifica o uso do assistente pessoal sem exigir um gateway extra
-- permite Ollama e outros endpoints compativeis quando isso fizer sentido
-- mantem fallback local quando o LLM nao estiver configurado
+- centraliza decisao, curadoria, memoria adaptativa e orquestracao do chat
+- evita divergencia entre heuristicas locais e comportamento da assistente
+- usa `gemini-3.1-flash-lite` como modelo padrao
 
 ## Privacidade
 

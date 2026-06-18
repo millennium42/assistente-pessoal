@@ -39,18 +39,18 @@ def test_normalizar_consulta_fts() -> None:
 
 
 def test_salvar_documento_fixo(tmp_path: Path) -> None:
-    """Mantem agenda e planejamento em caminhos estaveis dentro do banco."""
+    """Mantem documentos canonicos em caminhos estaveis dentro do banco."""
     memoria = Memoria(tmp_path / "banco")
 
     caminho = memoria.salvar_documento_fixo(
-        nome_arquivo="agenda-local.md",
+        nome_arquivo="planejamento.md",
         conteudo="Prova de algebra na quarta.",
-        pasta="61_agenda_local",
-        titulo="Agenda local",
+        pasta="61_planejamento",
+        titulo="Planejamento",
     )
 
-    assert caminho.name == "agenda-local.md"
-    assert "Prova de algebra" in memoria.ler_documento_fixo("61_agenda_local", "agenda-local.md")
+    assert caminho.name == "planejamento.md"
+    assert "Prova de algebra" in memoria.ler_documento_fixo("61_planejamento", "planejamento.md")
 
 
 def test_memoria_structurada_para_secretaria_virtual(tmp_path: Path) -> None:

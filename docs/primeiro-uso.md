@@ -1,6 +1,6 @@
 # Guia de primeiro uso
 
-Este guia ajuda a subir o projeto pela primeira vez sem depender de integracoes externas logo no inicio.
+Este guia ajuda a subir o projeto pela primeira vez ja com o Gemini, que e obrigatorio para a APPA 0.3.1.
 
 ## 1. Prepare o ambiente
 
@@ -56,16 +56,15 @@ Use esse comando sempre que quiser confirmar qual banco esta em uso na sessao at
 
 O dashboard sobe primeiro e atualiza os blocos externos depois. Isso deixa a abertura mais responsiva mesmo quando clima, noticias ou agenda estiverem lentos.
 
-## 7. Habilite o LLM apenas se quiser
+## 7. Configure o LLM (Obrigatorio)
 
-O caminho mais direto hoje e preencher o bloco `[llm]` com a chave do Gemini e um
-modelo estavel.
+O caminho mais direto hoje e preencher o bloco `[llm]` com a chave do Gemini. A APPA depende da IA para inferências de comportamento e curadoria principal.
 
 Exemplo minimo no `config.toml`:
 
 ```toml
 [llm]
-modelo = "gemini-3.5-flash"
+modelo = "gemini-3.1-flash-lite"
 api_key = "SUA_CHAVE_GEMINI"
 api_key_env = "GEMINI_API_KEY"
 ```
@@ -74,10 +73,7 @@ Se preferir nao gravar a chave no arquivo, deixe `api_key` vazio e defina apenas
 `GEMINI_API_KEY` no ambiente. O app tenta `llm.api_key` primeiro e depois usa
 `llm.api_key_env`.
 
-`gemini-3.5-flash` e o modelo estavel recomendado para producao. Os modelos
-`gemini-2.0-flash` foram descontinuados em 1 de junho de 2026.
-
-Se nenhuma das trilhas estiver configurada, o comando `chat` cai no fallback local.
+`gemini-3.1-flash-lite` e o modelo oficial padrao na versao 0.3.1. Sem ele operante, a interface principal fica bloqueada.
 
 ## 8. Configure Google Agenda de forma segura
 
@@ -118,10 +114,10 @@ Isso normalmente significa uma destas situacoes:
 
 ### O chat diz que nao ha LLM configurado
 
-Esse comportamento so e esperado quando as duas trilhas estao ausentes:
+Esse comportamento so e esperado quando a APPA ainda nao conseguiu validar o Gemini:
 
 - `llm.api_key` esta vazio e `GEMINI_API_KEY` nao esta definida
-- `llm.base_url` ou `llm.modelo` estao vazios para a trilha Chat Completions
+- a chave configurada esta invalida ou sem permissao para o Gemini
 
 ### O chat avisa que o Gemini atingiu o limite de uso
 

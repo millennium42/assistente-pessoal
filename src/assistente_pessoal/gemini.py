@@ -10,7 +10,7 @@ import httpx
 from assistente_pessoal.config import LLMConfig, ler_api_key
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODELO_PADRAO = "gemini-3.5-flash"
+GEMINI_MODELO_PADRAO = "gemini-3.1-flash-lite"
 
 
 class ClienteGemini:
@@ -42,6 +42,7 @@ class ClienteGemini:
         try:
             return json.loads(_extrair_json(texto))
         except json.JSONDecodeError as exc:
+            self._marcar_indisponivel()
             raise ValueError("Gemini retornou JSON invalido.") from exc
 
     def gerar_texto(
@@ -69,10 +70,7 @@ class ClienteGemini:
         api_key = self._ler_chave_api()
         if not api_key:
             raise RuntimeError("Chave da API Gemini nao encontrada no ambiente.")
-        url = (
-            f"{self._base_url().rstrip('/')}/models/"
-            f"{self._modelo().strip()}:generateContent"
-        )
+        url = f"{self._base_url().rstrip('/')}/models/{self._modelo().strip()}:generateContent"
         prompt_final = prompt
         if schema_hint:
             prompt_final = f"{prompt}\n\nEsquema esperado:\n{schema_hint}"
@@ -91,18 +89,23 @@ class ClienteGemini:
                 )
                 resposta.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == 429:
+                if exc.response.status_code in {401, 403, 429} or exc.response.status_code >= 500:
                     self._indisponivel_ate = datetime.now() + timedelta(minutes=5)
+                raise
+            except httpx.TimeoutException:
+                self._marcar_indisponivel()
                 raise
             dados = resposta.json()
         candidatos = dados.get("candidates") or []
         if not candidatos:
+            self._marcar_indisponivel()
             raise ValueError("Gemini nao retornou candidatos.")
         partes = candidatos[0].get("content", {}).get("parts") or []
         texto = "".join(
             parte.get("text", "") for parte in partes if isinstance(parte, dict)
         ).strip()
         if not texto:
+            self._marcar_indisponivel()
             raise ValueError("Gemini retornou conteudo vazio.")
         return texto
 
@@ -121,6 +124,10 @@ class ClienteGemini:
     def _em_cooldown(self) -> bool:
         """Evita insistir no Gemini logo apos um rate limit."""
         return self._indisponivel_ate is not None and datetime.now() < self._indisponivel_ate
+
+    def _marcar_indisponivel(self, minutos: int = 5) -> None:
+        """Coloca o cliente em cooldown quando a resposta do Gemini nao e confiavel."""
+        self._indisponivel_ate = datetime.now() + timedelta(minutes=minutos)
 
 
 def _extrair_json(texto: str) -> str:
