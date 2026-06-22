@@ -46,6 +46,16 @@ class ClientFake:
         return RespostaGeminiFake()
 
 
+class ClientCapturaPayload(ClientFake):
+    """Cliente fake que preserva o JSON enviado ao Gemini."""
+
+    payloads: list[dict] = []
+
+    def post(self, *args, **kwargs) -> RespostaGeminiFake:
+        self.payloads.append(kwargs["json"])
+        return RespostaGeminiFake()
+
+
 class RespostaRateLimitFake:
     """Resposta fake que simula rate limit do Gemini."""
 
@@ -149,6 +159,20 @@ def test_gemini_gera_json(monkeypatch) -> None:
 
     assert dados["agenda"]["resumo"] == "Dia organizado"
     assert dados["clima"]["bullets"] == ["Chance moderada de chuva"]
+
+
+def test_gemini_envia_limite_de_tokens_e_mime_type_oficial(monkeypatch) -> None:
+    """Limita o tamanho da resposta para evitar gasto desnecessario de tokens."""
+    monkeypatch.setenv("GEMINI_API_KEY", "teste")
+    ClientCapturaPayload.payloads = []
+    monkeypatch.setattr("assistente_pessoal.gemini.httpx.Client", ClientCapturaPayload)
+    cliente = ClienteGemini(LLMConfig(api_key_env="GEMINI_API_KEY"))
+
+    cliente.gerar_json("Resuma meu dia", max_output_tokens=321)
+
+    generation_config = ClientCapturaPayload.payloads[0]["generationConfig"]
+    assert generation_config["maxOutputTokens"] == 321
+    assert generation_config["responseMimeType"] == "application/json"
 
 
 def test_gemini_entra_em_cooldown_apos_rate_limit(monkeypatch) -> None:

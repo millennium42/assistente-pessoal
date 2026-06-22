@@ -24,6 +24,7 @@ class RespostaRoteador:
     agenda_alterada: bool = False
     agenda_referencia: date | None = None
     anotacoes_alteradas: bool = False
+    contexto_alterado: bool = False
 
 
 class RoteadorComandos:
@@ -61,8 +62,20 @@ class RoteadorComandos:
         if not hasattr(gemini_cli, "disponivel") or not gemini_cli.disponivel():
             return RespostaRoteador(resposta_fallback())
 
+        acao_local_agenda = self.agenda_chat.tentar_executar(comando)
+        if acao_local_agenda is not None:
+            return RespostaRoteador(
+                acao_local_agenda.texto,
+                agenda_alterada=acao_local_agenda.agenda_alterada,
+                agenda_referencia=acao_local_agenda.referencia,
+            )
+
         contexto = _contexto_memoria(self.memoria, comando)
-        contexto_agenda = self.agenda_chat.contexto_para_llm()
+        contexto_agenda = (
+            self.agenda_chat.contexto_para_llm()
+            if _precisa_contexto_agenda(comando, self.agenda_chat)
+            else "Nao incluido: mensagem sem sinais diretos de agenda."
+        )
         schema = json.dumps(
             {
                 "acao": "criar|atualizar|reforcar|ignorar|responder",
@@ -78,8 +91,7 @@ class RoteadorComandos:
                     "link_noticia": "url opcional",
                     "agenda": {
                         "acao": (
-                            "criar|atualizar_ultimo|atualizar_existente|"
-                            "cancelar|perguntar|ignorar"
+                            "criar|atualizar_ultimo|atualizar_existente|cancelar|perguntar|ignorar"
                         ),
                         "alvo": "titulo ou descricao curta do evento alvo",
                         "alvo_data": "YYYY-MM-DD opcional para identificar o evento atual",
@@ -126,6 +138,7 @@ class RoteadorComandos:
 
         agenda_alterada = False
         anotacoes_alteradas = False
+        contexto_alterado = False
 
         if destino == "agenda_google" or "agenda" in comando.lower():
             plano_agenda = dados.get("campos_estruturados", {}).get("agenda", {})
@@ -150,11 +163,13 @@ class RoteadorComandos:
                 tipo = str(campos.get("tipo_comportamento", "inferencia"))
                 nivel = str(dados.get("nivel_confianca", "medio"))
                 self.memoria.registrar_comportamento(tipo, conteudo, nivel)
+                contexto_alterado = True
                 if tipo == "interesse":
                     interesses = campos.get("interesses") or [conteudo]
                     self._persistir_interesses_inferidos(interesses)
             elif destino == "perfil_pessoal":
                 self.memoria.salvar_perfil_pessoal(conteudo)
+                contexto_alterado = True
             elif destino == "noticias_relevantes":
                 campos = dados.get("campos_estruturados", {})
                 self.memoria.registrar_interacao_noticia(
@@ -165,11 +180,13 @@ class RoteadorComandos:
                     origem="chat",
                     contexto=comando,
                 )
+                contexto_alterado = True
 
         return RespostaRoteador(
             mensagem_retorno,
             agenda_alterada=agenda_alterada,
             anotacoes_alteradas=anotacoes_alteradas,
+            contexto_alterado=contexto_alterado,
         )
 
     def _persistir_interesses_inferidos(self, interesses: list[str]) -> None:
@@ -222,6 +239,32 @@ def _contexto_memoria(memoria: Memoria, consulta: str) -> str:
     if contexto_busca:
         return f"{contexto_secretaria}\n\nMemorias relacionadas:\n{contexto_busca}"
     return contexto_secretaria
+
+
+def _precisa_contexto_agenda(texto: str, agenda_chat: AssistenteAgendaChat) -> bool:
+    """Evita carregar e enviar agenda ao Gemini quando o assunto nao pede isso."""
+    texto_normalizado = texto.lower()
+    if agenda_chat.pedido_pendente is not None or agenda_chat.evento_em_andamento is not None:
+        return True
+    marcadores = (
+        "agenda",
+        "agende",
+        "agendar",
+        "marque",
+        "marcar",
+        "desmarque",
+        "desmarcar",
+        "cancele",
+        "cancelar",
+        "compromisso",
+        "evento",
+        "consulta",
+        "reuniao",
+        "reunião",
+        "horario",
+        "horário",
+    )
+    return any(marcador in texto_normalizado for marcador in marcadores)
 
 
 def _normalizar_interesses_inferidos(interesses: list[str]) -> list[str]:

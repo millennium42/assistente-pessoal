@@ -10,7 +10,7 @@ longitude = -53.8149
 timezone = "America/Sao_Paulo"
 
 [llm]
-# A APPA 0.3.1 depende do Gemini para operar.
+# A APPA 0.3.2 depende do Gemini para operar.
 # Preencha `api_key` ou deixe vazio e use `api_key_env = "GEMINI_API_KEY"`.
 base_url = ""
 modelo = "gemini-3.1-flash-lite"
@@ -27,6 +27,7 @@ janela_dias = 7
 
 [dashboard]
 intervalo_atualizacao_segundos = 15
+ttl_insights_segundos = 900
 ttl_dolar_segundos = 15
 ttl_noticias_segundos = 60
 ttl_agenda_segundos = 1800

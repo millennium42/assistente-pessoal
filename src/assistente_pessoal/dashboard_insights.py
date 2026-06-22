@@ -16,6 +16,12 @@ from assistente_pessoal.memoria import InteracaoNoticiaMemoria
 from assistente_pessoal.noticias import Noticia, rotulo_tempo_publicacao
 
 DASHBOARD_GEMINI_TIMEOUT = 12.0
+MAX_MANCHETES_PROMPT = 12
+MAX_NOTICIAS_MEMORIA_PROMPT = 8
+MAX_COMPORTAMENTOS_PROMPT = 8
+MAX_TEXTO_CURTO_PROMPT = 180
+MAX_TEXTO_MEDIO_PROMPT = 360
+MAX_PERFIL_PROMPT = 900
 
 
 @dataclass(frozen=True)
@@ -46,6 +52,13 @@ class GeradorInsightsDashboard:
         self.gemini = cliente_gemini or ClienteGemini(config.llm, timeout=DASHBOARD_GEMINI_TIMEOUT)
         self._cache_fingerprint: str | None = None
         self._cache_resultado: DashboardInsights | None = None
+        self._cache_criado_em: datetime | None = None
+
+    def invalidar_cache(self) -> None:
+        """Forca a proxima geracao a consultar o Gemini novamente."""
+        self._cache_fingerprint = None
+        self._cache_resultado = None
+        self._cache_criado_em = None
 
     def gerar(
         self,
@@ -73,8 +86,13 @@ class GeradorInsightsDashboard:
             clima_ontem=clima_ontem,
             clima_amanha=clima_amanha,
             perfil_pessoal=perfil_pessoal,
+            interesses_usuario=interesses_usuario,
+            noticias_relevantes=noticias_relevantes,
+            comportamentos=comportamentos,
         )
         if self._cache_fingerprint == fingerprint and self._cache_resultado is not None:
+            return self._cache_resultado
+        if self._cache_resultado is not None and self._cache_dentro_ttl():
             return self._cache_resultado
         if not self.gemini.disponivel():
             resultado_lock = DashboardInsights(
@@ -95,7 +113,7 @@ class GeradorInsightsDashboard:
                 ),
                 assistente=InsightCard(
                     "Sistema bloqueado",
-                    "O APPA 0.3.1 requer o Gemini para processar memoria adaptativa e insights. "
+                    "O APPA 0.3.2 requer o Gemini para processar memoria adaptativa e insights. "
                     "Adicione a chave GEMINI_API_KEY no arquivo de configuração ou no ambiente.",
                     [],
                 ),
@@ -103,6 +121,7 @@ class GeradorInsightsDashboard:
             )
             self._cache_fingerprint = fingerprint
             self._cache_resultado = resultado_lock
+            self._cache_criado_em = datetime.now()
             return resultado_lock
 
         try:
@@ -149,7 +168,15 @@ class GeradorInsightsDashboard:
             )
         self._cache_fingerprint = fingerprint
         self._cache_resultado = resultado
+        self._cache_criado_em = datetime.now()
         return resultado
+
+    def _cache_dentro_ttl(self) -> bool:
+        """Evita gastar tokens enquanto o painel apenas refresca em segundo plano."""
+        if self._cache_criado_em is None:
+            return False
+        ttl = self.config.dashboard.ttl_insights_segundos
+        return datetime.now() - self._cache_criado_em < timedelta(seconds=ttl)
 
     def _via_gemini(
         self,
@@ -249,18 +276,31 @@ class GeradorInsightsDashboard:
         ]
 
         manchetes: dict[str, list[str]] = {}
-        for noticia in noticias[:18]:
-            manchetes.setdefault(noticia.grupo or "geral", []).append(noticia.titulo)
+        for noticia in noticias[:MAX_MANCHETES_PROMPT]:
+            manchetes.setdefault(noticia.grupo or "geral", []).append(
+                _limitar_texto(noticia.titulo, MAX_TEXTO_CURTO_PROMPT)
+            )
         noticias_memoria = [
             {
-                "titulo": noticia.titulo,
+                "titulo": _limitar_texto(noticia.titulo, MAX_TEXTO_CURTO_PROMPT),
                 "grupo": noticia.grupo,
                 "fonte": noticia.fonte,
                 "origem": noticia.origem,
-                "contexto": noticia.contexto,
+                "contexto": _limitar_texto(noticia.contexto, MAX_TEXTO_MEDIO_PROMPT),
                 "registrado_em": noticia.registrado_em,
             }
-            for noticia in noticias_relevantes[:12]
+            for noticia in noticias_relevantes[:MAX_NOTICIAS_MEMORIA_PROMPT]
+        ]
+        comportamentos_prompt = [
+            {
+                "tipo": str(comportamento.get("tipo") or ""),
+                "conteudo": _limitar_texto(
+                    str(comportamento.get("conteudo") or ""),
+                    MAX_TEXTO_MEDIO_PROMPT,
+                ),
+                "nivel_confianca": str(comportamento.get("nivel_confianca") or ""),
+            }
+            for comportamento in comportamentos[:MAX_COMPORTAMENTOS_PROMPT]
         ]
         clima_payload = {
             "cidade": previsao.cidade,
@@ -317,12 +357,13 @@ class GeradorInsightsDashboard:
             "Nao repita no resumo a mesma frase usada nos bullets. "
             "Use os bullets para complementar com faixa termica, roupas, chuva ou impacto pratico. "
             "Evite bullets mecanicos como 'Hoje vs ontem' e 'Amanha vs hoje'.\n\n"
-            f"Perfil pessoal persistido no banco: {perfil_pessoal or 'Nao informado.'}\n"
-            f"Interesses salvos: {json.dumps(interesses_usuario, ensure_ascii=False)}\n"
+            "Perfil pessoal persistido no banco: "
+            f"{_limitar_texto(perfil_pessoal, MAX_PERFIL_PROMPT) or 'Nao informado.'}\n"
+            f"Interesses salvos: {json.dumps(interesses_usuario[:8], ensure_ascii=False)}\n"
             "Historico de noticias relevantes: "
             f"{json.dumps(noticias_memoria, ensure_ascii=False)}\n"
             "Comportamentos adaptativos observados: "
-            f"{json.dumps(comportamentos, ensure_ascii=False)}\n"
+            f"{json.dumps(comportamentos_prompt, ensure_ascii=False)}\n"
             f"Agenda de Hoje: {json.dumps(hoje_json, ensure_ascii=False)}\n"
             f"Agenda Futura Próxima: {json.dumps(futuros_json, ensure_ascii=False)}\n"
             f"Noticias por grupo: {json.dumps(noticias_por_grupo, ensure_ascii=False)}\n"
@@ -340,6 +381,9 @@ class GeradorInsightsDashboard:
         clima_ontem: ResumoClimaDia | None,
         clima_amanha: ResumoClimaDia | None,
         perfil_pessoal: str,
+        interesses_usuario: list[str],
+        noticias_relevantes: list[InteracaoNoticiaMemoria],
+        comportamentos: list[dict],
     ) -> str:
         """Deriva um hash estavel dos dados relevantes para evitar recomputos."""
         payload = {
@@ -388,6 +432,24 @@ class GeradorInsightsDashboard:
                 else None
             ),
             "perfil_pessoal": perfil_pessoal[:300],
+            "interesses_usuario": interesses_usuario[:8],
+            "noticias_relevantes": [
+                {
+                    "titulo": noticia.titulo,
+                    "grupo": noticia.grupo,
+                    "origem": noticia.origem,
+                    "contexto": noticia.contexto[:160],
+                }
+                for noticia in noticias_relevantes[:MAX_NOTICIAS_MEMORIA_PROMPT]
+            ],
+            "comportamentos": [
+                {
+                    "tipo": str(comportamento.get("tipo") or ""),
+                    "conteudo": str(comportamento.get("conteudo") or "")[:180],
+                    "nivel_confianca": str(comportamento.get("nivel_confianca") or ""),
+                }
+                for comportamento in comportamentos[:MAX_COMPORTAMENTOS_PROMPT]
+            ],
         }
         bruto = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return hashlib.sha1(bruto.encode("utf-8")).hexdigest()
@@ -699,6 +761,14 @@ def _extrair_foco_noticias(resumo: str) -> str:
 def _frase_curta(texto: str) -> str:
     partes = texto.split(".")
     return f"{partes[0]}." if partes else texto
+
+
+def _limitar_texto(texto: str, limite: int) -> str:
+    """Corta contexto antes de enviar ao modelo para conter custo de tokens."""
+    limpo = " ".join(str(texto or "").split())
+    if len(limpo) <= limite:
+        return limpo
+    return limpo[: limite - 1].rstrip() + "..."
 
 
 def _filtrar_bullets_distintos(resumo: str, bullets: list[str]) -> list[str]:

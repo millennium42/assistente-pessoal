@@ -281,6 +281,7 @@ class DashboardService:
         self.config.fontes.noticias.interesses_busca = existentes
         self._persistir_config()
         self.memoria.substituir_interesses(existentes)
+        self.gerador_insights.invalidar_cache()
         return existentes
 
     def remover_interesse(self, interesse: str) -> list[str]:
@@ -297,6 +298,7 @@ class DashboardService:
         self.config.fontes.noticias.interesses_busca = existentes
         self._persistir_config()
         self.memoria.substituir_interesses(existentes)
+        self.gerador_insights.invalidar_cache()
         return existentes
 
     def salvar_noticia_relevante(self, noticia: Noticia | dict, origem: str = "clique") -> str:
@@ -326,6 +328,7 @@ class DashboardService:
             origem=origem,
             contexto="clique do usuario",
         )
+        self.gerador_insights.invalidar_cache()
         caminho = self.memoria.salvar_nota(
             titulo=item["titulo"],
             conteudo=conteudo,
@@ -349,6 +352,7 @@ class DashboardService:
                 origem="consulta",
                 contexto=consulta,
             )
+        self.gerador_insights.invalidar_cache()
         caminho = self.memoria.salvar_nota(
             titulo="Consulta de noticias",
             conteudo="\n".join(linhas),
@@ -375,14 +379,18 @@ class DashboardService:
 
         if resposta.agenda_alterada:
             self._cache_agenda_google = None
+            self.gerador_insights.invalidar_cache()
         if resposta.anotacoes_alteradas:
-            pass
+            self.gerador_insights.invalidar_cache()
+        if resposta.contexto_alterado:
+            self.gerador_insights.invalidar_cache()
 
         return resposta
 
     def salvar_perfil_pessoal(self, conteudo: str) -> str:
         """Mantem um resumo pessoal canonico para personalizar o assistente."""
         self.memoria.salvar_perfil_pessoal(conteudo)
+        self.gerador_insights.invalidar_cache()
         return "sqlite://perfil_pessoal"
 
     def _persistir_config(self) -> None:

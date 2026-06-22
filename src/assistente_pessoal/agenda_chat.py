@@ -705,7 +705,7 @@ def _resolver_titulo_atualizacao(texto: str, titulo_atual: str) -> str:
     candidato = _limpar_titulo_candidato(_extrair_titulo_criacao(texto))
     if not candidato:
         return titulo_atual
-    if _parece_correcao_titulo(texto) or _normalizar(candidato) != _normalizar(titulo_atual):
+    if _parece_correcao_titulo(texto):
         return candidato
     return titulo_atual
 
@@ -836,8 +836,7 @@ def _parece_atualizacao_agenda(texto: str, titulo_atual: str) -> bool:
         return True
     if _parece_correcao_titulo(texto):
         return True
-    titulo_candidato = _extrair_titulo_criacao(texto)
-    return bool(titulo_candidato and _normalizar(titulo_candidato) != _normalizar(titulo_atual))
+    return False
 
 
 def _resumir_evento(evento: EventoGoogleAgenda, timezone: str) -> str:

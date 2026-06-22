@@ -104,6 +104,26 @@ class NoticiasFakeComPublicacao(NoticiasFake):
         ]
 
 
+class NoticiasMutaveis(NoticiasFake):
+    """Entrega uma manchete diferente a cada consulta."""
+
+    def __init__(self) -> None:
+        self.chamadas = 0
+
+    def listar(self, *_args, **_kwargs) -> list[Noticia]:
+        self.chamadas += 1
+        return [
+            Noticia(
+                titulo=f"Manchete mutavel {self.chamadas}",
+                link=f"https://noticias.test/{self.chamadas}",
+                fonte="Fonte Mutavel",
+                publicado="2026-06-08T12:00:00-03:00",
+                publicado_em=datetime(2026, 6, 8, 12, 0),
+                grupo="tech",
+            )
+        ]
+
+
 class NoticiasContador(NoticiasFake):
     """Conta consultas ao feed para validar o cache curto de noticias."""
 
@@ -212,6 +232,25 @@ class GeminiIntencoesFake:
             "mensagem_ao_usuario": "Ok",
             "conteudo": "teste",
             "precisa_confirmacao": False,
+        }
+
+
+class GeminiInsightsContador:
+    """Conta chamadas usadas para gerar os insights do dashboard."""
+
+    def __init__(self) -> None:
+        self.chamadas = 0
+
+    def disponivel(self) -> bool:
+        return True
+
+    def gerar_json(self, *_args, **_kwargs) -> dict:
+        self.chamadas += 1
+        return {
+            "agenda": {"resumo": f"Agenda {self.chamadas}", "bullets": []},
+            "noticias": {"resumo": f"Noticias {self.chamadas}", "bullets": []},
+            "clima": {"resumo": f"Clima {self.chamadas}", "bullets": []},
+            "assistente": {"resumo": f"Assistente {self.chamadas}", "bullets": []},
         }
 
 
@@ -493,6 +532,39 @@ def test_dashboard_service_reaproveita_cache_externo_entre_refreshes(tmp_path: P
     assert servico.noticias.chamadas == 1
     assert servico.cambio.chamadas == 1
     assert servico.google_agenda.chamadas == 1
+
+
+def test_dashboard_service_reaproveita_insights_dentro_do_ttl(tmp_path: Path) -> None:
+    """Refresh automatico nao deve chamar Gemini de novo antes do TTL de insights."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    config.dashboard.ttl_insights_segundos = 900
+    servico = _servico_sem_rede(config)
+    servico.noticias = NoticiasMutaveis()
+    gemini = GeminiInsightsContador()
+    servico.gerador_insights.gemini = gemini
+
+    primeiro = servico.carregar()
+    servico._cache_noticias = (datetime.now() - timedelta(seconds=120), [])
+    segundo = servico.carregar()
+
+    assert gemini.chamadas == 1
+    assert primeiro.insights.assistente.resumo == segundo.insights.assistente.resumo
+    assert servico.noticias.chamadas == 2
+
+
+def test_dashboard_service_invalida_insights_ao_salvar_perfil(tmp_path: Path) -> None:
+    """Mudanca local importante deve furar o TTL para atualizar contexto pessoal."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    config.dashboard.ttl_insights_segundos = 900
+    servico = _servico_sem_rede(config)
+    gemini = GeminiInsightsContador()
+    servico.gerador_insights.gemini = gemini
+
+    servico.carregar()
+    servico.salvar_perfil_pessoal("Novo perfil pessoal.")
+    servico.carregar()
+
+    assert gemini.chamadas == 2
 
 
 def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:

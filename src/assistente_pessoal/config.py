@@ -50,6 +50,7 @@ class DashboardConfig(BaseModel):
     """Controla o ritmo da interface e o cache dos blocos externos."""
 
     intervalo_atualizacao_segundos: int = Field(default=15, ge=5, le=3600)
+    ttl_insights_segundos: int = Field(default=900, ge=60, le=86400)
     ttl_dolar_segundos: int = Field(default=15, ge=5, le=3600)
     ttl_noticias_segundos: int = Field(default=60, ge=15, le=7200)
     ttl_agenda_segundos: int = Field(default=1800, ge=60, le=86400)
@@ -325,6 +326,7 @@ janela_dias = {config.google_agenda.janela_dias}
 
 [dashboard]
 intervalo_atualizacao_segundos = {config.dashboard.intervalo_atualizacao_segundos}
+ttl_insights_segundos = {config.dashboard.ttl_insights_segundos}
 ttl_dolar_segundos = {config.dashboard.ttl_dolar_segundos}
 ttl_noticias_segundos = {config.dashboard.ttl_noticias_segundos}
 ttl_agenda_segundos = {config.dashboard.ttl_agenda_segundos}

@@ -1,6 +1,6 @@
 # Decisoes tecnicas
 
-Este documento resume as escolhas centrais da versao `0.3.1`.
+Este documento resume as escolhas centrais da versao `0.3.2`.
 
 ## Interface
 
@@ -61,6 +61,18 @@ Motivo:
 - centraliza decisao, curadoria, memoria adaptativa e orquestracao do chat
 - evita divergencia entre heuristicas locais e comportamento da assistente
 - usa `gemini-3.1-flash-lite` como modelo padrao
+- limita respostas com `maxOutputTokens` e usa `responseMimeType` oficial no payload
+- corta contexto longo antes do prompt para conter uso de tokens
+
+## Cache cognitivo
+
+Escolha: TTL proprio para insights do dashboard
+
+Motivo:
+
+- evita chamar o Gemini a cada refresh automatico da interface
+- preserva atualizacao imediata quando perfil, interesses, noticias salvas, agenda ou contexto mudam pela APPA
+- mantem os caches externos separados dos insights narrativos
 
 ## Privacidade
 

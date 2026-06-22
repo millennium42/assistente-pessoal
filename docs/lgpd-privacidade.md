@@ -2,7 +2,7 @@
 
 O projeto adota uma postura local-first, mas nao promete funcionamento totalmente offline. Sempre que uma integracao externa e usada, existe trafego de dados correspondente.
 
-A partir da versão `0.3.1`, o Gemini é o motor cognitivo obrigatório. Interações do dia a dia serão interpretadas e enviadas ao provedor de IA.
+A partir da versão `0.3.2`, o Gemini é o motor cognitivo obrigatório. Interações do dia a dia serão interpretadas e enviadas ao provedor de IA.
 
 ## O que permanece local
 
@@ -21,6 +21,7 @@ A partir da versão `0.3.1`, o Gemini é o motor cognitivo obrigatório. Intera�
 ## Diretrizes aplicadas no repositorio
 
 - minimizacao de dados por padrao
+- prompts do dashboard limitados e cacheados para reduzir reenvio desnecessario de contexto
 - preferencia por segredo fora de versionamento
 - tokens e arquivos OAuth fora de versionamento
 - transparencia documental sobre trafego externo

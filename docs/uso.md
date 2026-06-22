@@ -67,6 +67,7 @@ O dashboard local oferece:
 - chat operacional da APPA dentro de `Insights`
 - card de anotacoes alimentado pelo chat
 - resumo de agenda, noticias e clima gerado pelo Gemini
+- cache de insights controlado por `dashboard.ttl_insights_segundos`
 - clima atual e previsao
 - noticias priorizadas
 - interesses e perfil pessoal editaveis pela interface

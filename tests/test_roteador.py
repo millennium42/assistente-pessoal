@@ -13,6 +13,7 @@ class GoogleAgendaFake:
     def __init__(self) -> None:
         self.evento_criado = None
         self.evento_atualizado = None
+        self.consultas = 0
         self.eventos = [
             EventoGoogleAgenda(
                 titulo="Consulta",
@@ -50,6 +51,7 @@ class GoogleAgendaFake:
         )
 
     def obter_eventos_intervalo(self, *_args, **_kwargs) -> ResultadoGoogleAgenda:
+        self.consultas += 1
         return ResultadoGoogleAgenda(eventos=self.eventos)
 
 
@@ -58,11 +60,13 @@ class GeminiEstruturadoFake:
 
     def __init__(self, respostas: list[dict]) -> None:
         self.respostas = respostas
+        self.prompts: list[str] = []
 
     def disponivel(self) -> bool:
         return True
 
-    def gerar_json(self, _prompt: str, **_kwargs) -> dict:
+    def gerar_json(self, prompt: str, **_kwargs) -> dict:
+        self.prompts.append(prompt)
         return self.respostas.pop(0)
 
 
@@ -107,30 +111,31 @@ def test_roteador_chat_marca_compromisso_no_google_agenda(tmp_path: Path) -> Non
     """Pedidos de agenda no chat passam pelo roteador operacional."""
     config = AppConfig(db_path=tmp_path / "banco")
     agenda = GoogleAgendaFake()
+    gemini = GeminiEstruturadoFake(
+        [
+            {
+                "acao": "responder",
+                "destino": "agenda_google",
+                "conteudo": "",
+                "campos_estruturados": {
+                    "agenda": {
+                        "acao": "criar",
+                        "titulo": "Consulta",
+                        "data": "2099-06-08",
+                        "horario": "14:00",
+                        "local": "Consultorio",
+                        "duracao_minutos": 60,
+                    }
+                },
+                "nivel_confianca": "alto",
+                "precisa_confirmacao": False,
+                "mensagem_ao_usuario": "Processando agenda.",
+            }
+        ]
+    )
     roteador = RoteadorComandos(
         config,
-        llm=GeminiEstruturadoFake(
-            [
-                {
-                    "acao": "responder",
-                    "destino": "agenda_google",
-                    "conteudo": "",
-                    "campos_estruturados": {
-                        "agenda": {
-                            "acao": "criar",
-                            "titulo": "Consulta",
-                            "data": "2099-06-08",
-                            "horario": "14:00",
-                            "local": "Consultorio",
-                            "duracao_minutos": 60,
-                        }
-                    },
-                    "nivel_confianca": "alto",
-                    "precisa_confirmacao": False,
-                    "mensagem_ao_usuario": "Processando agenda.",
-                }
-            ]
-        ),
+        llm=gemini,
         google_agenda=agenda,
     )
 
@@ -139,6 +144,33 @@ def test_roteador_chat_marca_compromisso_no_google_agenda(tmp_path: Path) -> Non
     assert resposta.agenda_alterada is True
     assert agenda.evento_criado is not None
     assert agenda.evento_criado.titulo == "Consulta"
+    assert gemini.prompts == []
+
+
+def test_roteador_nao_envia_contexto_de_agenda_para_conversa_comum(tmp_path: Path) -> None:
+    """Mensagens sem assunto de agenda nao devem consultar agenda nem inflar o prompt."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    agenda = GoogleAgendaFake()
+    gemini = GeminiEstruturadoFake(
+        [
+            {
+                "acao": "responder",
+                "destino": "conversa",
+                "conteudo": "",
+                "campos_estruturados": {},
+                "nivel_confianca": "alto",
+                "precisa_confirmacao": False,
+                "mensagem_ao_usuario": "Claro.",
+            }
+        ]
+    )
+    roteador = RoteadorComandos(config, llm=gemini, google_agenda=agenda)
+
+    resposta = roteador.executar_interacao("me ajude a organizar meus estudos")
+
+    assert resposta.texto == "Claro."
+    assert agenda.consultas == 0
+    assert "Nao incluido: mensagem sem sinais diretos de agenda." in gemini.prompts[0]
 
 
 def test_roteador_usa_plano_do_gemini_para_atualizar_ultimo_evento(tmp_path: Path) -> None:

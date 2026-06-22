@@ -1,10 +1,10 @@
-# Assistente Pessoal 0.3.1
+# Assistente Pessoal 0.3.2
 
 Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e Gemini obrigatorio.
 
 ## Visao geral
 
-Esta versao `0.3.1` consolida a APPA com o modelo Gemini obrigatório, atuando como cérebro central para memória adaptativa, insights do dashboard e orquestração de rotinas.
+Esta versao `0.3.2` mantem o Gemini como cerebro central da APPA e reduz o custo operacional do dashboard com cache de insights, prompts mais enxutos e limite explicito de resposta do modelo.
 
 Principais capacidades:
 
@@ -15,6 +15,7 @@ Principais capacidades:
 - Memoria persistente em SQLite com busca textual por FTS5 e aprendizado de comportamentos adaptativos.
 - Noticias organizadas por prioridades e interesses do usuario.
 - Motor Gemini obrigatório orquestrando insights, comportamento e classificacao estruturada.
+- Insights com TTL proprio para evitar chamadas repetidas ao Gemini durante refreshes automaticos.
 - Integracao opcional com Google Agenda via OAuth local.
 
 ## Arquitetura em uma frase
@@ -97,6 +98,7 @@ Pontos importantes:
 - `llm.api_key` e `llm.modelo = "gemini-3.1-flash-lite"` habilitam Gemini diretamente pelo `config.toml`.
 - `llm.api_key_env` permite usar uma variavel de ambiente no lugar da chave literal.
 - sem Gemini operacional, a APPA sobe em modo bloqueado.
+- `dashboard.ttl_insights_segundos` controla por quanto tempo os insights podem ser reaproveitados antes de chamar o Gemini de novo.
 - `google_agenda.credentials_path` deve apontar para um arquivo OAuth local fora de versionamento.
 - chaves e tokens devem ficar em arquivos locais fora de versionamento ou em variaveis de ambiente.
 

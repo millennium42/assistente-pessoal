@@ -31,6 +31,7 @@ class ClienteGemini:
         *,
         temperature: float = 0.3,
         schema_hint: str | None = None,
+        max_output_tokens: int | None = 1200,
     ) -> dict:
         """Solicita uma resposta JSON ao Gemini e converte para dicionario."""
         texto = self._post_generate_content(
@@ -38,6 +39,7 @@ class ClienteGemini:
             temperature=temperature,
             response_mime_type="application/json",
             schema_hint=schema_hint,
+            max_output_tokens=max_output_tokens,
         )
         try:
             return json.loads(_extrair_json(texto))
@@ -50,12 +52,14 @@ class ClienteGemini:
         prompt: str,
         *,
         temperature: float = 0.3,
+        max_output_tokens: int | None = 900,
     ) -> str:
         """Solicita uma resposta textual direta ao Gemini."""
         return self._post_generate_content(
             prompt,
             temperature=temperature,
             response_mime_type="text/plain",
+            max_output_tokens=max_output_tokens,
         )
 
     def _post_generate_content(
@@ -65,6 +69,7 @@ class ClienteGemini:
         temperature: float,
         response_mime_type: str,
         schema_hint: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> str:
         """Executa a chamada HTTP ao Gemini e devolve o texto consolidado."""
         api_key = self._ler_chave_api()
@@ -74,6 +79,12 @@ class ClienteGemini:
         prompt_final = prompt
         if schema_hint:
             prompt_final = f"{prompt}\n\nEsquema esperado:\n{schema_hint}"
+        generation_config = {
+            "temperature": temperature,
+            "responseMimeType": response_mime_type,
+        }
+        if max_output_tokens is not None:
+            generation_config["maxOutputTokens"] = max(1, int(max_output_tokens))
         with httpx.Client(timeout=self.timeout) as client:
             try:
                 resposta = client.post(
@@ -81,10 +92,7 @@ class ClienteGemini:
                     headers={"X-goog-api-key": api_key},
                     json={
                         "contents": [{"parts": [{"text": prompt_final}]}],
-                        "generationConfig": {
-                            "temperature": temperature,
-                            "response_mime_type": response_mime_type,
-                        },
+                        "generationConfig": generation_config,
                     },
                 )
                 resposta.raise_for_status()
