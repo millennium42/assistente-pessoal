@@ -1,6 +1,6 @@
 # Guia de primeiro uso
 
-Este guia ajuda a subir o projeto pela primeira vez ja com o Gemini, que e obrigatorio para a APPA 0.3.2.
+Este guia ajuda a subir o projeto pela primeira vez ja com o Gemini, que e obrigatorio para a APPA 0.3.3.
 
 ## 1. Prepare o ambiente
 
@@ -54,7 +54,7 @@ Use esse comando sempre que quiser confirmar qual banco esta em uso na sessao at
 .\.venv\Scripts\assistente-pessoal.exe gui
 ```
 
-O dashboard sobe primeiro e atualiza os blocos externos depois. Isso deixa a abertura mais responsiva mesmo quando clima, noticias ou agenda estiverem lentos. Na versao 0.3.2, os insights tambem respeitam `dashboard.ttl_insights_segundos` para evitar chamadas repetidas ao Gemini em refreshes automaticos.
+O dashboard sobe primeiro e atualiza os blocos externos depois. Isso deixa a abertura mais responsiva mesmo quando clima, noticias ou agenda estiverem lentos. Na versao 0.3.3, os insights tambem respeitam `dashboard.ttl_insights_segundos` para evitar chamadas repetidas ao Gemini em refreshes automaticos.
 
 ## 7. Configure o LLM (Obrigatorio)
 
@@ -73,7 +73,7 @@ Se preferir nao gravar a chave no arquivo, deixe `api_key` vazio e defina apenas
 `GEMINI_API_KEY` no ambiente. O app tenta `llm.api_key` primeiro e depois usa
 `llm.api_key_env`.
 
-`gemini-3.1-flash-lite` e o modelo oficial padrao na versao 0.3.2. Sem ele operante, a interface principal fica bloqueada.
+`gemini-3.1-flash-lite` e o modelo oficial padrao na versao 0.3.3. Sem ele operante, a interface principal fica bloqueada.
 
 ## 8. Configure Google Agenda de forma segura
 

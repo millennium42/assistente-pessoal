@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import hashlib
+import json
 import socket
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -2002,6 +2003,12 @@ def construir_dashboard(
                         '`<a href="${params.value}" target="_blank" '
                         'style="color: #22d3ee; text-decoration: underline;">Abrir</a>`'
                     )
+                    renderer_titulo = (
+                        "(params) => "
+                        '`<span style="color: #e2e8f0; '
+                        'text-decoration: underline; cursor: pointer;">'
+                        '${params.value}</span>`'
+                    )
                     tabela_noticias = ui.aggrid(
                         {
                             "columnDefs": [
@@ -2022,6 +2029,7 @@ def construir_dashboard(
                                 {
                                     "headerName": "Título",
                                     "field": "titulo",
+                                    "cellRenderer": renderer_titulo,
                                     "sortable": True,
                                     "filter": True,
                                     "flex": 1,
@@ -2050,6 +2058,19 @@ def construir_dashboard(
                             "defaultColDef": {"resizable": True},
                         }
                     ).classes("w-full flex-grow ag-theme-balham-dark")
+
+                    def _abrir_noticia_do_explorador(evento) -> None:
+                        dados = getattr(evento, "args", {}) or {}
+                        if dados.get("colId") not in {"titulo", "link"}:
+                            return
+                        linha = dados.get("data") or {}
+                        link = _link_seguro(str(linha.get("link") or ""))
+                        if not link:
+                            return
+                        _salvar_noticia_observada(servico, linha, status)
+                        _executar_javascript(f"window.open({json.dumps(link)}, '_blank');")
+
+                    tabela_noticias.on("cellClicked", _abrir_noticia_do_explorador)
 
             with ui.tab_panel(tab_agenda).classes("p-0 gap-3 flex flex-col"):
                 with ui.element("div").classes("agenda-layout w-full"):
@@ -3168,9 +3189,14 @@ def _salvar_noticia_observada(
         status_label.text = "Nao consegui identificar a noticia para salvar."
         return
     try:
-        servico.salvar_noticia_relevante(noticia, origem="clique")
+        resultado = servico.observar_noticia(noticia, origem="clique")
     except Exception as exc:  # pragma: no cover
         status_label.text = f"Falha ao salvar noticia: {exc}"
+        return
+    if resultado.interesses_adicionados:
+        interesses = ", ".join(resultado.interesses_adicionados)
+        status_label.text = f"Noticia salva e interesses adicionados: {interesses}."
+        ui.notify(f"Noticia salva. Novos interesses: {interesses}.", type="positive")
         return
     status_label.text = "Noticia salva na memoria da APPA."
     ui.notify("Noticia salva na memoria da APPA.", type="positive")

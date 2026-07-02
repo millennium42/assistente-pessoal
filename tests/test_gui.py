@@ -19,7 +19,7 @@ from assistente_pessoal.gui import (
 )
 from assistente_pessoal.memoria import Memoria
 from assistente_pessoal.noticias import Noticia
-from assistente_pessoal.painel import DashboardService
+from assistente_pessoal.painel import DashboardService, ResultadoObservacaoNoticia
 
 
 class ClimaFake:
@@ -596,6 +596,51 @@ def test_dashboard_service_salva_interesses_e_noticias(tmp_path: Path) -> None:
     assert servico.memoria.listar_interesses() == ["economia"]
 
 
+def test_dashboard_service_observar_noticia_adiciona_interesses_com_gemini(
+    tmp_path: Path,
+) -> None:
+    """Clique em noticia deve aprender interesses novos sem duplicar os existentes."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    servico.config.fontes.noticias.interesses_busca = ["IA"]
+    servico.memoria.substituir_interesses(["IA"])
+
+    class GeminiNoticiasFake:
+        def disponivel(self) -> bool:
+            return True
+
+        def gerar_json(self, prompt: str, **_kwargs) -> dict:
+            assert "Titulo: IA chega ao mercado" in prompt
+            return {
+                "interesses": ["Agentes de IA", "Mercado de tecnologia", "ia"],
+                "justificativa_curta": "Temas recorrentes da materia.",
+            }
+
+    servico.gemini_intencoes = GeminiNoticiasFake()
+
+    resultado = servico.observar_noticia(
+        Noticia(
+            titulo="IA chega ao mercado",
+            link="https://noticias.test/ia",
+            fonte="Fonte",
+            publicado="",
+            grupo="tech",
+        )
+    )
+
+    assert resultado.interesses_adicionados == ["Agentes de IA", "Mercado de tecnologia"]
+    assert servico.config.fontes.noticias.interesses_busca == [
+        "IA",
+        "Agentes de IA",
+        "Mercado de tecnologia",
+    ]
+    assert servico.memoria.listar_interesses() == [
+        "IA",
+        "Agentes de IA",
+        "Mercado de tecnologia",
+    ]
+
+
 def test_salvar_noticia_observada_usa_mensagem_da_memoria_appa(tmp_path: Path) -> None:
     """A GUI nao deve sugerir caminho markdown ao confirmar noticia salva."""
     config = AppConfig(db_path=tmp_path / "banco")
@@ -625,6 +670,51 @@ def test_salvar_noticia_observada_usa_mensagem_da_memoria_appa(tmp_path: Path) -
 
     assert status.text == "Noticia salva na memoria da APPA."
     assert avisos == [("Noticia salva na memoria da APPA.", "positive")]
+
+
+def test_salvar_noticia_observada_mostra_interesses_inferidos(tmp_path: Path) -> None:
+    """Quando o Gemini encontra novos temas, a GUI deve exibir o aprendizado."""
+    config = AppConfig(db_path=tmp_path / "banco")
+    servico = _servico_sem_rede(config)
+    status = LabelFake()
+    avisos: list[tuple[str, str | None]] = []
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "assistente_pessoal.gui.ui.notify",
+        lambda texto, type=None: avisos.append((texto, type)),
+    )
+    monkeypatch.setattr(
+        servico,
+        "observar_noticia",
+        lambda noticia, origem="clique": ResultadoObservacaoNoticia(
+            caminho="40_noticias/teste.md",
+            interesses_adicionados=["economia criativa", "inovacao local"],
+            interesses_totais=["economia criativa", "inovacao local"],
+        ),
+    )
+
+    try:
+        _salvar_noticia_observada(
+            servico,
+            Noticia(
+                titulo="Carga especial chama atencao",
+                link="https://noticias.test/carga",
+                fonte="Fonte",
+                publicado="",
+                grupo="santa_maria",
+            ),
+            status,
+        )
+    finally:
+        monkeypatch.undo()
+
+    assert (
+        status.text
+        == "Noticia salva e interesses adicionados: economia criativa, inovacao local."
+    )
+    assert avisos == [
+        ("Noticia salva. Novos interesses: economia criativa, inovacao local.", "positive")
+    ]
 
 
 def test_construir_dashboard_sem_subir_servidor(tmp_path: Path) -> None:

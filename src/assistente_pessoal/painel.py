@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -64,6 +65,15 @@ class DashboardSnapshot:
     clima_ontem: ResumoClimaDia | None
     insights: DashboardInsights
     atualizado_em: str
+
+
+@dataclass(frozen=True)
+class ResultadoObservacaoNoticia:
+    """Resume o aprendizado gerado quando a usuaria abre uma materia."""
+
+    caminho: str
+    interesses_adicionados: list[str]
+    interesses_totais: list[str]
 
 
 class DashboardService:
@@ -272,17 +282,7 @@ class DashboardService:
     def adicionar_interesses(self, texto: str) -> list[str]:
         """Adiciona termos de interesse, persiste no config e organiza no banco de dados."""
         novos = normalizar_lista_interesses(texto)
-        existentes = list(self.config.fontes.noticias.interesses_busca)
-        existentes_casefold = {item.casefold() for item in existentes}
-        for interesse in novos:
-            if interesse.casefold() not in existentes_casefold:
-                existentes.append(interesse)
-                existentes_casefold.add(interesse.casefold())
-        self.config.fontes.noticias.interesses_busca = existentes
-        self._persistir_config()
-        self.memoria.substituir_interesses(existentes)
-        self.gerador_insights.invalidar_cache()
-        return existentes
+        return self._mesclar_interesses(novos)
 
     def remover_interesse(self, interesse: str) -> list[str]:
         """Remove um termo de interesse e sincroniza config e banco de dados."""
@@ -336,6 +336,21 @@ class DashboardService:
             tags=tags,
         )
         return self.memoria.caminho_relativo(caminho)
+
+    def observar_noticia(
+        self,
+        noticia: Noticia | dict,
+        origem: str = "clique",
+    ) -> ResultadoObservacaoNoticia:
+        """Registra a noticia e usa o Gemini para inferir interesses duradouros relacionados."""
+        caminho = self.salvar_noticia_relevante(noticia, origem=origem)
+        item = _normalizar_noticia_para_memoria(noticia)
+        interesses_adicionados = self._inferir_e_persistir_interesses_da_noticia(item)
+        return ResultadoObservacaoNoticia(
+            caminho=caminho,
+            interesses_adicionados=interesses_adicionados,
+            interesses_totais=list(self.config.fontes.noticias.interesses_busca),
+        )
 
     def registrar_consulta_noticias(self, consulta: str, noticias: list[Noticia]) -> str:
         """Salva no banco de dados o conjunto de noticias retornado para uma pergunta."""
@@ -398,6 +413,71 @@ class DashboardService:
         if caminho is None:
             return
         caminho.write_text(renderizar_toml(self.config), encoding="utf-8")
+
+    def _mesclar_interesses(self, interesses: list[str]) -> list[str]:
+        """Centraliza a persistencia para manter config, banco e caches alinhados."""
+        existentes = list(self.config.fontes.noticias.interesses_busca)
+        existentes_casefold = {item.casefold() for item in existentes}
+        houve_alteracao = False
+        for interesse in interesses:
+            termo = " ".join(interesse.strip().split())
+            if termo and termo.casefold() not in existentes_casefold:
+                existentes.append(termo)
+                existentes_casefold.add(termo.casefold())
+                houve_alteracao = True
+        if houve_alteracao:
+            self.config.fontes.noticias.interesses_busca = existentes
+            self._persistir_config()
+            self.memoria.substituir_interesses(existentes)
+            self._cache_noticias = None
+            self.gerador_insights.invalidar_cache()
+        return existentes
+
+    def _inferir_e_persistir_interesses_da_noticia(self, noticia: dict[str, str]) -> list[str]:
+        """Pede ao Gemini interesses amplos e reutilizaveis derivados da materia clicada."""
+        if not self.gemini_intencoes.disponivel():
+            return []
+
+        atuais = list(self.config.fontes.noticias.interesses_busca)
+        schema_hint = json.dumps(
+            {
+                "interesses": ["tema curto", "tema curto"],
+                "justificativa_curta": "texto breve",
+            },
+            ensure_ascii=True,
+        )
+        prompt = (
+            "Aja como a APPA e avalie uma noticia que a usuaria decidiu abrir. "
+            "Sugira apenas interesses duradouros, reutilizaveis em futuras buscas de noticias, "
+            "em pt-BR, com termos curtos. "
+            "Evite repetir interesses ja existentes, nomes muito especificos de pessoas, "
+            "frases longas, clickbait, datas e assuntos descartaveis. "
+            "Se nao houver nenhum interesse novo realmente util, devolva lista vazia.\n\n"
+            f"Interesses atuais: {atuais or ['nenhum']}\n"
+            f"Titulo: {noticia['titulo']}\n"
+            f"Fonte: {noticia['fonte'] or 'desconhecida'}\n"
+            f"Grupo: {noticia['grupo'] or 'geral'}\n"
+            f"Link: {noticia['link'] or 'indisponivel'}"
+        )
+        try:
+            dados = self.gemini_intencoes.gerar_json(
+                prompt,
+                schema_hint=schema_hint,
+                temperature=0.2,
+                max_output_tokens=180,
+            )
+        except Exception:
+            return []
+
+        sugeridos = dados.get("interesses") if isinstance(dados, dict) else []
+        if not isinstance(sugeridos, list):
+            return []
+        antes = list(self.config.fontes.noticias.interesses_busca)
+        depois = self._mesclar_interesses(
+            [str(interesse) for interesse in sugeridos if str(interesse).strip()]
+        )
+        antes_casefold = {item.casefold() for item in antes}
+        return [interesse for interesse in depois if interesse.casefold() not in antes_casefold]
 
 
 def normalizar_lista_interesses(texto: str) -> list[str]:

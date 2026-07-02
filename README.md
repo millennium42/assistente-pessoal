@@ -1,10 +1,10 @@
-# Assistente Pessoal 0.3.2
+# Assistente Pessoal 0.3.3
 
 Assistente pessoal local-first em Python, com interface em pt-BR, dashboard NiceGUI, memoria em SQLite, noticias priorizadas, clima, agenda e Gemini obrigatorio.
 
 ## Visao geral
 
-Esta versao `0.3.2` mantem o Gemini como cerebro central da APPA e reduz o custo operacional do dashboard com cache de insights, prompts mais enxutos e limite explicito de resposta do modelo.
+Esta versao `0.3.3` mantem o Gemini como cerebro central da APPA e reduz o custo operacional do dashboard com cache de insights, prompts mais enxutos e limite explicito de resposta do modelo.
 
 Principais capacidades:
 

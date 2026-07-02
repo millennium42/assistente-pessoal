@@ -90,7 +90,7 @@ def resposta_fallback() -> str:
         Um texto explicando as capacidades locais disponiveis sem IA.
     """
     return (
-        "A APPA 0.3.2 exige o modelo Gemini (LLM) operante. O sistema esta bloqueado ate "
+        "A APPA 0.3.3 exige o modelo Gemini (LLM) operante. O sistema esta bloqueado ate "
         "que a chave GEMINI_API_KEY seja configurada e validada."
     )
 

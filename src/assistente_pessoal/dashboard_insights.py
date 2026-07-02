@@ -113,7 +113,7 @@ class GeradorInsightsDashboard:
                 ),
                 assistente=InsightCard(
                     "Sistema bloqueado",
-                    "O APPA 0.3.2 requer o Gemini para processar memoria adaptativa e insights. "
+                    "O APPA 0.3.3 requer o Gemini para processar memoria adaptativa e insights. "
                     "Adicione a chave GEMINI_API_KEY no arquivo de configuração ou no ambiente.",
                     [],
                 ),
